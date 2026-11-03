@@ -1,0 +1,33 @@
+﻿{
+    "built_at_utc":  "2026-11-03T08:28:14.2280590Z",
+    "llama_cpp_commit":  "b19cbe925be361d229f0fe03435affe4a2717f37",
+    "native_abi":  2,
+    "cuda_architecture":  120,
+    "python_cpu_tests_passed":  17,
+    "native_cpp_cpu_checks":  "passed",
+    "bridge_gguf_tensors_verified":  262,
+    "native_dll_load":  "passed",
+    "gpu_model_execution_performed":  false,
+    "gpu_correctness_qualified":  false,
+    "performance_qualified":  false,
+    "commits_created":  0,
+    "pushes_performed":  0,
+    "artifacts":  [
+                      {
+                          "path":  "C:\\Users\\Simon\\OneDrive\\Documents\\Python Scripts\\latentport-package\\latentport\\dist\\latentport-0.1.0.dev0-py3-none-any.whl",
+                          "bytes":  69654,
+                          "sha256":  "4d7b800005893ac6fea8aa98dee84564e93c9c183fe5b0ae0d28f63ac43ad04d"
+                      },
+                      {
+                          "path":  "F:\\LatentPort\\runtime\\native\\build\\bin\\llama.dll",
+                          "bytes":  2672640,
+                          "sha256":  "8f0822bba276f07bd4966ec42d6f979c9e9c7ebf8c2e106e74ce8574948e7d53"
+                      },
+                      {
+                          "path":  "F:\\LatentPort\\runtime\\native\\build\\bin\\ggml-cuda.dll",
+                          "bytes":  52197376,
+                          "sha256":  "4042eae1ee271225dfd32bd7b8310e64390d4a131bc03971353dce713de0fa41"
+                      }
+                  ],
+    "next_check":  "Run scripts/smoke_gguf.py after E120 releases the GPU."
+}

@@ -1,0 +1,32 @@
+{
+  "version": 2,
+  "name": "E089_cross_position_GCST",
+  "base_architecture": {
+    "kv_width": 2560,
+    "kv_ffn": 3072,
+    "kv_blocks": 4,
+    "persistent_width": 1152,
+    "persistent_heads": 12,
+    "persistent_blocks": 2,
+    "persistent_ffn": 2304,
+    "tensor_rank": 128,
+    "context_chunk": 128
+  },
+  "position_router": {
+    "width": 256,
+    "source_radius": 8,
+    "target_radius": 16,
+    "pool_scales": [16, 64],
+    "offset_limit": 4.0,
+    "prior_sigma": 1.5
+  },
+  "source_attention": "banded_17_neighbors_plus_two_ragged_pools_and_persistent_global_token",
+  "target_attention": "monotonic_prior_band_33_neighbors_plus_two_ragged_pools_and_persistent_global_token",
+  "learned_offsets": "bounded_tanh_then_monotonic_cummax; computed_before_target_chunks",
+  "target_features": "numeric_absolute_and_relative_positions_and_lengths_only",
+  "target_token_ids_embeddings_or_text_features": false,
+  "source_and_target_KV_projections": "once_per_path_then_sparse_gathers",
+  "new_parameters": "measured_in_reports/v2/parameter_count.json",
+  "exact_unchanged_E087_architecture": false,
+  "parameter_growth_limit_fraction": 0.02
+}

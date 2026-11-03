@@ -1,0 +1,6 @@
+include LICENSE README.md
+recursive-include native *.h *.cpp *.cu *.py CMakeLists.txt
+recursive-include native LICENSE*
+recursive-include scripts *.py *.ps1
+recursive-include docs *.md
+recursive-include tests *.py
