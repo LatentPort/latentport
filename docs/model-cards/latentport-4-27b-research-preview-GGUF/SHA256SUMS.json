@@ -1,0 +1,73 @@
+{
+  "files": {
+    ".gitattributes": {
+      "bytes": 95,
+      "sha256": "d5171cfb50c72e082f29ae666007551eeb457222b0fe8abf8076d4c3c3b1934c"
+    },
+    "FORMAT_VERIFICATION.json": {
+      "bytes": 326,
+      "sha256": "e286d855e20b153ab16ad1b6deadfee8bf1adb8f2e821ffcf1240c27e58aa661"
+    },
+    "LICENSE_STATUS.md": {
+      "bytes": 278,
+      "sha256": "c1c9f67c9a355104ff2b8bf45f91df1d3e76d2186ff32a7d1a4e0f3e5c08b822"
+    },
+    "README.md": {
+      "bytes": 6677,
+      "sha256": "b4a6bba74ce4a2e76da539fe76d5ed1df0c88a888f6a9a681d65745bd22d37b2"
+    },
+    "bundle.py": {
+      "bytes": 5112,
+      "sha256": "d23a3f32a5731da5a5488db4ba6c234769012af91e23a9fd58ca412a418e65a5"
+    },
+    "configs/architecture_v2.json": {
+      "bytes": 1147,
+      "sha256": "85e4bb6a63facaae453663a287b28c8ca49d72b4f084c76cfcbc272a49a0d5ce"
+    },
+    "configs/calibration.json": {
+      "bytes": 34645,
+      "sha256": "641dc364078370a422004d0e40687b9d569bf7320c50807b5756b5050ab1be4d"
+    },
+    "configs/geometry.json": {
+      "bytes": 3334,
+      "sha256": "32d0374d8b8d3c1e9d25d351379635218ce5f9713a7c9b771f86ef086462a405"
+    },
+    "latentport-4-27b-bridge.F32.gguf": {
+      "bytes": 2578356288,
+      "sha256": "53cbd8104120b88dc2dcbc1d54f98133bde16c7f95ee33dc7c3d73b1c2292486"
+    },
+    "latentport.json": {
+      "bytes": 4227,
+      "sha256": "d9f7d7c1a178d74917aefca95ade3f47b16d8159e3de0ad833cb29806fdb4054"
+    },
+    "tensor_map.json": {
+      "bytes": 98773,
+      "sha256": "376a153f6614e0c39f3d7b5f7c21682022759ce34964363601cb0378f46aa1ef"
+    },
+    "models/Qwen3.5-4B-Q4_K_M.gguf": {
+      "bytes": 2708804448,
+      "sha256": "920bf434a7bf646732c39af9c8df09df12ff367cbb8a7672b6ad5784429c8579"
+    },
+    "models/Qwen3.8-27B-MTP-Q4_K_M.gguf": {
+      "bytes": 16810714496,
+      "sha256": "1978091dec5e89184e0e89fd6127b50f06ffc78cf9b9a0ffdedaedf2c9bb17d5"
+    },
+    "runtime/latentport-native-win-amd64-cuda13-sm120-abi2.zip": {
+      "bytes": 40518688,
+      "sha256": "bc045781e9f4d7b9110b857f4acc776c79dc055a03180fcd0613ac6105aff52e"
+    },
+    "COMPOSITE_RESULTS.json": {
+      "bytes": 3407,
+      "sha256": "bcb913f5484e29ed138ff53cd4d152aeb9a0bf2b9073a49cdc076af1e0daf7d3"
+    },
+    "LICENSE": {
+      "bytes": 11558,
+      "sha256": "1eb85fc97224598dad1852b5d6483bbcf0aa8608790dcc657a5a2a761ae9c8c6"
+    },
+    "RUNTIME_ASSETS.json": {
+      "bytes": 1312,
+      "sha256": "2ffc2f354bdd9a8b96948168f34f71e9211b8121f5e623399f2be464e4dd0166"
+    }
+  },
+  "schema": "latentport.bundle.integrity.v1"
+}

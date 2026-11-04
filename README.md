@@ -1,10 +1,10 @@
-<p align="center">
-  <img src="docs/assets/latentport-ascii.gif" alt="LatentPort: working state moving between models" width="850">
-</p>
-
 # LatentPort
 
 **Hybrid composite models. Small-model prefill. Large-model generation. Programmable context.**
+
+<p align="center">
+  <img src="docs/assets/latentport-ascii.gif" alt="LatentPort: working state moving between models" width="640">
+</p>
 
 [Website](https://latentport.com) · [Install](docs/installation.md) · [Cookbook](docs/cookbook.md) · [Models](https://huggingface.co/latentport) · [API](docs/api.md)
 
@@ -43,14 +43,14 @@ single-GPU runtime queues execution rather than running multiple agents simultan
 runtime libraries and a compatible NVIDIA driver. Other hardware is not yet qualified.
 See the [installation guide](docs/installation.md) for prerequisites and troubleshooting.
 
-From this repository in PowerShell:
+Install the preview wheel in PowerShell (no repository clone or compiler needed):
 
 ```powershell
-$env:LATENTPORT_HOME = 'F:\LatentPort\runtime' # choose a disk with ~35 GB free
-py -3.11 -m venv .venv
-.\.venv\Scripts\Activate.ps1
+$env:LATENTPORT_HOME = 'F:\LatentPort\runtime' # choose a disk with ~40 GB free
+py -3.11 -m venv "$env:LATENTPORT_HOME\venv"
+& "$env:LATENTPORT_HOME\venv\Scripts\Activate.ps1"
 python -m pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cu128
-python -m pip install .
+python -m pip install "https://huggingface.co/latentport/latentport-4-27b-research-preview-GGUF/resolve/main/runtime/latentport-0.1.0.dev1-py3-none-any.whl"
 python -m latentport install-native
 python -m latentport doctor
 ```
@@ -62,7 +62,7 @@ import latentport as lp
 
 with lp.load(backend="gguf") as port:
     port.warm()  # load once; keep the port alive across requests
-    chat = port.composite.session(policy="cached_handoff")
+    chat = port.composite.session()
     answer = chat.ask("Explain how a database index speeds up a query.")
     print(answer.text, end="", flush=True)
     while not answer.finished:
@@ -79,8 +79,8 @@ GGUFs already? Pass `source_path=` and `target_path=`; see [local files](docs/in
 
 | Policy | First prompt | Later user messages | Best fit |
 | --- | --- | --- | --- |
-| `cached_handoff` | 4B reads; translate once; 27B generates | 27B appends only new input to retained state | Interactive conversations |
-| `strict` (default) | 4B reads; translate; 27B generates | 4B incorporates the committed answer and new input; translate again | Keep every user prompt on the 4B |
+| `cached_handoff` (default) | 4B reads; translate once; 27B generates | 27B appends only new input to retained state | Interactive conversations |
+| `strict` (explicit) | 4B reads; translate; 27B generates | 4B incorporates the committed answer and new input; translate again | Keep every user prompt on the 4B |
 
 Neither policy replays translated history through the target. Cached handoff deliberately
 lets the target process **new** user messages. Complete an answer before asking the next
@@ -144,6 +144,7 @@ See [benchmark notes](docs/benchmarks.md) for methodology and the separate GGUF 
 | Component | Preview status |
 | --- | --- |
 | Windows x64 / RTX 5090 / Q4_K_M | Qualified with bounded real-model checks |
+| Text input / greedy generation | Supported; vision, audio and sampling are outside this preview |
 | Initial full-state handoff | Tested; zero target prompt processing |
 | Strict and cached-handoff multi-turn | Tested on a 16K two-turn fixture |
 | Save/restore, immutable snapshots and branching | Runtime correctness checked |

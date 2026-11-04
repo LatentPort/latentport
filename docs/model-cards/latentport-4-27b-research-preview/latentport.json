@@ -1,0 +1,110 @@
+{
+  "artifact_format": "safetensors",
+  "artifacts": {
+    "bridge/h.safetensors": {
+      "bytes": 655576,
+      "sha256": "a6cba32ef641e830d2c26563ed5bd7e6210c3a47216994d33a2241b4e261cf0a"
+    },
+    "bridge/kv.safetensors": {
+      "bytes": 889392796,
+      "sha256": "b960c37364bc74833c56d990b79a1fb32cbb6c4bd19278ea7a2621a0ea4541c2"
+    },
+    "bridge/parent.safetensors": {
+      "bytes": 1529288632,
+      "sha256": "63492c2f3bbe6bebb396a3369f787f4df4e35329d753f200a3268826a1304a44"
+    },
+    "constants/population_means.safetensors": {
+      "bytes": 159020936,
+      "sha256": "364b7d729e225cd2b08cc64afbbdb204d44cd4f2b431c938158db333da7366af"
+    }
+  },
+  "base_weights_included": false,
+  "candidate": "E119_joint_step0016",
+  "intended_visibility": "public",
+  "license_status": "apache-2.0",
+  "models": {
+    "source": {
+      "metadata_files": {
+        "chat_template.jinja": {
+          "bytes": 7756,
+          "sha256": "a4aee8afcf2e0711942cf848899be66016f8d14a889ff9ede07bca099c28f715"
+        },
+        "config.json": {
+          "bytes": 3161,
+          "sha256": "ddc63e1c717afa86c865bb5e01313d89d72bb53b97ad4a8a03ba8510c0621670"
+        },
+        "tokenizer.json": {
+          "bytes": 12807982,
+          "sha256": "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42"
+        },
+        "tokenizer_config.json": {
+          "bytes": 16710,
+          "sha256": "316230d6a809701f4db5ea8f8fc862bc3a6f3229c937c174e674ff3ca0a64ac8"
+        }
+      },
+      "repo_id": "Qwen/Qwen3.5-4B",
+      "research_nf4_binding_sha256": "475b722570e2339608747a686fe24a47a10f377b7c06a3e48addbbe77ffca2ee",
+      "revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"
+    },
+    "target": {
+      "metadata_files": {
+        "chat_template.jinja": {
+          "bytes": 8952,
+          "sha256": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041"
+        },
+        "config.json": {
+          "bytes": 4312,
+          "sha256": "191e0af232104ed8b65258cf3fb2b842e288008baca7633c11b82a1ac7203aab"
+        },
+        "tokenizer.json": {
+          "bytes": 12809320,
+          "sha256": "0997f410c57a1f4e53b09e4be8f4a172d90edd9564368fb0847030937229b9f3"
+        },
+        "tokenizer_config.json": {
+          "bytes": 17928,
+          "sha256": "b11349aafa7cdc6a320767cf7ceb29ed82f7eda5d65e8e0819e76f0ce947bf27"
+        }
+      },
+      "repo_id": "Qwen/Qwen3.8-27B",
+      "research_nf4_binding_sha256": "25a46a0083a8a5387c65d631619c7af9c91e6c7d51a37b37f731f6fb89660e08",
+      "revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0"
+    }
+  },
+  "release_id": "e119-final16-b960c37364bc",
+  "repo_id": "latentport/latentport-4-27b-research-preview",
+  "runtime": {
+    "generation": {
+      "cap": 4096,
+      "greedy": true,
+      "native_eos_ids": [
+        248044,
+        248046
+      ],
+      "seed": 960096,
+      "temperature": 0
+    },
+    "llama_cpp_state_installation_verified": false,
+    "mtp_verified": false,
+    "public_python_sdk_included": false,
+    "quantization": {
+      "bnb_4bit_compute_dtype": "bfloat16",
+      "bnb_4bit_quant_storage": "uint8",
+      "bnb_4bit_quant_type": "nf4",
+      "bnb_4bit_use_double_quant": true,
+      "llm_int8_enable_fp32_cpu_offload": false,
+      "load_in_4bit": true
+    },
+    "reference_backend": "LOCAL_NF4_MATH_Q256_KVG1_PREFILL_DECODE_GDN512_ALLNORM4096_FULLGEMM_PRUNE",
+    "relocated_reference_gpu_verified": false,
+    "target_prompt_tokens": 0,
+    "template_kwargs": {
+      "source": {},
+      "target": {
+        "preserve_thinking": false,
+        "reasoning_effort": "medium"
+      }
+    }
+  },
+  "schema": "latentport.bridge-bundle.v1",
+  "license": "apache-2.0"
+}

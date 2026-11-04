@@ -1,9 +1,9 @@
 {
-  "built_at_utc": "2026-11-04T05:12:02.317453+00:00",
+  "built_at_utc": "2026-11-04T06:16:31.275492+00:00",
   "llama_cpp_commit": "b19cbe925be361d229f0fe03435affe4a2717f37",
   "native_abi": 2,
   "cuda_architecture": 120,
-  "python_cpu_tests_passed": 26,
+  "python_cpu_tests_passed": 32,
   "native_cpp_cpu_checks": "passed",
   "bridge_gguf_tensors_verified": 262,
   "native_dll_load": "passed",
@@ -12,9 +12,9 @@
   "pushes_performed": 0,
   "artifacts": [
     {
-      "path": "C:\\Users\\Simon\\OneDrive\\Documents\\Python Scripts\\latentport-package\\latentport\\dist\\latentport-0.1.0.dev0-py3-none-any.whl",
-      "bytes": 71999,
-      "sha256": "188071d6a73e9ea8743a3a80b926f3fe1a5947b1768be09af8689b9df7ffea1c"
+      "path": "C:\\Users\\Simon\\OneDrive\\Documents\\Python Scripts\\latentport-package\\latentport\\dist\\latentport-0.1.0.dev1-py3-none-any.whl",
+      "bytes": 75280,
+      "sha256": "4971337b6609e550ac79a2a9e609ea3ffc8831dfa6273bdd7ed559b04bc37fb3"
     },
     {
       "path": "F:\\LatentPort\\runtime\\native\\build\\bin\\llama.dll",
@@ -30,11 +30,12 @@
   "gpu_correctness_checks_passed": true,
   "performance_measurements_performed": true,
   "validation_report": "runtime-validation.json",
-  "validation_scope": "Prior strict-policy bounded Q4_K_M RTX 5090 checks passed. New cached_handoff passes CPU tests; its GPU check is incomplete. No broad quality or statistical performance qualification.",
+  "validation_scope": "Bounded strict and cached-handoff GGUF checks on RTX 5090; clean public-download installation and offline two-turn MTP smoke. No broad GGUF quality evaluation.",
   "wheel_fresh_install_verified": true,
-  "wheel_source_files_matched": 25,
+  "wheel_source_files_matched": 28,
   "offline_cached_tokenizers_verified": true,
-  "wheel_check_location": "F:\\LatentPort\\runtime\\wheel-check\\43950edf7ef64aef9b493d9b365d0ab3",
+  "wheel_check_location": "F:\\LatentPort\\runtime\\launch-clean-venv\\Lib\\site-packages",
   "cached_handoff_validation_report": "cached-handoff-validation.json",
-  "cached_handoff_gpu_validation": "incomplete: CUDA error and GPU lost"
+  "cached_handoff_gpu_validation": "passed: 16K two-turn fixture plus fresh-install default-policy smoke",
+  "clean_install_validation_report": "clean-install-validation.json"
 }

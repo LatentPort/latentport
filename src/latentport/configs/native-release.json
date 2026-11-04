@@ -1,0 +1,10 @@
+{
+  "repo_id": "latentport/latentport-4-27b-research-preview-GGUF",
+  "filename": "runtime/latentport-native-win-amd64-cuda13-sm120-abi2.zip",
+  "revision": "c1a3f051e9c024737329b4afe2de077af56fa1d5",
+  "sha256": "bc045781e9f4d7b9110b857f4acc776c79dc055a03180fcd0613ac6105aff52e",
+  "platform": "Windows x64",
+  "cuda": "13.0",
+  "compute_capability": "12.0",
+  "abi": 2
+}

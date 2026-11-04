@@ -12,13 +12,31 @@ architectures are not qualified by this release.
   the CUDA 13 runtime and cuBLAS DLLs used by the native backend. PyTorch's CUDA 12.8
   wheel does **not** supply those CUDA 13 DLLs.
 - [Microsoft Visual C++ x64 Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist).
-- Approximately **35 GB of free disk space** for runtime dependencies and downloaded
+- Approximately **40 GB of free disk space** for runtime dependencies and downloaded
   artifacts. Use more space if saving long contexts or keeping extra environments.
 - Enough free VRAM for both models, bridge and caches. Close other GPU workloads.
 
 The supplied native runtime avoids a compiler installation. CUDA Toolkit runtime
 libraries are still required. The qualified configuration holds both models on the GPU;
 it does not silently fall back to CPU offload when allocations fail.
+
+## Install the published preview wheel
+
+```powershell
+$env:LATENTPORT_HOME = 'F:\LatentPort\runtime'
+$env:PIP_CACHE_DIR = "$env:LATENTPORT_HOME\pip-cache"
+py -3.11 -m venv "$env:LATENTPORT_HOME\venv"
+& "$env:LATENTPORT_HOME\venv\Scripts\Activate.ps1"
+python -m pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cu128
+python -m pip install "https://huggingface.co/latentport/latentport-4-27b-research-preview-GGUF/resolve/1415eb9591dfaf15355d8bba5ed38f64792026e0/runtime/latentport-0.1.0.dev1-py3-none-any.whl"
+python -m latentport install-native
+python -m latentport doctor
+python -m latentport download
+```
+
+Then run the Python example in the [README](../README.md#get-started). This route needs
+no repository checkout. The wheel URL pins an immutable Hugging Face revision. Its
+SHA-256 is `4971337b6609e550ac79a2a9e609ea3ffc8831dfa6273bdd7ed559b04bc37fb3`.
 
 ## Install from the repository
 
@@ -27,8 +45,8 @@ git clone https://github.com/LatentPort/latentport.git
 cd latentport
 $env:LATENTPORT_HOME = 'F:\LatentPort\runtime'  # any suitable bulk-storage directory
 $env:PIP_CACHE_DIR = "$env:LATENTPORT_HOME\pip-cache"
-py -3.11 -m venv .venv
-.\.venv\Scripts\Activate.ps1
+py -3.11 -m venv "$env:LATENTPORT_HOME\venv"
+& "$env:LATENTPORT_HOME\venv\Scripts\Activate.ps1"
 python -m pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cu128
 python -m pip install .
 python -m latentport install-native
@@ -46,6 +64,7 @@ The maintainer must push this checkout before the clone command exposes these ch
 
 ```powershell
 python -m latentport download
+# With a repository checkout, run the included example:
 python examples/chat.py --prompt "Explain how database indexes work."
 ```
 

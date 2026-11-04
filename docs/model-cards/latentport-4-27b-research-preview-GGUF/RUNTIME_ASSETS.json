@@ -1,0 +1,32 @@
+{
+  "models": {
+    "source": {
+      "repo_id": "latentport/latentport-4-27b-research-preview-GGUF",
+      "filename": "models/Qwen3.5-4B-Q4_K_M.gguf",
+      "sha256": "920bf434a7bf646732c39af9c8df09df12ff367cbb8a7672b6ad5784429c8579",
+      "bytes": 2708804448,
+      "upstream": "Qwen/Qwen3.5-4B",
+      "upstream_revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+      "revision": "c1a3f051e9c024737329b4afe2de077af56fa1d5"
+    },
+    "target": {
+      "repo_id": "latentport/latentport-4-27b-research-preview-GGUF",
+      "filename": "models/Qwen3.8-27B-MTP-Q4_K_M.gguf",
+      "sha256": "1978091dec5e89184e0e89fd6127b50f06ffc78cf9b9a0ffdedaedf2c9bb17d5",
+      "bytes": 16810714496,
+      "upstream": "Qwen/Qwen3.8-27B",
+      "upstream_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+      "revision": "c1a3f051e9c024737329b4afe2de077af56fa1d5"
+    }
+  },
+  "native": {
+    "repo_id": "latentport/latentport-4-27b-research-preview-GGUF",
+    "filename": "runtime/latentport-native-win-amd64-cuda13-sm120-abi2.zip",
+    "revision": "c1a3f051e9c024737329b4afe2de077af56fa1d5",
+    "sha256": "bc045781e9f4d7b9110b857f4acc776c79dc055a03180fcd0613ac6105aff52e",
+    "platform": "Windows x64",
+    "cuda": "13.0",
+    "compute_capability": "12.0",
+    "abi": 2
+  }
+}

@@ -13,7 +13,7 @@ class Composite:
     def __init__(self, source: "Model", target: "Model", bridge: "Bridge"):
         self.source, self.target, self.bridge = source, target, bridge
 
-    def session(self, context=None, *, policy: str = "strict") -> "CompositeSession":
+    def session(self, context=None, *, policy: str = "cached_handoff") -> "CompositeSession":
         """strict translates each turn; cached_handoff translates only once."""
         if policy not in ("strict", "cached_handoff"):
             raise ValueError("policy must be 'strict' or 'cached_handoff'")
@@ -40,7 +40,7 @@ class Composite:
 
 
 class CompositeSession:
-    def __init__(self, port: Composite, reader: "Session", *, policy: str = "strict"):
+    def __init__(self, port: Composite, reader: "Session", *, policy: str = "cached_handoff"):
         if policy not in ("strict", "cached_handoff"):
             raise ValueError("policy must be 'strict' or 'cached_handoff'")
         self.port, self.reader = port, reader

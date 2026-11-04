@@ -120,11 +120,11 @@ def pair(root):
 
 
 class RuntimeTests(unittest.TestCase):
-    def test_cached_handoff_translates_once_and_appends_only_new_target_turns(self):
+    def test_default_cached_handoff_translates_once_and_appends_only_new_target_turns(self):
         with tempfile.TemporaryDirectory() as temp:
             source, target, bridge, backend = pair(Path(temp))
             with patch.object(bridge, "translate", wraps=bridge.translate) as translate:
-                chat = Composite(source, target, bridge).session(policy="cached_handoff")
+                chat = Composite(source, target, bridge).session()
                 first = chat.ask("Remember the code")
                 self.assertEqual(first.stats.target_prompt_tokens, 0)
                 self.assertIsNone(chat.reader.state)
@@ -221,7 +221,7 @@ class RuntimeTests(unittest.TestCase):
     def test_reader_sync_preserves_exact_generated_bytes(self):
         with tempfile.TemporaryDirectory() as temp:
             source, target, bridge, _ = pair(Path(temp))
-            chat = Composite(source, target, bridge).session()
+            chat = Composite(source, target, bridge).session(policy="strict")
             answer = chat.ask("First")
             old_ids = chat.reader.state.rendered_token_ids
             with patch.object(FakeCodec, "render", side_effect=AssertionError("answer re-rendered")):
@@ -249,7 +249,7 @@ class RuntimeTests(unittest.TestCase):
     def test_composite_reads_question_only_on_source_and_syncs(self):
         with tempfile.TemporaryDirectory() as temp:
             source, target, bridge, backend = pair(Path(temp))
-            chat = Composite(source, target, bridge).session()
+            chat = Composite(source, target, bridge).session(policy="strict")
             emitted = []
             first = chat.ask("Q1", max_new_tokens=4, on_token=emitted.append)
             self.assertTrue(first.finished)

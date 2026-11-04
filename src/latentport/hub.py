@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 DEFAULT_REPO = "latentport/latentport-4-27b-research-preview"
-DEFAULT_REVISION = "08570694b0fef9ca79430cc9dcddb7d365cf84f4"
+DEFAULT_REVISION = "cf50f0c61c55454cbfce4b2ef334632ae461bb54"
 GGUF_REPO = "latentport/latentport-4-27b-research-preview-GGUF"
 GGUF_REVISION = "880c3f9aeb30b929346ba3f68b719d8bf21756a9"
 GGUF_NAME = "latentport-4-27b-bridge.F32.gguf"

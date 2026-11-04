@@ -82,6 +82,9 @@ def load(repo: str | Path = DEFAULT_REPO, *, revision: str = DEFAULT_REVISION,
         weights = "nf4-double-bf16"
     elif backend == "gguf":
         from .gguf import GGUFBackend
+        from ._native.engine import library_path
+        # Fail early on missing native setup, before any multi-GB downloads.
+        library_path(native_options.library if native_options else None)
         from .hub import gguf_model_file
         if source_path is None:
             source_path = gguf_model_file("source")

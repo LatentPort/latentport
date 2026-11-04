@@ -28,6 +28,13 @@ Additional model pairs need separately trained and qualified bridges. There is n
 reverse bridge, arbitrary state merge, automatic eviction, vLLM integration or distributed
 execution in this version.
 
+The qualified runtime accepts text and uses greedy decoding. Multimodal input, configurable
+sampling, and automatic tool-call execution are outside this preview. Applications can
+append textual tool results explicitly.
+
+`port.composite.session()` defaults to `policy="cached_handoff"`. Use
+`policy="strict"` explicitly for reader synchronization and full translation each turn.
+
 ## Conversation boundaries
 
 - `ask(question)` begins a **new** user turn; accepts context-ready/completed-turn state.

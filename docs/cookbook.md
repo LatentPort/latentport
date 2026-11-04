@@ -22,7 +22,7 @@ def complete(session, question, *, mtp=False, chunks=8):
         raise RuntimeError("Answer still in progress; increase the budget or resume later")
     return "".join(parts)
 
-chat = port.composite.session(policy="cached_handoff")
+chat = port.composite.session()
 print(complete(chat, "Read this document: ..."))
 print(complete(chat, "What assumptions does the author make?"))
 ```

@@ -1,0 +1,111 @@
+{
+  "release": "LatentPort-4+27B research preview",
+  "checkpoint": "e119-final16-b960c37364bc",
+  "configuration": "Pinned NF4 weights / BF16 compute research stack, RTX 5090; not GGUF quality qualification",
+  "composite_quality": {
+    "A": {
+      "n": 64,
+      "native4": 9,
+      "composite": 26,
+      "native27": 29
+    },
+    "B": {
+      "n": 64,
+      "native4": 11,
+      "composite": 23,
+      "native27": 29,
+      "paired_gain": 0.1875,
+      "paired_gain_ci95": [
+        0.007354372699140299,
+        0.339197183612515
+      ]
+    }
+  },
+  "ttft": {
+    "short": {
+      "groups": 8,
+      "ratio": {
+        "independent_groups": 8,
+        "paired_ratio_native27_over_E119": 1.0620464647848318,
+        "ci95": [
+          0.8732304076002703,
+          1.2916896658027117
+        ],
+        "greater_than_2x_supported": false,
+        "method": "95% Student interval on independent group-mean log paired ratios"
+      },
+      "median_seconds": {
+        "native27": 0.6027084999950603,
+        "E119_composite": 0.5129465500358492
+      }
+    },
+    "2K": {
+      "groups": 8,
+      "ratio": {
+        "independent_groups": 8,
+        "paired_ratio_native27_over_E119": 1.6532306775609404,
+        "ci95": [
+          1.61308744636195,
+          1.6943729116439532
+        ],
+        "greater_than_2x_supported": false,
+        "method": "95% Student interval on independent group-mean log paired ratios"
+      },
+      "median_seconds": {
+        "native27": 2.147742750006728,
+        "E119_composite": 1.295161599991843
+      }
+    },
+    "8K": {
+      "groups": 8,
+      "ratio": {
+        "independent_groups": 8,
+        "paired_ratio_native27_over_E119": 2.005612387496334,
+        "ci95": [
+          1.9575869763942657,
+          2.0548160042870047
+        ],
+        "greater_than_2x_supported": false,
+        "method": "95% Student interval on independent group-mean log paired ratios"
+      },
+      "median_seconds": {
+        "native27": 8.87050294992514,
+        "E119_composite": 4.458856399985962
+      }
+    },
+    "16K": {
+      "groups": 8,
+      "ratio": {
+        "independent_groups": 8,
+        "paired_ratio_native27_over_E119": 2.1880221333982903,
+        "ci95": [
+          2.1464469720003287,
+          2.2304025762999715
+        ],
+        "greater_than_2x_supported": true,
+        "method": "95% Student interval on independent group-mean log paired ratios"
+      },
+      "median_seconds": {
+        "native27": 24.66347509995103,
+        "E119_composite": 11.086686099995859
+      }
+    }
+  },
+  "all_32_ttft": {
+    "independent_groups": 32,
+    "paired_ratio_native27_over_E119": 1.6660725990353,
+    "ci95": [
+      1.4923659649473995,
+      1.8599981307896392
+    ],
+    "greater_than_2x_supported": false,
+    "method": "95% Student interval on independent group-mean log paired ratios"
+  },
+  "target_prompt_tokens": 0,
+  "source_hashes": {
+    "FINAL_REPORT.md": "c166d5e3330d7b811ea4d7e1d68aecb9ab96635eb889eeea8108ad5bb99164cb",
+    "TIMING_RESULTS.json": "db1c45e473f0a4f2aaea92334fdd81114a0f44e152b2a64575c8c54ccdf20187",
+    "COMPOSITE_B_CONFIRMATION.json": "58a00edad3cd1ea16af691dc3ae977dac075e867c894177926136467ae0b5727",
+    "COMPOSITE_A_GATE.json": "e1a29f90c6fac24e800d636290af3b31d9aace2dd6b9ca38fab9651c488e2711"
+  }
+}

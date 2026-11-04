@@ -147,7 +147,7 @@ def main():
             finally:handle.close()
 
         # The public convenience layer and live one-way escalation.
-        answer=port.composite.session().ask("Explain cache invalidation in detail.",max_new_tokens=12,mtp=True)
+        answer=port.composite.session(policy="strict").ask("Explain cache invalidation in detail.",max_new_tokens=12,mtp=True)
         assert answer.state.target_prompt_tokens==0
         session=port.source.session();session.prepare("Explain ten cache invalidation strategies.")
         small=session.generate(max_new_tokens=2)
@@ -160,7 +160,7 @@ def main():
 
         # Two real conversation turns, with the first deliberately split
         # across generate calls to exercise continuation metadata.
-        chat=port.composite.session()
+        chat=port.composite.session(policy="strict")
         target_before=engine.trace("target")["prefill_tokens"]
         first=chat.ask("Remember this code word: orchid. Reply only OK.",max_new_tokens=8)
         for _ in range(2):
@@ -217,7 +217,7 @@ def main():
             question=text+"\nExplain three cache failure modes."
             row={"requested_context_tokens":count}
             for name in ("native","composite"):
-                session=port.target.session() if name=="native" else port.composite.session()
+                session=port.target.session() if name=="native" else port.composite.session(policy="strict")
                 emitted=[]
                 started=perf_counter()
                 result=session.ask(question,max_new_tokens=16,on_token=lambda _:emitted.append(perf_counter()))

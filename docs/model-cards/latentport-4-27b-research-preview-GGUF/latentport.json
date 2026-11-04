@@ -1,0 +1,108 @@
+{
+  "artifact": {
+    "bytes": 2578356288,
+    "path": "latentport-4-27b-bridge.F32.gguf",
+    "precision": "F32",
+    "sha256": "53cbd8104120b88dc2dcbc1d54f98133bde16c7f95ee33dc7c3d73b1c2292486"
+  },
+  "artifact_format": "gguf",
+  "base_weights_included": true,
+  "canonical": {
+    "integrity_sha256": "3f5437b4635c3abd8153dfdca220487e4c105ddebea3fbbfc567b7a8bfc2c13c",
+    "repo_id": "latentport/latentport-4-27b-research-preview",
+    "revision": "08570694b0fef9ca79430cc9dcddb7d365cf84f4"
+  },
+  "gguf_architecture": "latentport_bridge_v1",
+  "intended_visibility": "public",
+  "license_status": "apache-2.0",
+  "models": {
+    "source": {
+      "metadata_files": {
+        "chat_template.jinja": {
+          "bytes": 7756,
+          "sha256": "a4aee8afcf2e0711942cf848899be66016f8d14a889ff9ede07bca099c28f715"
+        },
+        "config.json": {
+          "bytes": 3161,
+          "sha256": "ddc63e1c717afa86c865bb5e01313d89d72bb53b97ad4a8a03ba8510c0621670"
+        },
+        "tokenizer.json": {
+          "bytes": 12807982,
+          "sha256": "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42"
+        },
+        "tokenizer_config.json": {
+          "bytes": 16710,
+          "sha256": "316230d6a809701f4db5ea8f8fc862bc3a6f3229c937c174e674ff3ca0a64ac8"
+        }
+      },
+      "repo_id": "Qwen/Qwen3.5-4B",
+      "research_nf4_binding_sha256": "475b722570e2339608747a686fe24a47a10f377b7c06a3e48addbbe77ffca2ee",
+      "revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"
+    },
+    "target": {
+      "metadata_files": {
+        "chat_template.jinja": {
+          "bytes": 8952,
+          "sha256": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041"
+        },
+        "config.json": {
+          "bytes": 4312,
+          "sha256": "191e0af232104ed8b65258cf3fb2b842e288008baca7633c11b82a1ac7203aab"
+        },
+        "tokenizer.json": {
+          "bytes": 12809320,
+          "sha256": "0997f410c57a1f4e53b09e4be8f4a172d90edd9564368fb0847030937229b9f3"
+        },
+        "tokenizer_config.json": {
+          "bytes": 17928,
+          "sha256": "b11349aafa7cdc6a320767cf7ceb29ed82f7eda5d65e8e0819e76f0ce947bf27"
+        }
+      },
+      "repo_id": "Qwen/Qwen3.8-27B",
+      "research_nf4_binding_sha256": "25a46a0083a8a5387c65d631619c7af9c91e6c7d51a37b37f731f6fb89660e08",
+      "revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0"
+    }
+  },
+  "release_id": "e119-final16-b960c37364bc",
+  "repo_id": "latentport/latentport-4-27b-research-preview-GGUF",
+  "runtime": {
+    "gpu_inference_verified": false,
+    "llama_cpp_state_installation_verified": false,
+    "mtp_verified": false,
+    "status": "tensor_export_only",
+    "stock_llama_cpp_loadable": false,
+    "supported_deployment_profiles": []
+  },
+  "schema": "latentport.bridge-gguf-bundle.v1",
+  "license": "apache-2.0",
+  "runtime_models": {
+    "source": {
+      "repo_id": "latentport/latentport-4-27b-research-preview-GGUF",
+      "filename": "models/Qwen3.5-4B-Q4_K_M.gguf",
+      "sha256": "920bf434a7bf646732c39af9c8df09df12ff367cbb8a7672b6ad5784429c8579",
+      "bytes": 2708804448,
+      "upstream": "Qwen/Qwen3.5-4B",
+      "upstream_revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+      "revision": "c1a3f051e9c024737329b4afe2de077af56fa1d5"
+    },
+    "target": {
+      "repo_id": "latentport/latentport-4-27b-research-preview-GGUF",
+      "filename": "models/Qwen3.8-27B-MTP-Q4_K_M.gguf",
+      "sha256": "1978091dec5e89184e0e89fd6127b50f06ffc78cf9b9a0ffdedaedf2c9bb17d5",
+      "bytes": 16810714496,
+      "upstream": "Qwen/Qwen3.8-27B",
+      "upstream_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+      "revision": "c1a3f051e9c024737329b4afe2de077af56fa1d5"
+    }
+  },
+  "native_runtime": {
+    "repo_id": "latentport/latentport-4-27b-research-preview-GGUF",
+    "filename": "runtime/latentport-native-win-amd64-cuda13-sm120-abi2.zip",
+    "revision": "c1a3f051e9c024737329b4afe2de077af56fa1d5",
+    "sha256": "bc045781e9f4d7b9110b857f4acc776c79dc055a03180fcd0613ac6105aff52e",
+    "platform": "Windows x64",
+    "cuda": "13.0",
+    "compute_capability": "12.0",
+    "abi": 2
+  }
+}

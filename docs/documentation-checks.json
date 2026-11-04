@@ -1,0 +1,12 @@
+{
+  "site_http": 200,
+  "site_internal_anchors": "passed",
+  "site_local_images": "passed",
+  "readme_document_links": "passed",
+  "example_syntax": "passed",
+  "browser_visual_check": "unavailable: browser host unavailable; native application approval timed out",
+  "default_policy_consistency": "passed",
+  "preview_wheel_links": "dev1",
+  "python_documentation_syntax": "passed",
+  "feature_card_overflow": "Removed fixed 36px label width; intrinsic-width labels and shrinkable cards. Browser visual verification unavailable."
+}

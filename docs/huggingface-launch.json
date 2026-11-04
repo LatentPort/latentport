@@ -1,0 +1,23 @@
+{
+  "repositories": [
+    {
+      "repo": "latentport/latentport-4-27b-research-preview",
+      "revision": "16d5353d5b9215a230372d37142a2e59e15e96be",
+      "card_readback_verified": true,
+      "license": "apache-2.0"
+    },
+    {
+      "repo": "latentport/latentport-4-27b-research-preview-GGUF",
+      "revision": "3ca7b288b1ec78d0e27f8fc4c5b810a42ff1381e",
+      "card_readback_verified": true,
+      "license": "apache-2.0"
+    }
+  ],
+  "wheel": {
+    "filename": "runtime/latentport-0.1.0.dev1-py3-none-any.whl",
+    "bytes": 75280,
+    "sha256": "4971337b6609e550ac79a2a9e609ea3ffc8831dfa6273bdd7ed559b04bc37fb3",
+    "version": "0.1.0.dev1",
+    "revision": "1415eb9591dfaf15355d8bba5ed38f64792026e0"
+  }
+}

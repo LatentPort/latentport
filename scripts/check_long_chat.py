@@ -15,7 +15,7 @@ def main():
     parser.add_argument("--target-path",required=True)
     parser.add_argument("--output",type=Path,required=True)
     parser.add_argument("--gpu-is-free",action="store_true")
-    parser.add_argument("--policy",choices=("strict","cached_handoff"),default="strict")
+    parser.add_argument("--policy",choices=("strict","cached_handoff"),default="cached_handoff")
     args=parser.parse_args()
     if not args.gpu_is_free:parser.error("Confirm GPU availability with --gpu-is-free")
     report={"success":False,"context_tokens":16384,"policy":args.policy}

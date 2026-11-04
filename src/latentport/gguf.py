@@ -46,8 +46,13 @@ class GGUFBackend:
         self._hashes = {}
         self._codecs = {}
         for side, path in self.paths.items():
-            if not path.is_file() or path.suffix.lower() != ".gguf":
+            if not path.is_file():
                 raise FileNotFoundError(f"{side} GGUF file missing: {path}")
+            # Hub snapshots resolve to extensionless, content-addressed blobs.
+            # Validate the format rather than the resolved filename suffix.
+            with path.open("rb") as stream:
+                if stream.read(4) != b"GGUF":
+                    raise CompatibilityError(f"{side} file is not a GGUF container: {path}")
 
     def _bridge_file(self):
         from .hub import gguf_bridge_file

@@ -12,6 +12,18 @@ small changes in an isolated checkout: typed cache access, device capture nodes
 in Qwen's graph, and selection of multiple appended Qwen MTP heads. It does not
 modify the research checkout. Arbitrary stock llama.cpp versions are rejected.
 
+## Install the supported native binary
+
+For the Windows x64 / RTX 5090 preview, run `python -m latentport install-native`.
+The package downloads a pinned archive, verifies its SHA-256, and installs matching
+DLLs together under `LATENTPORT_HOME/native/build/bin`. The archive includes native
+source, the llama.cpp source pin and dependency licenses. CUDA 13.0 runtime/cuBLAS
+and the Microsoft VC++ redistributable must be installed separately.
+
+Use `python -m latentport doctor` to check dependencies before loading models.
+See [installation.md](installation.md) for the supported path. The source-build steps
+below are for contributors; users of the qualified binary do not need a compiler.
+
 ## Build and load
 
 Keep the isolated source, compiler outputs and model data on bulk storage.
