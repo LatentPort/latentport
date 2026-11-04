@@ -685,21 +685,22 @@ def base_forward(self, state, slots, chunk=None, diagnostics=False):
         raise RuntimeError('Frozen cross-position router required')
     routed, details = self.position_router(content, g, slots, chunk, self.checkpoint_chunks, diagnostics)
     del content
-    pieces = {i: [[], []] for i in self.tkv}
-    for start in range(0, slots.target_length, chunk):
-        end = min(start + chunk, slots.target_length)
-        joined = self.kv_output(routed[:, start:end]).view(b, end - start, len(self.tkv), 2, self.target['kv_heads'], self.target['head_dim'])
-        for j, i in enumerate(self.tkv):
-            k = self.denormalize(joined[:, :, j, 0].transpose(1, 2), i, 0).to(torch.bfloat16)
-            v = self.denormalize(joined[:, :, j, 1].transpose(1, 2), i, 1).to(torch.bfloat16)
-            pieces[i][0].append(self.target_rope(k, start=start))
-            pieces[i][1].append(v)
-        del joined, k, v
     layers = [None] * len(self.target['types'])
-    for i in self.tkv:
-        pair = pieces.pop(i)
-        layers[i] = (torch.cat(pair[0], -2), torch.cat(pair[1], -2))
-        del pair
+    if getattr(self, '_emit_kv', True):
+        pieces = {i: [[], []] for i in self.tkv}
+        for start in range(0, slots.target_length, chunk):
+            end = min(start + chunk, slots.target_length)
+            joined = self.kv_output(routed[:, start:end]).view(b, end - start, len(self.tkv), 2, self.target['kv_heads'], self.target['head_dim'])
+            for j, i in enumerate(self.tkv):
+                k = self.denormalize(joined[:, :, j, 0].transpose(1, 2), i, 0).to(torch.bfloat16)
+                v = self.denormalize(joined[:, :, j, 1].transpose(1, 2), i, 1).to(torch.bfloat16)
+                pieces[i][0].append(self.target_rope(k, start=start))
+                pieces[i][1].append(v)
+            del joined, k, v
+        for i in self.tkv:
+            pair = pieces.pop(i)
+            layers[i] = (torch.cat(pair[0], -2), torch.cat(pair[1], -2))
+            del pair
     final = self.final_kv_condition(routed[:, -1])
     del routed
     memory = memory + final[:, None]

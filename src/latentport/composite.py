@@ -1,4 +1,4 @@
-"""Repeated small-reader/large-decoder policy over a directional bridge."""
+"""Strict composite and cached handoff policies over a directional bridge."""
 from __future__ import annotations
 
 from dataclasses import replace
@@ -13,9 +13,12 @@ class Composite:
     def __init__(self, source: "Model", target: "Model", bridge: "Bridge"):
         self.source, self.target, self.bridge = source, target, bridge
 
-    def session(self, context=None) -> "CompositeSession":
+    def session(self, context=None, *, policy: str = "strict") -> "CompositeSession":
+        """strict translates each turn; cached_handoff translates only once."""
+        if policy not in ("strict", "cached_handoff"):
+            raise ValueError("policy must be 'strict' or 'cached_handoff'")
         reader = self.source.session(self.source.capture(context) if context is not None else None)
-        return CompositeSession(self, reader)
+        return CompositeSession(self, reader, policy=policy)
 
     def run(self, messages, *, max_new_tokens: int = 512, mtp: bool = False,
             on_token: Callable[[int], None] | None = None) -> Answer:
@@ -27,8 +30,9 @@ class Composite:
         translation_s = perf_counter() - started - reader_s
         if translated.target_prompt_tokens != 0:
             raise StateError("Composite target prompt ownership violated")
-        answer = self.target.session(translated).generate(max_new_tokens=max_new_tokens,
-                                                         mtp=mtp, on_token=on_token)
+        session = self.target.session(translated)
+        del translated
+        answer = session.generate(max_new_tokens=max_new_tokens, mtp=mtp, on_token=on_token)
         return replace(answer, stats=replace(answer.stats, reader_prefill_s=reader_s,
                                              translation_s=translation_s,
                                              request_ttft_s=reader_s+translation_s+answer.stats.first_token_s,
@@ -36,10 +40,33 @@ class Composite:
 
 
 class CompositeSession:
-    def __init__(self, port: Composite, reader: "Session"):
+    def __init__(self, port: Composite, reader: "Session", *, policy: str = "strict"):
+        if policy not in ("strict", "cached_handoff"):
+            raise ValueError("policy must be 'strict' or 'cached_handoff'")
         self.port, self.reader = port, reader
+        self._policy = policy
         self.target_session = None
         self._synced = True
+
+    @property
+    def policy(self):
+        return self._policy
+
+    @property
+    def state(self):
+        return self.target_session.state if self.target_session is not None else self.reader.state
+
+    def fork(self, count: int = 1):
+        """Branch a handed-off target state while retaining the cached policy."""
+        if self.policy != "cached_handoff" or self.target_session is None:
+            raise StateError("fork requires a cached_handoff session with an initialized target")
+        sessions = self.target_session.fork(count)
+        children = []
+        for target in ((sessions,) if count == 1 else sessions):
+            child = CompositeSession(self.port, self.port.source.session(), policy=self.policy)
+            child.target_session = target
+            children.append(child)
+        return children[0] if count == 1 else tuple(children)
 
     def _sync(self):
         if self._synced:
@@ -58,21 +85,16 @@ class CompositeSession:
             raise StateError("Reader is not at the corresponding answer boundary")
         assistant = self.port.target.codec.decode(result.generated_token_ids[:-1], special=True)
         messages = old.messages + (("assistant", assistant),) if old.messages else ()
-        native = source.codec.render(messages, generation_prompt=False) if messages else None
         old_ids = old.rendered_token_ids
         if old_ids is None:
             raise StateError("Reader has no committed token stream")
-        if native is not None and native.token_ids[:len(old_ids)] == old_ids:
-            suffix_ids = native.token_ids[len(old_ids):]
-        else:
-            # Earlier assistant turns may have been collapsed by the template;
-            # use only the last-answer suffix so old live state is retained.
-            anchor = (("user", ""),)
-            start = source.codec.render(anchor, generation_prompt=True)
-            end = source.codec.render(anchor + (("assistant", assistant),), generation_prompt=False)
-            if end.token_ids[:len(start.token_ids)] != start.token_ids:
-                raise CapabilityError("Reader cannot append the native assistant answer exactly")
-            suffix_ids = end.token_ids[len(start.token_ids):]
+        # Feed back the actual committed answer, including reasoning and EOS.
+        # Re-rendering it through a template trims whitespace/thinking and may
+        # merge the final prompt token with the first generated token.
+        suffix = self.port.target.codec.decode(result.generated_token_ids, special=True)
+        suffix_ids = source.codec.encode(suffix)
+        if source.codec.decode(suffix_ids, special=True) != suffix:
+            raise CapabilityError("Reader cannot represent the committed target answer exactly")
         next_state = source.append(old, suffix_ids,
                                    phase="turn_ready", messages=messages)
         if next_state.rendered_token_ids != old_ids + suffix_ids:
@@ -83,6 +105,13 @@ class CompositeSession:
 
     def ask(self, question: str, *, max_new_tokens: int = 512, mtp: bool = False,
             on_token: Callable[[int], None] | None = None) -> Answer:
+        if self.policy == "cached_handoff" and self.target_session is not None:
+            state = self.target_session.state
+            if (state.phase != "turn_ready" or not state.generated_token_ids or
+                state.generated_token_ids[-1] != self.port.target.codec.chat_eos_id):
+                raise StateError("Complete the target chat turn before asking the next question")
+            return self.target_session.ask(question, max_new_tokens=max_new_tokens,
+                                           mtp=mtp, on_token=on_token)
         started = perf_counter()
         sync_s = self._sync()
         source_state = self.reader.prepare(question)
@@ -92,8 +121,13 @@ class CompositeSession:
         if translated.target_prompt_tokens != 0:
             raise StateError("Composite target processed prompt tokens")
         target_session = self.port.target.session(translated)
+        del translated
         result = target_session.generate(max_new_tokens=max_new_tokens, mtp=mtp, on_token=on_token)
         self.target_session, self._synced = target_session, False
+        if self.policy == "cached_handoff":
+            # Ownership moves to the target after successful generation. The
+            # reader snapshot is no longer needed for this execution policy.
+            self.reader.state = None
         return replace(result, stats=replace(result.stats, reader_prefill_s=reader_s,
                                              reader_sync_s=sync_s, translation_s=translation_s,
                                              request_ttft_s=sync_s+reader_s+translation_s+result.stats.first_token_s,

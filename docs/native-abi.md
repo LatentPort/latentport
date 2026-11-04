@@ -87,6 +87,13 @@ transactions; they do not alternate full-cache copies on each token. Interleaved
 inactive handles park to owned device snapshots. Save/load moves state to disk
 only when requested.
 
+Torch's allocator cannot see llama.cpp's memory needs. Under VRAM pressure,
+the runtime releases unused Torch scratch blocks at translation, snapshot and
+request boundaries. `port.warm()` reports `torch_cache_reclaims`. The 16K
+two-turn check retained both answer states and finished with about 2 GB free
+after this cleanup; that is an endpoint measurement, not a peak guarantee.
+Additional retained states still consume their own tensor storage.
+
 Graph taps are CUDA graph copy nodes, not per-layer Python callbacks. Complete
 states stay on the GPU during capture, translation and installation. Native
 MTP currently transfers small next-token hidden rows through llama.cpp's host
@@ -131,9 +138,32 @@ and exact comparison of all 262 GGUF bridge tensor payloads can run without the
 GPU. These checks do not establish numerical correctness, MTP throughput,
 maximum context capacity, or TTFT speedup of the complete runtime.
 
-After E120 releases the GPU, run `scripts/smoke_gguf.py` explicitly. It checks
+When the GPU is available, run `scripts/smoke_gguf.py --gpu-is-free` with both
+GGUF paths. It checks
 native capture/restore, zero-target-prompt composite handoff, ordinary versus
 MTP continuation, deterministic rejection/acceptance, persistence, branching,
-live escalation and resident memory. It writes its report to F: and does not
-run a model-quality evaluation campaign. A matched performance run on the
-actual GGUF quantizations is still required before making speedup claims.
+live escalation, exact multi-turn reader synchronization and resident memory.
+It writes its report to bulk storage and does not run a model-quality evaluation
+campaign. Optional `--performance-contexts 512 16384` measures warm API TTFT
+against native 27B through the same package.
+
+The local Q4_K_M pair passed this bounded check on the RTX 5090; see
+[runtime-validation.json](runtime-validation.json) for model hashes, timings,
+memory accounting and limits. Its target has one trained MTP head, unrolled for
+up to four proposals. Multiple distinct trained heads and other hardware remain
+outside this check. MTP matched all 24 ordinary greedy tokens and passed forced
+acceptance/rejection restoration. It accepted 14 of 33 proposals; generation
+took 341 ms versus 367 ms ordinarily. That short sample is not a general MTP
+throughput claim.
+
+The selected bridge omits the frozen parent's unused K/V projections. All 129
+final outputs matched the unpruned implementation exactly in the real-state
+check. Live chat preserves committed reasoning and whitespace; it does not
+re-render prior turns through a template that can remove them.
+
+`scripts/check_long_chat.py` repeats the bounded 16K two-turn memory case. Pass
+`--gpu-is-free`, both GGUF paths, and an `--output` JSON path on bulk storage.
+The measured follow-up took 1.11 s versus 148 ms for a persistent native session
+with the same committed history. Initial prompt acceleration therefore does
+not establish an advantage for subsequent questions over an existing native
+27B cache.

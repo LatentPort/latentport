@@ -49,7 +49,11 @@ class Bridge:
         target_codec = self.target.codec
         if state.rendered_text is None:
             raise StateError("Bridge needs the exact rendered source stream for numeric alignment")
-        if state.phase == "in_answer" and state.messages:
+        if state.origin in ("native_append", "native_generation"):
+            # Live state contains exactly these bytes. Whole-history rendering
+            # would silently remove old thinking during multi-turn handoffs.
+            target_record = target_codec.record(state.rendered_text)
+        elif state.phase == "in_answer" and state.messages:
             target_base = target_codec.render(state.messages, generation_prompt=True)
             committed = source_codec.decode(state.generated_token_ids, special=True)
             target_record = target_codec.record(target_base.decoded_text + committed)
@@ -89,11 +93,17 @@ class Bridge:
                for name, value in source_values.items()):
             raise StateError("Translator mutated an immutable source state")
         elapsed = perf_counter() - started
+        generated = ()
+        if state.phase == "in_answer" and state.generated_token_ids:
+            committed = self.source.codec.decode(state.generated_token_ids, special=True)
+            generated = self.target.codec.encode(committed)
+            if target_record.token_ids[-len(generated):] != generated:
+                raise CompatibilityError("Translated assistant suffix has no exact token boundary")
         return State(identity=destination.identity, clock=target_record.sequence_length,
                      phase=state.phase, origin="translated:" + self.manifest["release_id"],
                      target_prompt_tokens=0, rendered_text=target_record.decoded_text,
                      rendered_token_ids=target_record.token_ids, messages=state.messages,
-                     generated_token_ids=(), parent_id=state.state_id,
+                     generated_token_ids=generated, parent_id=state.state_id,
                      _components=values)
 
 

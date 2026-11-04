@@ -109,6 +109,9 @@ struct port_context {
         head_graph=ggml_new_graph_custom(head_ctx,64,false);
         head_in=ggml_new_tensor_2d(head_ctx,GGML_TYPE_F32,info.hidden,1);
         ggml_set_input(head_in);
+        // Inputs otherwise default to pinned host memory, even when the
+        // matrix multiply is offloaded. Translated H is already on CUDA.
+        ggml_backend_sched_set_tensor_backend(head_sched,head_in,backends.front());
         auto norm=ggml_rms_norm(head_ctx,head_in,model->hparams.f_norm_rms_eps);
         norm=ggml_mul(head_ctx,norm,model->output_norm);
         head_out=ggml_mul_mat(head_ctx,model->output,norm);

@@ -45,9 +45,9 @@ class Session:
             suffix = self.model.codec.render((("user", question),), generation_prompt=True)
             separator = self.model.codec.encode("\n") if not state.rendered_text.endswith("\n") else ()
             next_state = self.model.append(state, separator + suffix.token_ids, phase="answer_ready")
-            self.state = next_state
+            self.state = replace(next_state, generated_token_ids=())
             self._pending_decode = None
-            return next_state
+            return self.state
         messages = state.messages + (("user", question),)
         desired = self.model.codec.render(messages, generation_prompt=True)
         old_ids = state.rendered_token_ids
@@ -74,9 +74,9 @@ class Session:
         next_state = self.model.append(state, delta, phase="answer_ready", messages=messages)
         if next_state.rendered_token_ids != expected:
             raise StateError("Native turn tokenization changed after append")
-        self.state = next_state
+        self.state = replace(next_state, generated_token_ids=())
         self._pending_decode = None
-        return next_state
+        return self.state
 
     def ask(self, question: str, *, max_new_tokens: int = 512, mtp: bool = False,
             on_token: Callable[[int], None] | None = None) -> Answer:
@@ -98,10 +98,15 @@ class Session:
         with guard:
             queue = perf_counter() - started
             answer = self._generate(max_new_tokens=max_new_tokens, mtp=mtp, on_token=on_token)
+            cleanup_started = perf_counter()
+            if hasattr(self.model.backend, "finish_request"):
+                self.model.backend.finish_request()
+            cleanup_s = perf_counter() - cleanup_started
         return replace(answer, stats=replace(answer.stats, queue_s=queue,
                        first_token_s=answer.stats.first_token_s+queue,
                        request_ttft_s=answer.stats.request_ttft_s+queue,
-                       total_s=answer.stats.total_s+queue))
+                       generation_s=answer.stats.generation_s+cleanup_s,
+                       total_s=answer.stats.total_s+queue+cleanup_s))
 
     def _generate(self, *, max_new_tokens: int = 512, mtp: bool = False,
                   on_token: Callable[[int], None] | None = None) -> Answer:
@@ -175,13 +180,9 @@ class Session:
                         generated_token_ids=initial.generated_token_ids + tuple(tokens),
                         parent_id=initial.state_id, _components=snapshot)
         if finished and current.messages and tokens[-1] == model.codec.chat_eos_id:
-            prefix = ""
-            if initial.phase == "in_answer":
-                base = model.codec.render(initial.messages, generation_prompt=True).decoded_text
-                if initial.rendered_text is None or not initial.rendered_text.startswith(base):
-                    raise StateError("Committed assistant prefix differs from native template")
-                prefix = initial.rendered_text[len(base):]
-            assistant = prefix + model.codec.decode(tokens[:-1], special=True)
+            # The committed stream is authoritative. Re-rendering old turns
+            # can strip thinking and cannot reconstruct a resumed live answer.
+            assistant = model.codec.decode(current.generated_token_ids[:-1], special=True)
             current = replace(current, messages=current.messages + (("assistant", assistant),))
         self.state = current
         elapsed = perf_counter()

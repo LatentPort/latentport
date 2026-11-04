@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 import tempfile
 import unittest
@@ -119,6 +120,114 @@ def pair(root):
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_cached_handoff_translates_once_and_appends_only_new_target_turns(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source, target, bridge, backend = pair(Path(temp))
+            with patch.object(bridge, "translate", wraps=bridge.translate) as translate:
+                chat = Composite(source, target, bridge).session(policy="cached_handoff")
+                first = chat.ask("Remember the code")
+                self.assertEqual(first.stats.target_prompt_tokens, 0)
+                self.assertIsNone(chat.reader.state)
+                source_calls = [x for x in backend.calls if x[0] == "source"]
+                for question in ("Second", "Third"):
+                    previous = chat.state
+                    answer = chat.ask(question)
+                    self.assertEqual(answer.state.rendered_token_ids[:previous.clock], previous.rendered_token_ids)
+                    self.assertEqual(answer.stats.reader_sync_s, 0)
+                    self.assertEqual(answer.stats.translation_s, 0)
+                self.assertEqual(translate.call_count, 1)
+                self.assertEqual(source_calls, [x for x in backend.calls if x[0] == "source"])
+                appends = [x[2] for x in backend.calls if x[:2] == ("target", "advance")]
+                self.assertEqual(appends, [FakeCodec().encode("<user>"+q+"!<assistant>") for q in ("Second", "Third")])
+                self.assertEqual(answer.stats.target_prompt_tokens, sum(map(len, appends)))
+
+    def test_cached_handoff_resume_and_fork_preserve_policy_and_prefix(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source, target, bridge, _ = pair(Path(temp))
+            chat = Composite(source, target, bridge).session(policy="cached_handoff")
+            chat.ask("First", max_new_tokens=1)
+            with self.assertRaises(StateError):chat.ask("Too early")
+            chat.generate(max_new_tokens=3)
+            original = chat.state
+            left, right = chat.fork(2)
+            self.assertEqual(left.policy, "cached_handoff")
+            left.ask("Left")
+            right.ask("Right")
+            self.assertIs(chat.state, original)
+            self.assertNotEqual(left.state.rendered_token_ids, right.state.rendered_token_ids)
+
+    def test_cached_handoff_failed_first_generation_does_not_adopt_target(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source, target, bridge, backend = pair(Path(temp))
+            chat = Composite(source, target, bridge).session(policy="cached_handoff")
+            backend.fail_target = True
+            with self.assertRaises(RuntimeError):chat.ask("First")
+            self.assertIsNone(chat.target_session)
+            self.assertIsNotNone(chat.reader.state)
+            with self.assertRaises(ValueError):Composite(source, target, bridge).session(policy="automatic")
+
+    def test_cached_pinned_metadata_does_not_contact_hub(self):
+        from latentport.hub import model_snapshot
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            data = b'{"model_type":"test"}'
+            (root / "config.json").write_bytes(data)
+            spec = {"repo_id":"test/model","revision":"pinned","metadata_files":{
+                "config.json":{"bytes":len(data),"sha256":hashlib.sha256(data).hexdigest()}}}
+            with patch("huggingface_hub.try_to_load_from_cache",return_value=str(root / "config.json")), \
+                 patch("latentport.hub._snapshot",side_effect=AssertionError("network resolution")):
+                self.assertEqual(model_snapshot(spec,metadata_only=True),root.resolve())
+
+    def test_generated_tokens_are_scoped_to_current_turn(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source, _, _, _ = pair(Path(temp))
+            session = source.session()
+            session.ask("First")
+            answer = session.ask("Second")
+            self.assertEqual(answer.state.generated_token_ids, answer.token_ids)
+            self.assertEqual(answer.state.messages[-1], ("assistant", "A"))
+
+    def test_escalation_preserves_committed_answer_prefix(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source, target, bridge, _ = pair(Path(temp))
+            session = source.session()
+            session.ask("First")
+            session.prepare("Second")
+            prefix = session.generate(max_new_tokens=1)
+            moved = session.escalate(target=target, bridge=bridge)
+            self.assertEqual(moved.generated_token_ids, prefix.token_ids)
+            answer = session.generate(max_new_tokens=3)
+            self.assertEqual(answer.state.messages[-1], ("assistant", "AA"))
+
+    def test_resume_uses_committed_tokens_without_rendering_history(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source, _, _, _ = pair(Path(temp))
+            session = source.session()
+            session.ask("First", max_new_tokens=1)
+            with patch.object(FakeCodec, "render", side_effect=AssertionError("history re-rendered")):
+                answer = session.generate(max_new_tokens=3)
+            self.assertEqual(answer.state.messages[-1], ("assistant", "AA"))
+
+    def test_live_translation_preserves_exact_history(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source, _, bridge, _ = pair(Path(temp))
+            session = source.session()
+            session.ask("First", max_new_tokens=1)
+            with patch.object(FakeCodec, "render", side_effect=AssertionError("history re-rendered")):
+                moved = bridge.translate(session.state)
+            self.assertEqual(moved.rendered_text, session.state.rendered_text)
+            self.assertEqual(moved.generated_token_ids, session.state.generated_token_ids)
+
+    def test_reader_sync_preserves_exact_generated_bytes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source, target, bridge, _ = pair(Path(temp))
+            chat = Composite(source, target, bridge).session()
+            answer = chat.ask("First")
+            old_ids = chat.reader.state.rendered_token_ids
+            with patch.object(FakeCodec, "render", side_effect=AssertionError("answer re-rendered")):
+                chat._sync()
+            self.assertEqual(chat.reader.state.rendered_token_ids, old_ids + answer.token_ids)
+
     def test_snapshot_roundtrip_fork_and_corruption(self):
         with tempfile.TemporaryDirectory() as temp:
             source, _, _, _ = pair(Path(temp))

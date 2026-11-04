@@ -118,6 +118,7 @@ class Engine:
         self.binding=Library(self.options.library)
         self.lib=self.binding.lib
         self._models={}; self._active={}; self._lock=RLock(); self._closed=False
+        self._cache_reclaims=0
         from .bridge import GGUFTranslator
         self.bridge=GGUFTranslator(bridge,bundle_root)
 
@@ -161,6 +162,18 @@ class Engine:
         torch.cuda.synchronize(0) # Torch producer -> independent GGML streams
         return (Field*len(fields))(*fields),keep
 
+    def _trim_torch_cache(self):
+        # Torch cannot see llama.cpp's allocations. Its idle scratch blocks
+        # otherwise consume the last VRAM on long, retained conversations.
+        # Reclaim only unused blocks under pressure; live models/states stay
+        # on CUDA and short requests keep the allocator's fast reuse path.
+        import torch
+        free,_=torch.cuda.mem_get_info(0)
+        idle=torch.cuda.memory_reserved(0)-torch.cuda.memory_allocated(0)
+        if free < 1024**3 and idle >= 256*1024**2:
+            torch.cuda.empty_cache()
+            self._cache_reclaims+=1
+
     def _install(self,side,values,clock):
         validate_components(values,clock,side,native_precision=True)
         handle,_=self._model(side)
@@ -187,6 +200,7 @@ class Engine:
                                 device="cuda:0") for name in names}
         fields,keep=self._fields(values)
         self.binding.check(self.lib.lp_export(handle,fields,len(fields)))
+        self._trim_torch_cache()
         return values
 
     def _logits(self,side):
@@ -256,7 +270,9 @@ class Engine:
         with self._lock:
             clock=next(v.shape[2] for k,v in values.items() if k.startswith("K."))
             bridge_values={k:v.to(torch.bfloat16) if k[0] in "HC" else v for k,v in values.items()}
-            return self.bridge.translate(bridge_values,clock,metadata)
+            result=self.bridge.translate(bridge_values,clock,metadata)
+            self._trim_torch_cache()
+            return result
 
     def warm(self):
         with self._lock:
@@ -270,6 +286,7 @@ class Engine:
         return {"device":"cuda:0","gpu_total_bytes":int(total),"gpu_free_bytes":int(free),
                 "torch_allocated_bytes":int(torch.cuda.memory_allocated(0)),
                 "torch_reserved_bytes":int(torch.cuda.memory_reserved(0)),
+                "torch_cache_reclaims":self._cache_reclaims,
                 "source_resident":True,"target_resident":True,"bridge_resident":True,
                 "mtp_resident":bool(self.options.mtp_drafts),
                 "native_auxiliary_bytes":sum(x[1].auxiliary_bytes for x in self._models.values()),

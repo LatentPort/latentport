@@ -156,6 +156,10 @@ class GGUFBackend:
         # Do not swap full branch states between individual decoding tokens.
         return self._native()._lock
 
+    def finish_request(self):
+        # The generation frame has released its temporary input snapshot now.
+        self._native()._trim_torch_cache()
+
     def close(self):
         if self._engine is not None:
             self._engine.close()

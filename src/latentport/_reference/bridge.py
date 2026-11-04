@@ -66,6 +66,9 @@ class ReferenceTranslator:
         for model in (parent, kv, h):
             model.eval().requires_grad_(False)
         a.install(parent, consume_source=False)
+        # This bundle uses the parent's H/C/R and the trained branch's K/V.
+        # Parent K/V projections are unused and can occupy a full extra cache.
+        parent.base._emit_kv = False
         self._loaded = (a, parent, kv, h)
         return self._loaded
 

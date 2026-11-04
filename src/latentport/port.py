@@ -82,8 +82,11 @@ def load(repo: str | Path = DEFAULT_REPO, *, revision: str = DEFAULT_REVISION,
         weights = "nf4-double-bf16"
     elif backend == "gguf":
         from .gguf import GGUFBackend
-        if source_path is None or target_path is None:
-            raise ValueError("GGUF execution needs explicit source and target GGUF paths")
+        from .hub import gguf_model_file
+        if source_path is None:
+            source_path = gguf_model_file("source")
+        if target_path is None:
+            target_path = gguf_model_file("target")
         runtime = GGUFBackend(source_path, target_path, root, manifest,
                               bridge_gguf_path=bridge_gguf_path, options=native_options)
         runtime.require_extension()
