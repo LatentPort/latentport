@@ -40,10 +40,11 @@ Model identities still bind snapshots to the exact base weights and runtime that
 created them.
 
 Install the [LatentPort 0.1 release wheel](https://github.com/LatentPort/latentport/releases/tag/lpcompact-v0.1).
-For the BF16 dependencies:
+For BF16, use an environment with CUDA-enabled PyTorch and the CUDA compiler.
+Install the extra against that PyTorch installation:
 
 ```shell
-pip install "latentport[compact] @ https://github.com/LatentPort/latentport/releases/download/lpcompact-v0.1/latentport-0.1.0-py3-none-any.whl"
+pip install --no-build-isolation "latentport[compact] @ https://github.com/LatentPort/latentport/releases/download/lpcompact-v0.1/latentport-0.1.0-py3-none-any.whl"
 ```
 
 The BF16 backend uses the pinned Transformers runtime and CUDA recurrent kernels.
