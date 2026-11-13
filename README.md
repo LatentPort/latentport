@@ -1,197 +1,190 @@
 # LatentPort
 
-**Hybrid composite models. Small-model prefill. Large-model generation. Programmable context.**
+**LatentPort makes LLM internal states programmable.**
+
+We're building a library of learned state transformations that enable models and
+agents to transfer, compact, optimise and combine their internal states during
+inference.
+
+This allows developers to improve model performance, reduce inference costs and
+build longer-running agents without repeatedly processing the same context.
 
 <p align="center">
-  <img src="docs/assets/latentport-ascii.gif" alt="LatentPort: working state moving between models" width="640">
+  <img src="docs/assets/latentport-ascii.gif" alt="LatentPort: programmable model state" width="640">
 </p>
 
-[Website](https://latentport.com) Â· [Install](docs/installation.md) Â· [Cookbook](docs/cookbook.md) Â· [Models](https://huggingface.co/latentport) Â· [API](docs/api.md)
+[Website](https://latentport.com) | [Get started](#get-started) | [Models](https://huggingface.co/latentport) | [Cookbook](docs/cookbook.md) | [API](docs/api.md)
 
 ![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)
-![Status: research preview](https://img.shields.io/badge/status-research_preview-orange)
-![Qualified: Windows RTX 5090](https://img.shields.io/badge/qualified-Windows_RTX_5090-76b900)
+[![Runtime: 0.1](https://img.shields.io/badge/runtime-0.1-blue)](https://github.com/LatentPort/latentport/releases/tag/lpcompact-v0.1)
 
-LatentPort lets one model inherit another model's working context. A learned bridge
-translates the full hybrid inference stateâ€”attention K/V, recurrent memory,
-convolution history and terminal hidden stateâ€”so the receiving model can continue
-without rereading that context.
+## A library of state operations
 
-**LatentPort-4+27B** combines Qwen3.5-4B as the reader with Qwen3.8-27B as the generator.
-The Python package makes the state something you can capture, translate, save, restore,
-and branch. Composite inference is the first application of that interface.
+A model's internal state carries what it has already processed. LatentPort exposes
+that state as an object developers can transform, persist, reuse and branch.
+Learned operators work directly on state tensors, allowing inference to continue
+from the transformed state.
 
-```text
-Your prompt â†’ 4B reads â†’ bridge translates state â†’ 27B answers
-                             â†“
-                    save Â· reuse Â· branch
-```
+| Operation | Purpose | Available today |
+| --- | --- | --- |
+| **Transfer** | Move working context into another model's state space. | Learned Qwen3.5-4B to Qwen3.8-27B bridge via `bridge.translate(state)`. |
+| **Compact** | Reduce attention memory while retaining the model's recurrent and convolutional state. | LPCompact 0.1 for Qwen3.8-27B via `state.compact()`. |
+| **Optimise** | Improve a state for the task or inference objective ahead. | Part of the roadmap. |
+| **Combine** | Bring information from multiple states into a shared working state. | Part of the roadmap. |
 
-## What can you build?
-
-- **Long-context assistants:** use the 4B for the initial prompt, then keep a fast cached conversation on the 27B.
-- **A team working from one context:** prepare a repository or document once, translate it once, and give independent branches different questions.
-- **Resumable workflows:** save complete model state, unload the models, and restore the context later.
-- **Continuously growing context:** append new tool output or observations to a source state, then translate a snapshot when needed.
-
-These are building blocks for your application. Forks are independent; the current
-single-GPU runtime queues execution rather than running multiple agents simultaneously.
+The shared runtime also provides capture, append, save, load and fork operations.
+Snapshots are immutable, so branches can share a starting context while advancing
+independently. Each learned transformation is trained for its supported model
+architecture or model pair.
 
 ## Get started
 
-**Preview target:** Windows x64, Python 3.11, NVIDIA RTX 5090 (32 GB), CUDA Toolkit 13.0
-runtime libraries and a compatible NVIDIA driver. Other hardware is not yet qualified.
-See the [installation guide](docs/installation.md) for prerequisites and troubleshooting.
+Use Python 3.11 or later with CUDA-enabled PyTorch and a GPU sized for your chosen
+base model and context. Install the [shared runtime release](https://github.com/LatentPort/latentport/releases/tag/lpcompact-v0.1):
 
-Install the preview wheel in PowerShell (no repository clone or compiler needed):
-
-```powershell
-$env:LATENTPORT_HOME = 'F:\LatentPort\runtime' # choose a disk with ~40 GB free
-py -3.11 -m venv "$env:LATENTPORT_HOME\venv"
-& "$env:LATENTPORT_HOME\venv\Scripts\Activate.ps1"
-python -m pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cu128
-python -m pip install "https://huggingface.co/latentport/latentport-4-27b-research-preview-GGUF/resolve/main/runtime/latentport-0.1.0.dev1-py3-none-any.whl"
-python -m latentport install-native
-python -m latentport doctor
+```shell
+python -m pip install "https://github.com/LatentPort/latentport/releases/download/lpcompact-v0.1/latentport-0.1.0-py3-none-any.whl"
 ```
 
-Run your first composite:
+Choose the setup for your operation:
+
+- **Compaction:** [BF16 and GGUF setup](docs/compaction.md), including the BF16 kernel dependencies and native GGUF runtime.
+- **Model transfer:** [Windows GGUF setup](docs/installation.md) and [conversation recipes](docs/cookbook.md).
+
+Set `LATENTPORT_HOME` to a directory with enough space for downloaded models and
+caches. The runtime downloads transformation weights when needed; base models are
+separate artifacts. Prebuilt GGUF runtimes are available for Windows x64 / CUDA 13
+and Linux x64 / CUDA 12.8 on Blackwell SM120.
+
+## Compact a running model's state
+
+[LPCompact-Qwen3.8-27B](https://huggingface.co/latentport/LPCompact-Qwen3.8-27B)
+provides a learned selector through a single operation:
+
+```python
+state = state.compact()
+```
+
+Given an agent's accumulated `history`, continue from its compacted state:
+
+```python
+import latentport as lp
+
+with lp.load_model(backend="bf16") as model:
+    state = model.prefill(history)
+    state = state.compact()
+    answer = model.session(state).ask("Continue the task.")
+    print(answer.text)
+```
+
+The default policy retains one eighth of attention KV positions on histories with
+at least 65,536 retained positions. A 4x setting is available with
+`state.compact(ratio=4)`. Recurrent state, convolution state and the original
+logical positions are preserved. Compaction uses no text summary or historical
+token replay.
+
+One selector checkpoint serves Qwen3.8-27B BF16 and GGUF weight quantizations.
+For GGUF, use `backend="gguf"` and supply `model_path` with your chosen base-model
+file. See the [compaction guide](docs/compaction.md) for context sizing, policy
+details and the `state.compaction` receipt.
+
+## Transfer context between models
+
+The current transfer bridge lets Qwen3.5-4B read a context and Qwen3.8-27B continue
+from the translated state. It transfers attention K/V, recurrent memory,
+convolution history and the terminal hidden state.
 
 ```python
 import latentport as lp
 
 with lp.load(backend="gguf") as port:
-    port.warm()  # load once; keep the port alive across requests
-    chat = port.composite.session()
-    answer = chat.ask("Explain how a database index speeds up a query.")
-    print(answer.text, end="", flush=True)
-    while not answer.finished:
-        answer = chat.generate(max_new_tokens=512)
-        print(answer.text, end="", flush=True)
+    port.warm()
+    context = port.source.capture([("user", "Repository context: ...")])
+    transferred = port.bridge.translate(context)
+    answer = port.target.session(transferred).ask("Explain the repository.")
+    print(answer.text)
 ```
 
-The first load downloads the pinned reader, target, bridge and tokenizer metadata
-from Hugging Face (~22 GB of model/bridge files). Downloads are cached on your chosen
-disk. `python -m latentport download` prepares them ahead of time. Have compatible
-GGUFs already? Pass `source_path=` and `target_path=`; see [local files](docs/installation.md#use-existing-model-files).
+For a complete conversation, `port.composite.session()` handles the initial
+handoff and retains the target's state across turns. The default `cached_handoff`
+policy translates once, then processes new input on the target. An explicit
+`strict` policy keeps the source model responsible for new user prompts.
 
-## Telepathy for LLMs
+The [cookbook](docs/cookbook.md) covers both policies, answer continuation,
+streaming and MTP. Existing local GGUF files can be supplied through `source_path`
+and `target_path`.
 
-Run `python examples/memory_transplant/server.py` for the [flagship browser demo](examples/memory_transplant/README.md):
-a broken checkout, live 4B-to-27B state transfer, two specialist branches, and a
-model-generated repair verified by executable tests.
+## Reuse, branch and resume
 
-## Watch your own TTFT comparison
-
-Run `python examples/ttft_demo.py` to compare native 27B and LatentPort on a fresh
-16K prompt, with live timers and a measured speedup. It warms both paths and pauses
-so you can start recording. See the [demo guide](docs/ttft-demo.md).
-
-Try the [live state demos](docs/state-demos.md) for cached conversations, two-specialist
-branching, save/resume, and fresh-context updates. Each includes a visible task and
-live model output.
-
-## Two ways to run a conversation
-
-| Policy | First prompt | Later user messages | Best fit |
-| --- | --- | --- | --- |
-| `cached_handoff` (default) | 4B reads; translate once; 27B generates | 27B appends only new input to retained state | Interactive conversations |
-| `strict` (explicit) | 4B reads; translate; 27B generates | 4B incorporates the committed answer and new input; translate again | Keep every user prompt on the 4B |
-
-Neither policy replays translated history through the target. Cached handoff deliberately
-lets the target process **new** user messages. Complete an answer before asking the next
-question; `generate()` resumes an answer that hit its token cap.
-
-## One context, different questions
+The same state abstraction supports persistence and independent continuations:
 
 ```python
-# Inside a loaded port:
-context = port.source.capture([("user", "Repository context: ...")])
-shared = port.bridge.translate(context)
-review, optimize = port.target.session(shared).fork(2)
-
-security = review.ask("Find the most important security risk.")
-performance = optimize.ask("Find the most important performance bottleneck.")
+review_state, planning_state = state.fork(2)
+state.save("saved-state")
+restored = lp.State.load("saved-state")
 ```
 
-Each branch inherits the context and processes its own new question. The shared snapshot
-is immutable. [The cookbook](docs/cookbook.md) covers completion, persistence, multi-turn
-chat, streaming and MTP.
+Prepare a repository once, let different agents work from the same snapshot, or
+save a long-running session and resume it later. Restoring a state reuses the
+captured context. Appending new tool results processes the new input.
 
-## Composite results
+Each snapshot records its exact model identity and runtime compatibility. Forks
+share immutable storage; execution uses the selected backend's scheduling.
 
-The frozen LatentPort-4+27B bridge was evaluated against both native models in E120.
-The 4B reads the **entire prompt, including the question**; the 27B processes **zero prompt tokens**.
+## Measured results
 
-| Completed tasks | Native 4B | LatentPort-4+27B | Native 27B |
-| --- | ---: | ---: | ---: |
-| Panel A (64 tasks) | 9 / 64 | **26 / 64** | 29 / 64 |
-| Independent confirmation B (64 tasks) | 11 / 64 | **23 / 64** | 29 / 64 |
+| Transformation | Measurement | Validation |
+| --- | --- | --- |
+| LPCompact, 128K history at 8x | Attention KV tensors reduced from **8 GiB to 1 GiB**. | BF16, Q4_K_M and Q8_0 tested at 64K and 128K on RTX PRO 6000; continued generation, save/load, forks and repeated compaction passed. |
+| 4B to 27B transfer, approximately 16K prompts | **2.19x paired time-to-first-token speedup**; native median 24.663 s, composite median 11.087 s. | E120 resident NF4/BF16 research runtime on RTX 5090; paired 95% interval 2.15-2.23x. |
 
-On confirmation B, the composite improved strict task success by **18.75 percentage points**
-over native 4B (paired 95% interval: +0.74 to +33.92 points). Native 27B remained stronger overall.
-These are adapted public and authored tasks, not official leaderboard scores.
+These measurements describe their stated workloads and configurations. Compaction
+reduces attention-state storage; model weights and recurrent state retain their
+existing representation. The transfer timing includes prefill, translation,
+installation and the first emitted token, excluding cold model loading.
 
-### Time to first token
+See [compaction validation](docs/compaction-validation.json),
+[transfer results](docs/composite-results.json) and
+[benchmark methodology](docs/benchmarks.md) for the full records.
 
-| Prompt length | Native 27B median | Composite median | Paired TTFT speedup (95% CI) |
-| --- | ---: | ---: | ---: |
-| Short | 0.603 s | 0.513 s | 1.06x (0.87â€“1.29) |
-| ~2K | 2.148 s | 1.295 s | **1.65x** (1.61â€“1.69) |
-| ~8K | 8.871 s | 4.459 s | **2.01x** (1.96â€“2.05) |
-| ~16K | 24.663 s | 11.087 s | **2.19x** (2.15â€“2.23) |
+## A state operating layer for inference
 
-Across all 32 requests, paired TTFT speedup was **1.67x** (95% CI: 1.49â€“1.86).
-Eight independent requests per length, three paired timing repetitions per request;
-ratios are paired geometric estimates, not ratios of the displayed medians.
+The long-term direction is a state operating layer for AI inference:
 
-**Configuration:** RTX 5090, pinned NF4/BF16 research runtime, resident models and bridge.
-TTFT includes source prefill, state translation, installation and first emitted token;
-it excludes cold loading. A first emitted token may be a reasoning/control token, not
-useful answer text. These results do not establish faster full answers or decode throughput.
-Quality scores have not been re-established for the GGUF runtime. Prose grading was
-identity-blinded AI grading; template differences and ambiguous judgments limit generalization.
+- **Model-specific translators** connect the internal state spaces of compatible models.
+- **Reusable operators** transfer, compact, optimise and combine state through a shared interface.
+- **A policy engine** selects transformations automatically according to the application's capability, latency and memory requirements.
 
-Full values and source fingerprints: [composite-results.json](docs/composite-results.json).
-See [benchmark notes](docs/benchmarks.md) for methodology and the separate GGUF runtime checks.
+The current release provides explicit transfer and compaction operations, plus
+the state lifecycle primitives. Learned optimisation, state combination and
+automatic policy selection are the next layers of that vision.
 
-## Runtime support
+## One runtime, separate transformation models
 
-| Component | Preview status |
-| --- | --- |
-| Windows x64 / RTX 5090 / Q4_K_M | Qualified with bounded real-model checks |
-| Text input / greedy generation | Supported; vision, audio and sampling are outside this preview |
-| Initial full-state handoff | Tested; zero target prompt processing |
-| Strict and cached-handoff multi-turn | Tested on a 16K two-turn fixture |
-| Save/restore, immutable snapshots and branching | Runtime correctness checked |
-| Target MTP | Greedy accepted/rejected-draft and rollback checks passed |
-| Linux, macOS, other GPUs and quantizations | Not qualified |
-| vLLM integration / distributed serving | Not implemented |
+The shared Python runtime lives in this GitHub repository. Each trained state
+transformation has its own Hugging Face repository, with model compatibility,
+weights, versions and a model card.
 
-The native download is a pinned **LatentPort-enabled llama.cpp** build. Stock llama.cpp
-cannot install the translated hybrid state. The bridge GGUF holds FP32 translator
-weights; it is not a standalone language model or a Q4-quantized bridge.
+- [LPCompact-Qwen3.8-27B](https://huggingface.co/latentport/LPCompact-Qwen3.8-27B): the compaction selector shared across BF16 and GGUF.
+- [4B to 27B transfer bridge](https://huggingface.co/latentport/latentport-4-27b-research-preview): the current directional translator; [GGUF artifacts](https://huggingface.co/latentport/latentport-4-27b-research-preview-GGUF) are also available.
 
-The package also exposes an experimental live `escalate()` primitive. It is not part
-of the qualified composite research release or the results above. See [API scope](docs/api.md).
+Transformation repositories contain their own learned artifacts. Base-model
+weights are obtained separately.
 
-## Learn more and contribute
+## Demos and documentation
 
-- [Installation and troubleshooting](docs/installation.md)
-- [Recipes: chat, shared context, persistence, streaming and MTP](docs/cookbook.md)
-- [API and state semantics](docs/api.md)
-- [Benchmarks and what they measure](docs/benchmarks.md)
-- [Native integration and source builds](docs/native-abi.md)
-- [Contributing](CONTRIBUTING.md)
+- [Memory transplant demo](examples/memory_transplant/README.md): live state transfer, specialist branches and a repair checked by executable tests.
+- [State demos](docs/state-demos.md): cached conversations, branching, save/resume and fresh context updates.
+- [Time-to-first-token demo](docs/ttft-demo.md): compare native 27B and composite inference on a fresh 16K prompt.
+- [Compaction guide](docs/compaction.md), [cookbook](docs/cookbook.md) and [API contracts](docs/api.md).
+- [Native integration](docs/native-abi.md) and [contributing](CONTRIBUTING.md).
 
 Report reproducible issues at [GitHub Issues](https://github.com/LatentPort/latentport/issues).
-Include `python -m latentport doctor`, model file identities and a minimal example;
-remove private prompts and credentials. The preview currently supports one directional
-model pair. More bridges can extend the same state interface; arbitrary model pairs
-and state merging are not supported today.
+Include the output of `python -m latentport doctor`, model identities and a minimal
+example, with private prompts and credentials removed.
 
 ## License
 
-The runtime and LatentPort bridge weights are Apache-2.0. Qwen model weights retain
-their upstream Apache-2.0 licenses; llama.cpp retains its MIT license. See [LICENSE](LICENSE)
-and the notices distributed with the native and model downloads.
+The LatentPort runtime and transformation weights are Apache-2.0. Qwen base models
+retain their upstream licenses, and llama.cpp retains its MIT license. See
+[LICENSE](LICENSE) and the notices supplied with the model and native downloads.
