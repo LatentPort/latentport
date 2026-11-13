@@ -6,15 +6,15 @@
   <img src="docs/assets/latentport-ascii.gif" alt="LatentPort: working state moving between models" width="640">
 </p>
 
-[Website](https://latentport.com) · [Install](docs/installation.md) · [Cookbook](docs/cookbook.md) · [Models](https://huggingface.co/latentport) · [API](docs/api.md)
+[Website](https://latentport.com) Â· [Install](docs/installation.md) Â· [Cookbook](docs/cookbook.md) Â· [Models](https://huggingface.co/latentport) Â· [API](docs/api.md)
 
 ![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)
 ![Status: research preview](https://img.shields.io/badge/status-research_preview-orange)
 ![Qualified: Windows RTX 5090](https://img.shields.io/badge/qualified-Windows_RTX_5090-76b900)
 
 LatentPort lets one model inherit another model's working context. A learned bridge
-translates the full hybrid inference state—attention K/V, recurrent memory,
-convolution history and terminal hidden state—so the receiving model can continue
+translates the full hybrid inference stateâ€”attention K/V, recurrent memory,
+convolution history and terminal hidden stateâ€”so the receiving model can continue
 without rereading that context.
 
 **LatentPort-4+27B** combines Qwen3.5-4B as the reader with Qwen3.8-27B as the generator.
@@ -22,9 +22,9 @@ The Python package makes the state something you can capture, translate, save, r
 and branch. Composite inference is the first application of that interface.
 
 ```text
-Your prompt → 4B reads → bridge translates state → 27B answers
-                             ↓
-                    save · reuse · branch
+Your prompt â†’ 4B reads â†’ bridge translates state â†’ 27B answers
+                             â†“
+                    save Â· reuse Â· branch
 ```
 
 ## What can you build?
@@ -75,6 +75,22 @@ from Hugging Face (~22 GB of model/bridge files). Downloads are cached on your c
 disk. `python -m latentport download` prepares them ahead of time. Have compatible
 GGUFs already? Pass `source_path=` and `target_path=`; see [local files](docs/installation.md#use-existing-model-files).
 
+## Telepathy for LLMs
+
+Run `python examples/memory_transplant/server.py` for the [flagship browser demo](examples/memory_transplant/README.md):
+a broken checkout, live 4B-to-27B state transfer, two specialist branches, and a
+model-generated repair verified by executable tests.
+
+## Watch your own TTFT comparison
+
+Run `python examples/ttft_demo.py` to compare native 27B and LatentPort on a fresh
+16K prompt, with live timers and a measured speedup. It warms both paths and pauses
+so you can start recording. See the [demo guide](docs/ttft-demo.md).
+
+Try the [live state demos](docs/state-demos.md) for cached conversations, two-specialist
+branching, save/resume, and fresh-context updates. Each includes a visible task and
+live model output.
+
 ## Two ways to run a conversation
 
 | Policy | First prompt | Later user messages | Best fit |
@@ -120,12 +136,12 @@ These are adapted public and authored tasks, not official leaderboard scores.
 
 | Prompt length | Native 27B median | Composite median | Paired TTFT speedup (95% CI) |
 | --- | ---: | ---: | ---: |
-| Short | 0.603 s | 0.513 s | 1.06x (0.87–1.29) |
-| ~2K | 2.148 s | 1.295 s | **1.65x** (1.61–1.69) |
-| ~8K | 8.871 s | 4.459 s | **2.01x** (1.96–2.05) |
-| ~16K | 24.663 s | 11.087 s | **2.19x** (2.15–2.23) |
+| Short | 0.603 s | 0.513 s | 1.06x (0.87â€“1.29) |
+| ~2K | 2.148 s | 1.295 s | **1.65x** (1.61â€“1.69) |
+| ~8K | 8.871 s | 4.459 s | **2.01x** (1.96â€“2.05) |
+| ~16K | 24.663 s | 11.087 s | **2.19x** (2.15â€“2.23) |
 
-Across all 32 requests, paired TTFT speedup was **1.67x** (95% CI: 1.49–1.86).
+Across all 32 requests, paired TTFT speedup was **1.67x** (95% CI: 1.49â€“1.86).
 Eight independent requests per length, three paired timing repetitions per request;
 ratios are paired geometric estimates, not ratios of the displayed medians.
 

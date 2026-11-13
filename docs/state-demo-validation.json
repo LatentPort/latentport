@@ -1,0 +1,38 @@
+{
+  "validated_context_tokens": 512,
+  "validation": "Real GGUF functional smoke checks; no quality or performance benchmark",
+  "passed_demos": [
+    "cached",
+    "branch",
+    "resume",
+    "extend"
+  ],
+  "checks_passed": [
+    "First composite prompt processed only by 4B",
+    "Follow-up kept the reader idle",
+    "Follow-up processed only a short new target suffix",
+    "Context captured without target prefill",
+    "Bridge installed state without prompt replay",
+    "Branches have independent state identities",
+    "First specialist did not advance the second branch",
+    "Specialist processed only its new question",
+    "Specialist processed only its new question",
+    "Context captured without target prefill",
+    "Disk restore performed zero prompt prefill",
+    "Bridge installed state without prompt replay",
+    "Restored context answered a new question without historical replay",
+    "Context captured without target prefill",
+    "Reader processed exactly the newly appended tokens",
+    "Append preserved the original snapshot",
+    "Bridge installed state without prompt replay",
+    "Context captured without target prefill",
+    "Reader processed exactly the newly appended tokens",
+    "Append preserved the original snapshot",
+    "Bridge installed state without prompt replay"
+  ],
+  "evidence": [
+    "F:/LatentPort/runtime/launch-clean-home/demos/state-20261104T071648Z-19060/results.json",
+    "F:/LatentPort/runtime/launch-clean-home/demos/state-20261104T071829Z-11812/results.json"
+  ],
+  "note": "First combined run passed cached, branch, resume; extend failed at missing native turn boundary. Fixed demo append to preserve formatted turn boundaries and reran extend successfully."
+}

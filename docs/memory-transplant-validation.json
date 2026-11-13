@@ -1,0 +1,100 @@
+{
+  "success": true,
+  "context_tokens": 10513,
+  "native_ttft_s": 3.635125999999218,
+  "composite_ttft_s": 1.3912129000000277,
+  "ttft_speedup": 2.6129185547367664,
+  "composite_prefill_tokens": {
+    "source": 10513,
+    "target": 0
+  },
+  "patch": {
+    "file": "shop/checkout.py",
+    "old": "amount_minor = int(total)",
+    "new": "amount_minor = to_minor_units(total, currency)"
+  },
+  "generated_regression_cases": [
+    {
+      "price": "59.95",
+      "quantity": 2,
+      "currency": "USD",
+      "expected_minor": 11990
+    },
+    {
+      "price": "1200",
+      "quantity": 2,
+      "currency": "JPY",
+      "expected_minor": 2400
+    },
+    {
+      "price": "1.25",
+      "quantity": 3,
+      "currency": "KWD",
+      "expected_minor": 3750
+    }
+  ],
+  "tests_passed": 147,
+  "checks": [
+    "Native baseline processed the entire fresh prompt",
+    "27B prompt tokens during composite request: 0",
+    "4B processed the entire fresh composite prompt",
+    "Forked sessions have independent state identities",
+    "Repair branch did not advance the regression branch",
+    "Repair specialist processed only its new instruction",
+    "Regression specialist processed only its new instruction",
+    "Generated tests fail before the patch and pass after it"
+  ],
+  "evidence": "F:/LatentPort/runtime/launch-clean-home/demos/transplant-20261104T074712Z-8876/results.json",
+  "ui_checks": [
+    "1440px desktop and 390px mobile: no horizontal overflow",
+    "No browser JavaScript errors",
+    "Source viewer populated",
+    "Native/composite tabs switch actual output",
+    "Verified success state renders from real GPU-run evidence"
+  ],
+  "notes": "One measured GPU rehearsal after excluded warmups; not a statistical benchmark. UI result checks used recorded real-run data through a test-only browser route.",
+  "portrait_redesign": {
+    "branding": "Verified live latentport.com CSS; reused navy/blue palette, gradient typography, grid and actual logo",
+    "viewports": [
+      [
+        1080,
+        1350
+      ],
+      [
+        1080,
+        1920
+      ],
+      [
+        390,
+        844
+      ],
+      [
+        375,
+        667
+      ],
+      [
+        1440,
+        900
+      ]
+    ],
+    "chapter_viewport_checks": 30,
+    "page_auto_scroll": "Removed; viewport-sized chapters",
+    "streaming_narration": "Word-by-word output verified against early and later DOM text; triggered by actual server phase events",
+    "presenter_controls": "Backend checkpoint blocks until Continue; single resume; headless bypass tested",
+    "proof_screen": "Full patch and test results fit the 1080x1350 recording frame",
+    "gpu_rerun": false,
+    "note": "Inference logic unchanged. Browser layout tests used recorded real-run evidence; presenter gate tested independently."
+  },
+  "capability_first_presentation": {
+    "hook": "Telepathy for LLMs",
+    "story": [
+      "Cross-model full-state translation",
+      "Zero original-prompt processing by 27B",
+      "Measured TTFT improvement",
+      "Independent continuations from inherited state"
+    ],
+    "checkout_role": "Supporting executable proof",
+    "layout_checks": "Portrait and phone screens checked with recorded real-run data; no clipped cards or page overflow after adjustments",
+    "inference_changed": false
+  }
+}
