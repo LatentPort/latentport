@@ -32,12 +32,16 @@ token replay is needed for the operation.
 
 ## One selector for BF16 and GGUF
 
-The [LPCompact model](https://huggingface.co/latentport/LPCompact) contains one
+The [LPCompact-Qwen3.8-27B model](https://huggingface.co/latentport/LPCompact-Qwen3.8-27B) contains one
 selector checkpoint. The same weights serve Qwen3.8-27B BF16 and GGUF weight
 quantizations. Weight precision is independent of the selector: each adapter
 exposes the same complete hybrid-state layout with BF16 attention keys and values.
 Model identities still bind snapshots to the exact base weights and runtime that
 created them.
+
+Each trained state operation has its own Hugging Face repository, named for its
+operation and compatible model. The shared Python runtime remains in the
+[LatentPort GitHub repository](https://github.com/LatentPort/latentport).
 
 Install the [LatentPort 0.1 release wheel](https://github.com/LatentPort/latentport/releases/tag/lpcompact-v0.1).
 For BF16, use an environment with CUDA-enabled PyTorch and the CUDA compiler.

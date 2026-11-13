@@ -1,7 +1,7 @@
 {
-  "name": "LPCompact",
+  "name": "LPCompact-Qwen3.8-27B",
   "version": "0.1",
-  "repo_id": "latentport/LPCompact",
+  "repo_id": "latentport/LPCompact-Qwen3.8-27B",
   "revision": "45b2f084c2795edfe828cf87e140b857c3bd33c4",
   "filename": "model.safetensors",
   "sha256": "f81c6e3bd780674aff0a1be0842d018a4c6816e3374be59ce32be8a482741d49",
