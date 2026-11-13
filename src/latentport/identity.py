@@ -45,6 +45,25 @@ class StateInfo:
 
 
 @dataclass(frozen=True, slots=True)
+class CompactionInfo:
+    method: str
+    version: str
+    requested_ratio: int
+    physical_before: int
+    physical_after: int
+    logical_history: int
+    kv_bytes_before: int
+    kv_bytes_after: int
+    elapsed_s: float
+    learned_positions: int
+    floor_bound: bool
+
+    @property
+    def effective_ratio(self) -> float:
+        return self.logical_history / self.physical_after
+
+
+@dataclass(frozen=True, slots=True)
 class RunStats:
     queue_s: float = 0.0
     reader_prefill_s: float = 0.0

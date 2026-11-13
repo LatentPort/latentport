@@ -7,18 +7,43 @@ import json
 from pathlib import Path
 import platform
 import zipfile
+import os
+import tempfile
+from urllib.request import urlopen
 
 from .hub import bulk_home
 
 
 def install_native():
-    """Install the pinned, checksum-verified Windows native distribution."""
-    if platform.system() != "Windows" or platform.machine().lower() not in ("amd64", "x86_64"):
-        raise RuntimeError("The preview native download supports Windows x64 only; see docs/installation.md")
-    from huggingface_hub import hf_hub_download
+    """Install a pinned, checksum-verified native runtime distribution."""
+    system=platform.system()
+    if system not in ("Windows", "Linux") or platform.machine().lower() not in ("amd64", "x86_64"):
+        raise RuntimeError("Prebuilt native downloads support Windows/Linux x64; see docs/installation.md")
     spec = json.loads((Path(__file__).parent / "configs/native-release.json").read_text())
-    artifact = Path(hf_hub_download(spec["repo_id"], spec["filename"], revision=spec["revision"],
-                                  cache_dir=bulk_home()/"huggingface"))
+    if system == "Linux":
+        if "linux" not in spec:
+            raise RuntimeError("This release has no pinned Linux native download")
+        spec=spec["linux"]
+    if "url" in spec:
+        cache=bulk_home()/"downloads"
+        cache.mkdir(parents=True,exist_ok=True)
+        artifact=cache/(spec["sha256"]+".zip")
+        if not artifact.is_file():
+            fd,temporary=tempfile.mkstemp(dir=cache,suffix=".partial")
+            try:
+                with os.fdopen(fd,"wb") as out, urlopen(spec["url"],timeout=60) as response:
+                    for block in iter(lambda:response.read(4*1024*1024),b""):
+                        out.write(block)
+                if hashlib.sha256(Path(temporary).read_bytes()).hexdigest()!=spec["sha256"]:
+                    raise RuntimeError("Native archive checksum mismatch")
+                Path(temporary).replace(artifact)
+            finally:
+                Path(temporary).unlink(missing_ok=True)
+    else:
+        # Preserve support for earlier pinned Hub-distributed native releases.
+        from huggingface_hub import hf_hub_download
+        artifact = Path(hf_hub_download(spec["repo_id"], spec["filename"], revision=spec["revision"],
+                                      cache_dir=bulk_home()/"huggingface"))
     if hashlib.sha256(artifact.read_bytes()).hexdigest() != spec["sha256"]:
         raise RuntimeError("Native archive checksum mismatch")
     destination = bulk_home()/"native/build/bin"
@@ -28,7 +53,8 @@ def install_native():
             if Path(name).name != name or name in (".", "..") or ":" in name:
                 raise RuntimeError("Unexpected native archive member")
         archive.extractall(destination)
-    print(f"Native runtime installed: {destination / 'llama.dll'}")
+    name="llama.dll" if system=="Windows" else "libllama.so"
+    print(f"Native runtime installed: {destination / name}")
     print("Next: python -m latentport doctor")
 
 
@@ -44,7 +70,9 @@ def doctor():
         result["gpu_free_bytes"], result["gpu_total_bytes"] = torch.cuda.mem_get_info()
     try:
         result["native_library"] = str(library_path())
-        result["native_abi"] = Library(None).lib.lp_abi()
+        binding=Library(None)
+        result["native_abi"] = binding.lib.lp_abi()
+        result["native_state_compact"] = binding.sparse_state
     except Exception as exc:
         result["native_error"] = str(exc)
     result["ready_for_model_load"] = result["cuda_available"] and result.get("native_abi") == 2

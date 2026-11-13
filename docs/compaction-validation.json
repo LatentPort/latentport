@@ -1,0 +1,97 @@
+{
+  "product": "LPCompact",
+  "version": "0.1",
+  "single_selector_sha256": "f81c6e3bd780674aff0a1be0842d018a4c6816e3374be59ce32be8a482741d49",
+  "gpu": "RTX PRO 6000 Blackwell Server Edition 96GB",
+  "contexts": [
+    65536,
+    131072
+  ],
+  "native_dense_parity": {
+    "status": "PASS",
+    "all_state_tensors_bitwise_equal": true,
+    "greedy_tokens_equal": true,
+    "mtp_tokens_equal": true,
+    "clock": 354
+  },
+  "existing_composite_parity": {
+    "status": "PASS",
+    "initial_translation_equal": true,
+    "followup_equal": true,
+    "fork_equal": true,
+    "no_additional_replay": true
+  },
+  "compacted_mtp_parity": true,
+  "working_cache_growth": true,
+  "backends": [
+    {
+      "name": "bf16-full",
+      "status": "PASS",
+      "contexts": [
+        65536,
+        131072
+      ],
+      "compaction_seconds": [
+        0.1158192518632859,
+        0.07134294300340116
+      ],
+      "kv_bytes_before": [
+        4294967296,
+        8589934592
+      ],
+      "kv_bytes_after": [
+        536870912,
+        1073741824
+      ],
+      "preserved_recurrent_convolution_and_endpoint": true,
+      "save_load_and_fork": true,
+      "repeated_compaction": true
+    },
+    {
+      "name": "gguf-q4-full",
+      "status": "PASS",
+      "contexts": [
+        65536,
+        131072
+      ],
+      "compaction_seconds": [
+        0.22678735526278615,
+        0.0915739769116044
+      ],
+      "kv_bytes_before": [
+        4294967296,
+        8589934592
+      ],
+      "kv_bytes_after": [
+        536870912,
+        1073741824
+      ],
+      "preserved_recurrent_convolution_and_endpoint": true,
+      "save_load_and_fork": true,
+      "repeated_compaction": true
+    },
+    {
+      "name": "gguf-q8-full",
+      "status": "PASS",
+      "contexts": [
+        65536,
+        131072
+      ],
+      "compaction_seconds": [
+        0.4003342711366713,
+        0.15496547613292933
+      ],
+      "kv_bytes_before": [
+        4294967296,
+        8589934592
+      ],
+      "kv_bytes_after": [
+        536870912,
+        1073741824
+      ],
+      "preserved_recurrent_convolution_and_endpoint": true,
+      "save_load_and_fork": true,
+      "repeated_compaction": true
+    }
+  ]
+}

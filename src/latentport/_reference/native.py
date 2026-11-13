@@ -6,12 +6,15 @@ import hashlib
 import json
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+from threading import RLock
 
 from ..errors import CapabilityError, CompatibilityError, StateError
 from . import cache_abi
+from .._positions import physical_length, continuation_inputs, extend_positions
 
 
 STATE_ABI = "qwen3.5.complete-hybrid.v1"
+KERNEL_LOCK = RLock()
 
 
 def _geometry(side: str):
@@ -22,17 +25,22 @@ def validate_components(values: Mapping[str, Any], clock: int, side: str, *, fin
     import torch
     geo = _geometry(side)
     expected = {"H"}
+    physical = physical_length(values, clock)
+    if "P" in values:
+        expected.add("P")
     for index, kind in enumerate(geo["types"]):
         expected.update(f"{field}.{index}" for field in (("K", "V") if kind == "full_attention" else ("C", "R")))
     if set(values) != expected or clock < 1:
         raise StateError(f"{side} state needs exactly {len(expected)} complete fields and a positive clock")
     shapes = {"H": (1, 1, geo["hidden"]),
-              "K": (1, geo["kv_heads"], clock, geo["head_dim"]),
-              "V": (1, geo["kv_heads"], clock, geo["head_dim"]),
+              "K": (1, geo["kv_heads"], physical, geo["head_dim"]),
+              "V": (1, geo["kv_heads"], physical, geo["head_dim"]),
               "C": (1, geo["conv_channels"], geo["conv_width"]),
               "R": (1, geo["recurrent_heads"], geo["recurrent_k"], geo["recurrent_v"])}
     finite_checks = []
     for name, value in values.items():
+        if name == "P":
+            continue
         field = name.split(".", 1)[0]
         if tuple(value.shape) != shapes[field]:
             raise StateError(f"Wrong {name} shape: {tuple(value.shape)} != {shapes[field]}")
@@ -72,6 +80,7 @@ def reference_kernels():
     import transformers.models.qwen3_5.modeling_qwen3_5 as native
     names = ("torch_chunk_gated_delta_rule", "torch_recurrent_gated_delta_rule",
              "causal_conv1d_fn", "causal_conv1d_update")
+    KERNEL_LOCK.acquire()
     old = {name: getattr(native, name) for name in names}
     try:
         for name in names:
@@ -80,6 +89,7 @@ def reference_kernels():
     finally:
         for name, fn in old.items():
             setattr(native, name, fn)
+        KERNEL_LOCK.release()
 
 
 class ReferenceBackend:
@@ -87,6 +97,7 @@ class ReferenceBackend:
     state_abi = STATE_ABI
     supports_mtp = False
     translation_device = "cuda"
+    kernels = staticmethod(reference_kernels)
 
     def __init__(self, locations: Mapping[str, str | Path | None], specs: Mapping[str, Mapping[str, Any]],
                  *, device: str = "cuda:0", resolver=None):
@@ -179,7 +190,7 @@ class ReferenceBackend:
         for i, kind in enumerate(model.config.layer_types):
             x, y = ("K", "V") if kind == "full_attention" else ("C", "R")
             cache_abi.assign(cache, i, kind, values[f"{x}.{i}"], values[f"{y}.{i}"])
-        if int(cache.get_seq_length()) != clock:
+        if int(cache.get_seq_length()) != physical_length(values, clock):
             raise StateError("Installed cache clock differs from state clock")
         return cache
 
@@ -191,7 +202,7 @@ class ReferenceBackend:
         terminal = []
         hook = model.model.norm.register_forward_pre_hook(lambda _, args: terminal.append(args[0][:, -1:].detach().clone()))
         try:
-            with torch.inference_mode(), reference_kernels():
+            with torch.inference_mode(), self.kernels():
                 tensor = torch.tensor([list(token_ids)], device=self.device, dtype=torch.long)
                 output = model(input_ids=tensor, use_cache=True, logits_to_keep=1)
         finally:
@@ -213,14 +224,18 @@ class ReferenceBackend:
         terminal = []
         hook = model.model.norm.register_forward_pre_hook(lambda _, args: terminal.append(args[0][:, -1:].detach().clone()))
         try:
-            with torch.inference_mode(), reference_kernels():
+            with torch.inference_mode(), self.kernels():
                 tensor = torch.tensor([list(token_ids)], device=self.device, dtype=torch.long)
-                output = model(input_ids=tensor, past_key_values=cache, use_cache=True, logits_to_keep=1)
+                extra = (continuation_inputs(components, clock, len(token_ids), device=self.device,
+                                             dtype=components["H"].dtype) if "P" in components else {})
+                output = model(input_ids=tensor, past_key_values=cache, use_cache=True, logits_to_keep=1, **extra)
         finally:
             hook.remove()
         if len(terminal) != 1:
             raise StateError("Ambiguous terminal H after append")
         values = self._extract(model, output.past_key_values, terminal[0])
+        if "P" in components:
+            values["P"] = extend_positions(components, clock, len(token_ids))
         validate_components(values, clock + len(token_ids), side, finite=True)
         return values
 
@@ -249,14 +264,16 @@ class ReferenceBackend:
         validate_components(components, clock, self._side(identity))
         model = self._model(identity)
         cache = self._cache(model, components, clock)
-        return _ReferenceDecodeHandle(model, cache, components["H"], clock, self.device)
+        return _ReferenceDecodeHandle(model, cache, components["H"], clock, self.device,
+                                      positions=components.get("P"), kernels=self.kernels)
 
 
 class _ReferenceDecodeHandle:
-    def __init__(self, model, cache, terminal, clock, device):
+    def __init__(self, model, cache, terminal, clock, device, *, positions=None, kernels=reference_kernels):
         import torch
         self.model, self.cache, self.terminal = model, cache, terminal
         self.clock, self.device = clock, device
+        self.positions, self.kernels = positions, kernels
         with torch.inference_mode():
             self.logits = model.lm_head(model.model.norm(terminal))[:, -1]
 
@@ -266,21 +283,28 @@ class _ReferenceDecodeHandle:
         hook = self.model.model.norm.register_forward_pre_hook(
             lambda _, args: terminal.append(args[0][:, -1:].detach().clone()))
         try:
-            with torch.inference_mode(), reference_kernels():
+            with torch.inference_mode(), self.kernels():
+                extra = (continuation_inputs({"P": self.positions}, self.clock, 1,
+                         device=self.device, dtype=self.terminal.dtype) if self.positions is not None else {})
                 result = self.model(input_ids=torch.tensor([[token_id]], device=self.device),
-                                    past_key_values=self.cache, use_cache=True, logits_to_keep=1)
+                                    past_key_values=self.cache, use_cache=True, logits_to_keep=1, **extra)
         finally:
             hook.remove()
         if len(terminal) != 1:
             raise StateError("Ambiguous terminal H during decoding")
         self.cache, self.terminal = result.past_key_values, terminal[0]
+        if self.positions is not None:
+            self.positions = extend_positions({"P": self.positions}, self.clock, 1)
         self.clock += 1
-        if int(self.cache.get_seq_length()) != self.clock:
+        physical = len(self.positions) if self.positions is not None else self.clock
+        if int(self.cache.get_seq_length()) != physical:
             raise StateError("Decode cache clock drift")
         self.logits = result.logits[:, -1]
 
     def snapshot(self):
         result = {"H": self.terminal.detach()}
+        if self.positions is not None:
+            result["P"] = self.positions
         for i, kind in enumerate(self.model.config.layer_types):
             a, b = cache_abi.extract(self.cache, i, kind)
             x, y = ("K", "V") if kind == "full_attention" else ("C", "R")

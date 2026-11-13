@@ -34,6 +34,14 @@ LP_API int lp_get_info(void * handle, lp_info * out);
 LP_API int lp_tokenize(void * handle, const char * text, int bytes, int32_t * out, int capacity);
 LP_API int lp_reset(void * handle);
 LP_API int lp_install(void * handle, const lp_field * fields, int count, int clock);
+// Optional additive sparse-state extension. Dense ABI 2 callers are unchanged.
+// positions is a strictly increasing host array of original RoPE coordinates.
+LP_API int lp_install_sparse(void * handle, const lp_field * fields, int count, int clock,
+                             const int32_t * positions, int physical);
+// Returns zero for dense state, otherwise occupancy; capacity=0 queries the size.
+LP_API int lp_kv_positions(void * handle, int32_t * positions, int capacity);
+// Reallocate working caches while retaining model weights. Caller installs state.
+LP_API int lp_resize_context(void * handle, int capacity);
 LP_API int lp_export(void * handle, const lp_field * fields, int count);
 LP_API int lp_prefill(void * handle, const int32_t * ids, int count);
 LP_API int lp_logits(void * handle, float * host_output, int capacity);

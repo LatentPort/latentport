@@ -73,6 +73,17 @@ class Model:
     def prefill(self, context: str | Sequence[tuple[str, str]]) -> State:
         return self.capture(context, generation_prompt=False)
 
+    def close(self):
+        """Release this model's backend; independently owned snapshots survive."""
+        if hasattr(self.backend, "close"):
+            self.backend.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:

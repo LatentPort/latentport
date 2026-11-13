@@ -14,6 +14,7 @@ from time import perf_counter
 
 from ..errors import CapabilityError, StateError
 from .._reference.native import _geometry, validate_components
+from .._positions import physical_length
 
 
 @dataclass(frozen=True)
@@ -104,6 +105,14 @@ class Library:
             raise CapabilityError("This is stock llama.cpp, not a LatentPort-enabled build") from exc
         if self.lib.lp_abi()!=2:
             raise CapabilityError("Native ABI differs; rebuild the pinned runtime")
+        self.sparse_state = all(hasattr(self.lib, name) for name in
+                                ("lp_install_sparse", "lp_kv_positions", "lp_resize_context"))
+        if self.sparse_state:
+            extra = {"lp_install_sparse": ([p,ct.POINTER(Field),i,i,ct.POINTER(ct.c_int32),i],i),
+                     "lp_kv_positions": ([p,ct.POINTER(ct.c_int32),i],i),
+                     "lp_resize_context": ([p,i],i)}
+            for name,(args,result) in extra.items():
+                fn=getattr(self.lib,name);fn.argtypes=args;fn.restype=result
 
     def check(self, result):
         if result < 0:
@@ -119,8 +128,10 @@ class Engine:
         self.lib=self.binding.lib
         self._models={}; self._active={}; self._lock=RLock(); self._closed=False
         self._cache_reclaims=0
-        from .bridge import GGUFTranslator
-        self.bridge=GGUFTranslator(bridge,bundle_root)
+        self.bridge=None
+        if bridge is not None:
+            from .bridge import GGUFTranslator
+            self.bridge=GGUFTranslator(bridge,bundle_root)
 
     def capabilities(self):
         return {"abi":2,"full_hybrid_state_install":True,"device_resident_state":True,
@@ -153,6 +164,8 @@ class Engine:
         keep=[]; fields=[]
         kinds={"H":0,"K":1,"V":2,"C":3,"R":4}
         for name,value in values.items():
+            if name == "P":
+                continue # Sparse positions are host metadata, not a CUDA field.
             # Readonly input state is never modified. Packing on the GPU is
             # needed only for noncontiguous translator outputs or disk loads.
             value=value.to(device="cuda:0").contiguous()
@@ -176,22 +189,74 @@ class Engine:
 
     def _install(self,side,values,clock):
         validate_components(values,clock,side,native_precision=True)
+        if "P" in values:
+            if not self.binding.sparse_state:
+                raise CapabilityError("Rebuild the native runtime to enable state.compact() continuations")
+            physical=physical_length(values,clock)
+            self._resize(side,min(262144,((physical+1024+255)//256)*256))
+        else:
+            _,info=self._model(side)
+            if clock>info.context_size:
+                if clock>self.options.context_size:
+                    raise StateError("Dense state exceeds configured context capacity")
+                self._resize(side,self.options.context_size)
         handle,_=self._model(side)
         started=perf_counter()
         fields,keep=self._fields(values)
         transferred=perf_counter()
-        self.binding.check(self.lib.lp_install(handle,fields,len(fields),clock))
+        if "P" in values:
+            raw=values["P"].cpu().tolist()
+            positions=(ct.c_int32*len(raw))(*raw)
+            self.binding.check(self.lib.lp_install_sparse(handle,fields,len(fields),clock,positions,len(raw)))
+        else:
+            self.binding.check(self.lib.lp_install(handle,fields,len(fields),clock))
         trace=self.trace(side)
         return {"device_transfer_s":transferred-started,"state_install_s":trace["last_install_s"],
                 "target_first_token_compute_s":trace["last_head_s"]}
+
+    def _resize(self,side,capacity):
+        handle,info=self._model(side)
+        if capacity==info.context_size:
+            return
+        if not self.binding.sparse_state:
+            raise CapabilityError("Native working-cache resize requires an updated build")
+        self.binding.check(self.lib.lp_resize_context(handle,capacity))
+        self.binding.check(self.lib.lp_get_info(handle,ct.byref(info)))
+
+    def _ensure_room(self,side,count,*,partial=False):
+        handle,info=self._model(side)
+        clock=self.binding.check(self.lib.lp_clock(handle))
+        if partial:
+            count=min(count,262144-clock)
+        if clock+count>262144:
+            raise StateError("Continuation exceeds the model's logical position limit")
+        n=self.binding.check(self.lib.lp_kv_positions(handle,None,0)) if self.binding.sparse_state else 0
+        physical=n or clock
+        if physical+count<=info.context_size:
+            return
+        if not n and physical+count>self.options.context_size:
+            if partial:
+                return # Original lp_greedy commits only the available suffix.
+            raise StateError("Dense continuation exceeds configured context capacity")
+        values=self._snapshot(side)
+        capacity=(min(262144,max(physical+count,info.context_size*2)) if n else self.options.context_size)
+        self._resize(side,capacity)
+        fields,keep=self._fields(values)
+        if n:
+            positions=(ct.c_int32*n)(*values["P"].cpu().tolist())
+            self.binding.check(self.lib.lp_install_sparse(handle,fields,len(fields),clock,positions,n))
+        else:
+            self.binding.check(self.lib.lp_install(handle,fields,len(fields),clock))
 
     def _snapshot(self,side):
         import torch
         handle,_=self._model(side)
         clock=self.binding.check(self.lib.lp_clock(handle))
+        n=self.binding.check(self.lib.lp_kv_positions(handle,None,0)) if self.binding.sparse_state else 0
+        physical=n or clock
         g=_geometry(side)
-        shapes={"H":(1,1,g["hidden"]),"K":(1,g["kv_heads"],clock,g["head_dim"]),
-                "V":(1,g["kv_heads"],clock,g["head_dim"]),"C":(1,g["conv_channels"],4),
+        shapes={"H":(1,1,g["hidden"]),"K":(1,g["kv_heads"],physical,g["head_dim"]),
+                "V":(1,g["kv_heads"],physical,g["head_dim"]),"C":(1,g["conv_channels"],4),
                 "R":(1,g["recurrent_heads"],128,128)}
         names=["H"]
         for i,kind in enumerate(g["types"]):
@@ -200,6 +265,10 @@ class Engine:
                                 device="cuda:0") for name in names}
         fields,keep=self._fields(values)
         self.binding.check(self.lib.lp_export(handle,fields,len(fields)))
+        if n:
+            positions=(ct.c_int32*n)()
+            self.binding.check(self.lib.lp_kv_positions(handle,positions,n))
+            values["P"]=torch.tensor(list(positions),device="cuda:0",dtype=torch.long)
         self._trim_torch_cache()
         return values
 
@@ -225,6 +294,11 @@ class Engine:
         with self._lock:
             self._park(side)
             handle,_=self._model(side)
+            _,info=self._model(side)
+            if len(ids)>info.context_size:
+                if len(ids)>self.options.context_size:
+                    raise StateError("Prefill exceeds configured context capacity")
+                self._resize(side,self.options.context_size)
             self.binding.check(self.lib.lp_reset(handle))
             tokens=(ct.c_int32*len(ids))(*ids)
             self.binding.check(self.lib.lp_prefill(handle,tokens,len(ids)))
@@ -233,6 +307,7 @@ class Engine:
     def advance(self,side,values,clock,ids):
         with self._lock:
             self._park(side);self._install(side,values,clock)
+            self._ensure_room(side,len(ids))
             handle,_=self._model(side)
             tokens=(ct.c_int32*len(ids))(*ids)
             self.binding.check(self.lib.lp_prefill(handle,tokens,len(ids)))
@@ -309,7 +384,8 @@ class Engine:
             for handle,_ in self._models.values():
                 self.lib.lp_close(handle)
             self._models.clear();self._closed=True
-            self.bridge._loaded=None
+            if self.bridge is not None:
+                self.bridge._loaded=None
 
 
 class DecodeHandle:
@@ -342,6 +418,7 @@ class DecodeHandle:
         with self.engine._lock:
             self._activate()
             e=self.engine;native,_=e._model(self.side)
+            e._ensure_room(self.side,1)
             e.binding.check(e.lib.lp_commit(native,token))
             self.clock=e.binding.check(e.lib.lp_clock(native));self.dirty=True
             if self.mtp and self.batches==0:
@@ -354,6 +431,7 @@ class DecodeHandle:
         with self.engine._lock:
             self._activate()
             e=self.engine;native,_=e._model(self.side)
+            e._ensure_room(self.side,min(limit,9),partial=True)
             stops=tuple(eos);eos_array=(ct.c_int32*len(stops))(*stops)
             out=(ct.c_int32*9)();receipt=Receipt()
             e.binding.check(e.lib.lp_greedy(native,limit,eos_array,len(stops),out,ct.byref(receipt)))

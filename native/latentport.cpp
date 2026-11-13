@@ -50,6 +50,13 @@ struct latentport_access {
         for(int i=0;i<clock;++i){cells.pos_set(i,i);cells.seq_add(i,0);cells.ext_set(i,{i,i,LLAMA_TOKEN_NULL});}
         kv->v_heads.at(0)=clock%kv->get_size();
     }
+    static void install_positions(llama_kv_cache * kv,const int32_t * positions,int n) {
+        require(kv->n_stream==1 && n<=(int)kv->get_size(), "invalid sparse attention occupancy");
+        auto & cells=kv->v_cells.at(0);
+        for(int i=0;i<n;++i){cells.pos_set(i,positions[i]);cells.seq_add(i,0);
+            cells.ext_set(i,{positions[i],positions[i],LLAMA_TOKEN_NULL});}
+        kv->v_heads.at(0)=n%kv->get_size();
+    }
 };
 
 namespace {
@@ -66,6 +73,8 @@ struct port_context {
     std::vector<ggml_tensor *> raw,c4,before;
     std::vector<float> logits,pending_h;
     std::vector<int32_t> forced_drafts;
+    std::vector<int32_t> positions; // Empty means the original dense-state ABI.
+    llama_context_params params{};
     lp_info info{};
     lp_trace trace{};
     int clock=0,batch=0,tap_capacity=0,last_count=0;
@@ -145,6 +154,7 @@ struct port_context {
         require(l,"missing committed target logits");std::copy(l,l+info.vocabulary,logits.begin());
         const float * h=llama_get_embeddings_nextn_ith(ctx,batch_row);
         require(h,"missing native MTP hidden representation");std::copy(h,h+info.hidden,pending_h.begin());
+        if(!positions.empty())for(int i=0;i<accepted;++i)positions.push_back(clock+i);
         pending=true;ready=true;clock+=accepted;
     }
     void rollback(int keep,int processed){
@@ -160,6 +170,8 @@ struct port_context {
             lp_copy((char*)t->data+tail*t->nb[1],(char*)t->data+offset*t->nb[1],t->nb[1]);
         r->set_rs_idx(0,0);r->cells[tail].src=tail;lp_device_sync();
     }
+    int physical()const{return positions.empty()?clock:(int)positions.size();}
+    int remaining()const{return std::min(info.context_size-physical(),262144-clock);}
 };
 port_context & get(void * p){require(p,"null native context");return *(port_context*)p;}
 
@@ -200,10 +212,10 @@ void validate(port_context & p,const lp_field * f,int count,int clock){
 void reset(port_context & p){
     llama_memory_clear(llama_get_memory(p.ctx),true);
     if(p.draft)llama_memory_clear(llama_get_memory(p.draft),true);
-    ggml_backend_buffer_clear(p.aux_buf,0);p.clock=0;p.pending=false;p.ready=false;p.poisoned=false;p.forced_drafts.clear();
+    ggml_backend_buffer_clear(p.aux_buf,0);p.clock=0;p.pending=false;p.ready=false;p.poisoned=false;p.forced_drafts.clear();p.positions.clear();
 }
 void commit(port_context & p,int token){
-    p.health();require(token>=0&&token<p.info.vocabulary&&p.clock<p.info.context_size,"invalid committed token or full context");
+    p.health();require(token>=0&&token<p.info.vocabulary&&p.remaining()>0,"invalid committed token or full context");
     p.save_before();decode(p.ctx,&token,1,p.clock,p.info.hidden);p.finish(1,1,0);++p.trace.committed_tokens;
 }
 }
@@ -257,6 +269,7 @@ void * lp_open(const char * path,int side,int context,int batch,int threads,int 
         cp.n_rs_seq=drafts;cp.n_threads=threads;cp.n_threads_batch=threads;
         cp.flash_attn_type=LLAMA_FLASH_ATTN_TYPE_ENABLED;cp.type_k=GGML_TYPE_BF16;cp.type_v=GGML_TYPE_BF16;
         cp.offload_kqv=true;cp.op_offload=true;cp.cb_eval_user_data=p.get();
+        p->params=cp;
         p->ctx=llama_init_from_model(p->model,cp);require(p->ctx,"could not initialize full-GPU target context");
         p->mem=dynamic_cast<llama_memory_hybrid*>(llama_get_memory(p->ctx));require(p->mem,"hybrid cache missing");
         llama_set_embeddings_nextn(p->ctx,true,true);
@@ -291,17 +304,50 @@ int lp_install(void * ptr,const lp_field * fields,int count,int clock){LP_TRY
     }
     lp_device_sync();p.clock=clock;p.trace.last_install_s=now()-started;++p.trace.installs;p.compute_head();return 0;LP_CATCH}
 int lp_export(void * ptr,const lp_field * fields,int count){LP_TRY
-    auto & p=get(ptr);p.health();validate(p,fields,count,p.clock);llama_synchronize(p.ctx);
+    auto & p=get(ptr);p.health();validate(p,fields,count,p.physical());llama_synchronize(p.ctx);
     auto r=p.rs();int tail=r->cells[0].tail;require(tail>=0&&r->rs_idx[0]==0,"uncommitted recurrent state cannot be exported");
     for(int j=0;j<count;++j){const auto & f=fields[j];int i=f.layer;
         if(f.kind==0){if(f.bytes==p.info.hidden*4ULL)lp_copy(f.data,p.terminal->data,f.bytes);else lp_float_to_bf16(f.data,(float*)p.terminal->data,p.info.hidden);}
-        if(f.kind==1||f.kind==2){auto t=latentport_access::tensor(p.kv(),i,f.kind==2);lp_convert_kv(f.data,t->data,p.clock,p.info.kv_heads,p.info.head_dim,false);}
+        if(f.kind==1||f.kind==2){auto t=latentport_access::tensor(p.kv(),i,f.kind==2);lp_convert_kv(f.data,t->data,p.physical(),p.info.kv_heads,p.info.head_dim,false);}
         if(f.kind==3)lp_conv_export(f.data,(float*)p.c4[i]->data,p.info.conv_channels,f.bytes==p.info.conv_channels*16ULL);
         if(f.kind==4)lp_convert_r(f.data,(char*)r->s_l[i]->data+tail*r->s_l[i]->nb[1],p.info.recurrent_heads,128,false);
     }
     lp_device_sync();++p.trace.exports;return 0;LP_CATCH}
+int lp_install_sparse(void * ptr,const lp_field * fields,int count,int clock,const int32_t * positions,int n){LP_TRY
+    auto & p=get(ptr);
+    require(positions&&n>0&&n<=clock&&clock<=262144,"invalid sparse state clock");
+    for(int i=0;i<n;++i)require(positions[i]>=0&&positions[i]<clock&&(!i||positions[i]>positions[i-1]),"invalid sparse positions");
+    validate(p,fields,count,n); // Validate all caller data before mutating native state.
+    int rc=lp_install(ptr,fields,count,n);require(rc==0,"sparse tensor install failed");
+    // Installing dense tensors above never executes historical tokens. Replace
+    // only the cell metadata and recurrent endpoint with original coordinates.
+    p.kv()->clear(false);latentport_access::install_positions(p.kv(),positions,n);
+    p.positions.assign(positions,positions+n);p.clock=clock;
+    p.rs()->cells[0].pos=clock-1;
+    return 0;LP_CATCH}
+int lp_kv_positions(void * ptr,int32_t * out,int capacity){LP_TRY
+    auto & p=get(ptr);int n=(int)p.positions.size();
+    if(out){require(capacity>=n,"small position output");std::copy(p.positions.begin(),p.positions.end(),out);}
+    return n;LP_CATCH}
+int lp_resize_context(void * ptr,int capacity){LP_TRY
+    auto & p=get(ptr);require(capacity>=32&&capacity<=262144,"invalid working cache capacity");
+    if(capacity==p.info.context_size)return 0;
+    auto cp=p.params;cp.n_ctx=capacity;
+    // Allocate replacement caches before releasing the previous allocation.
+    // Public immutable snapshots remain independently owned on any failure.
+    auto next=llama_init_from_model(p.model,cp);require(next,"cache resize allocation failed");
+    llama_context * draft=nullptr;
+    if(p.draft){auto dp=cp;dp.ctx_type=LLAMA_CONTEXT_TYPE_MTP;dp.n_rs_seq=0;dp.cb_eval_user_data=nullptr;
+        draft=llama_init_from_model(p.model,dp);if(!draft){llama_free(next);throw std::runtime_error("draft cache resize failed");}}
+    if(p.head_sched){ggml_backend_sched_free(p.head_sched);p.head_sched=nullptr;}
+    if(p.head_ctx){ggml_free(p.head_ctx);p.head_ctx=nullptr;}
+    if(p.draft)llama_free(p.draft);
+    llama_free(p.ctx);p.ctx=next;p.draft=draft;p.params=cp;p.info.context_size=capacity;
+    p.mem=dynamic_cast<llama_memory_hybrid*>(llama_get_memory(next));require(p.mem,"resized hybrid cache missing");
+    llama_set_embeddings_nextn(next,true,true);if(draft)llama_set_embeddings_nextn(draft,true,true);
+    reset(p);p.init_head();return 0;LP_CATCH}
 int lp_prefill(void * ptr,const int32_t * ids,int count){LP_TRY
-    auto & p=get(ptr);p.health();require(count>0&&p.clock+count<=p.info.context_size,"prefill exceeds context");
+    auto & p=get(ptr);p.health();require(count>0&&count<=p.remaining(),"prefill exceeds context");
     for(int j=0;j<count;++j)require(ids[j]>=0&&ids[j]<p.info.vocabulary,"token outside vocabulary");
     for(int start=0;start<count;start+=p.batch){int n=std::min(p.batch,count-start);p.save_before();decode(p.ctx,ids+start,n,p.clock,p.info.hidden);p.finish(n,n,0);}
     // Appending outside a decode transaction invalidates speculative suffix KV.
@@ -317,7 +363,7 @@ int lp_head(void * ptr,const void * h,uint64_t bytes){LP_TRY
 int lp_commit(void * ptr,int32_t token){LP_TRY commit(get(ptr),token);return 0;LP_CATCH}
 int lp_greedy(void * ptr,int limit,const int32_t * eos,int neos,int32_t * output,lp_receipt * result){LP_TRY
     auto & p=get(ptr);p.health();require(p.ready&&limit>0&&output&&result&&neos>0,"invalid generation call");
-    int remaining=std::min(limit,p.info.context_size-p.clock);require(remaining>0,"context full");
+    int remaining=std::min(limit,p.remaining());require(remaining>0,"context full");
     int first=choose(p.logits.data(),p.info.vocabulary);
     *result={0,0,0,0,p.clock,1};
     if(!p.draft||!p.pending||remaining==1||eos_token(first,eos,neos)){

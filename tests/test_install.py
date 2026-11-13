@@ -70,3 +70,38 @@ class InstallTests(unittest.TestCase):
 
     def test_native_archive_cannot_escape_destination(self):
         self._native("../escape.dll")
+
+    def test_linux_release_download_is_verified_and_reused(self):
+        import io
+        with tempfile.TemporaryDirectory() as tmp:
+            home=Path(tmp)/"cache"
+            data=io.BytesIO()
+            with zipfile.ZipFile(data,"w") as archive:
+                archive.writestr("libllama.so",b"qualified-native")
+            raw=data.getvalue()
+            spec={"linux":{"url":"https://github.com/LatentPort/latentport/releases/download/test/native.zip",
+                           "sha256":hashlib.sha256(raw).hexdigest()}}
+            with patch.object(Path,"read_text",return_value=json.dumps(spec)), \
+                 patch("latentport.__main__.bulk_home",return_value=home), \
+                 patch("platform.system",return_value="Linux"), \
+                 patch("platform.machine",return_value="x86_64"), \
+                 patch("latentport.__main__.urlopen",return_value=io.BytesIO(raw)) as download:
+                install_native()
+                install_native()
+                self.assertEqual(download.call_count,1)
+                self.assertEqual((home/"native/build/bin/libllama.so").read_bytes(),b"qualified-native")
+
+    def test_release_download_rejects_corrupted_binary_before_install(self):
+        import io
+        with tempfile.TemporaryDirectory() as tmp:
+            home=Path(tmp)/"cache"
+            spec={"url":"https://github.com/LatentPort/latentport/releases/download/test/native.zip","sha256":"0"*64}
+            with patch.object(Path,"read_text",return_value=json.dumps(spec)), \
+                 patch("latentport.__main__.bulk_home",return_value=home), \
+                 patch("platform.system",return_value="Windows"), \
+                 patch("platform.machine",return_value="AMD64"), \
+                 patch("latentport.__main__.urlopen",return_value=io.BytesIO(b"changed")):
+                with self.assertRaisesRegex(RuntimeError,"checksum"):
+                    install_native()
+                self.assertFalse((home/"native/build/bin").exists())
+                self.assertEqual(list((home/"downloads").iterdir()),[])

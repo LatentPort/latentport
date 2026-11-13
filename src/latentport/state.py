@@ -12,7 +12,7 @@ from typing import Any, Mapping
 from uuid import uuid4
 
 from .errors import CompatibilityError, StateError
-from .identity import ModelIdentity, StateInfo
+from .identity import CompactionInfo, ModelIdentity, StateInfo
 
 
 STATE_FORMAT = "latentport.state.v1"
@@ -55,6 +55,7 @@ class State:
     _components: Mapping[str, Any] | None = field(default=None, repr=False, compare=False)
     _snapshot: Path | None = field(default=None, repr=False, compare=False)
     _disk_index: Mapping[str, Mapping[str, Any]] | None = field(default=None, repr=False, compare=False)
+    compaction: CompactionInfo | None = None
 
     def __post_init__(self):
         if self.clock <= 0 or self.phase not in PHASES or self.target_prompt_tokens < 0:
@@ -94,6 +95,16 @@ class State:
                                shares_storage=True)
                        for _ in range(count))
         return copies[0] if count == 1 else copies
+
+    def compact(self, *, ratio: int = 8, force: bool = False) -> "State":
+        """Return an LPCompact snapshot with the same logical clock and model.
+
+        Recurrent, convolutional and endpoint state are preserved. Histories
+        below 65,536 retained KV positions return this state unchanged unless
+        force=True. The parent and its forks remain valid.
+        """
+        from ._compact import compact
+        return compact(self, ratio=ratio, force=force)
 
     def require_model(self, identity: ModelIdentity) -> None:
         self.identity.require_same(identity)
@@ -151,6 +162,7 @@ class State:
                       "rendered_token_ids": self.rendered_token_ids, "messages": self.messages,
                       "generated_token_ids": self.generated_token_ids, "state_id": self.state_id,
                       "parent_id": self.parent_id, "shares_storage": False, "tensor_index": index,
+                      "compaction": asdict(self.compaction) if self.compaction else None,
                       "tensor_sha256": _digest(staging / "tensors.safetensors"),
                       "tensor_file_bytes": (staging / "tensors.safetensors").stat().st_size}
             (staging / "manifest.json").write_text(json.dumps(record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -189,6 +201,7 @@ class State:
                    generated_token_ids=tuple(record.get("generated_token_ids", ())),
                    state_id=record["state_id"], parent_id=record.get("parent_id"),
                    shares_storage=False,
+                   compaction=CompactionInfo(**record["compaction"]) if record.get("compaction") else None,
                    _snapshot=root, _disk_index=record["tensor_index"])
 
 
