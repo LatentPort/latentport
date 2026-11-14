@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0 (unreleased)
+
+- Lightweight PyPI package with GGUF/BF16 backend extras and dependency-aware diagnostics.
+- Packaged browser demo with automatic runtime setup, model caching, disk checks,
+  Docker-compatible binding, and a headless verification command.
+- Versioned native installation and pinned Windows CUDA runtime components.
+- External GGUF manifests with immutable revisions/checksums and standard HF cache reuse.
+- GGUF/BF16 container build targets, package CI, and manual Trusted Publishing workflows.
+- Existing model pins remain unchanged pending external-model GPU qualification.
+
 ## 0.1.0.dev1
 
 - Composite sessions now default to `cached_handoff`: translate the initial prompt once,

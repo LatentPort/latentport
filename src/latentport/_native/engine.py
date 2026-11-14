@@ -43,12 +43,20 @@ def library_path(explicit=None):
         return candidate
     from ..hub import bulk_home
     name = "llama.dll" if os.name == "nt" else "libllama.so"
-    candidates = [bulk_home()/"native/build/bin"/name,
+    active = bulk_home()/"native/active.json"
+    candidates = []
+    if active.is_file():
+        import json
+        version = json.loads(active.read_text())["directory"]
+        if Path(version).name != version or ":" in version or version in (".", ".."):
+            raise CapabilityError("Invalid native runtime installation receipt")
+        candidates.append(bulk_home()/"native"/version/name)
+    candidates += [bulk_home()/"native/build/bin"/name,
                   Path(__file__).parent/"lib"/name]
     for candidate in candidates:
         if candidate.is_file():
             return candidate.resolve()
-    raise CapabilityError("Build native/ using scripts/build_native.ps1, then set LATENTPORT_NATIVE_LIB")
+    raise CapabilityError("Native runtime missing. Run: python -m latentport install-native")
 
 
 class Field(ct.Structure):
@@ -77,7 +85,8 @@ class Library:
         self._dll_dirs = []
         if os.name == "nt":
             cuda = Path(os.environ.get("CUDA_PATH", "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0"))
-            for directory in (path.parent, cuda/"bin", cuda/"bin/x64"):
+            from ..hub import bulk_home
+            for directory in (path.parent, bulk_home()/"native/cuda13", cuda/"bin", cuda/"bin/x64"):
                 if directory.is_dir():
                     self._dll_dirs.append(os.add_dll_directory(str(directory)))
         try:

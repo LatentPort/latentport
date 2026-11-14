@@ -9,12 +9,15 @@ import platform
 import zipfile
 import os
 import tempfile
+import shutil
+import sys
+import uuid
 from urllib.request import urlopen
 
 from .hub import bulk_home
 
 
-def install_native():
+def install_native(*, with_cuda=True):
     """Install a pinned, checksum-verified native runtime distribution."""
     system=platform.system()
     if system not in ("Windows", "Linux") or platform.machine().lower() not in ("amd64", "x86_64"):
@@ -46,57 +49,94 @@ def install_native():
                                       cache_dir=bulk_home()/"huggingface"))
     if hashlib.sha256(artifact.read_bytes()).hexdigest() != spec["sha256"]:
         raise RuntimeError("Native archive checksum mismatch")
-    destination = bulk_home()/"native/build/bin"
-    destination.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(artifact) as archive:
-        for name in archive.namelist():
-            if Path(name).name != name or name in (".", "..") or ":" in name:
-                raise RuntimeError("Unexpected native archive member")
-        archive.extractall(destination)
+    parent = bulk_home()/"native"
+    parent.mkdir(parents=True, exist_ok=True)
+    destination = parent/spec["sha256"]
+    with tempfile.TemporaryDirectory(dir=parent) as temporary:
+        staging = Path(temporary)
+        with zipfile.ZipFile(artifact) as archive:
+            for name in archive.namelist():
+                if Path(name).name != name or name in (".", "..") or ":" in name or "\\" in name:
+                    raise RuntimeError("Unexpected native archive member")
+            archive.extractall(staging)
+        expected = "llama.dll" if system == "Windows" else "libllama.so"
+        if not (staging/expected).is_file():
+            raise RuntimeError("Native archive lacks its main library")
+        if destination.exists():
+            from ._downloads import digest
+            if any(not (destination/p.name).is_file() or digest(p) != digest(destination/p.name)
+                   for p in staging.iterdir()):
+                raise RuntimeError(f"Native installation is corrupted: {destination}. Remove it and retry.")
+        else:
+            # Copy into an isolated staging directory, then activate only the complete installation.
+            staged = parent/(spec["sha256"] + "-" + uuid.uuid4().hex)
+            shutil.copytree(staging, staged)
+            try:
+                staged.rename(destination)
+            except OSError:
+                shutil.rmtree(staged)
+                raise
+    if with_cuda and system == "Windows" and spec.get("cuda") == "13.0":
+        from ._downloads import install_windows_cuda
+        install_windows_cuda()
+    fd, receipt = tempfile.mkstemp(dir=parent, suffix=".json")
+    try:
+        with os.fdopen(fd, "w") as out:
+            json.dump({"directory": destination.name, "sha256": spec["sha256"]}, out)
+        Path(receipt).replace(parent/"active.json")
+    finally:
+        Path(receipt).unlink(missing_ok=True)
     name="llama.dll" if system=="Windows" else "libllama.so"
     print(f"Native runtime installed: {destination / name}")
     print("Next: python -m latentport doctor")
 
 
-def doctor():
-    import torch
-    from ._native.engine import Library, library_path
-    result = {"python": platform.python_version(), "platform": platform.platform(),
-              "bulk_home": str(bulk_home()), "torch": torch.__version__,
-              "torch_cuda": torch.version.cuda, "cuda_available": torch.cuda.is_available()}
-    if result["cuda_available"]:
-        result["gpu"] = torch.cuda.get_device_name(0)
-        result["gpu_capability"] = list(torch.cuda.get_device_capability(0))
-        result["gpu_free_bytes"], result["gpu_total_bytes"] = torch.cuda.mem_get_info()
-    try:
-        result["native_library"] = str(library_path())
-        binding=Library(None)
-        result["native_abi"] = binding.lib.lp_abi()
-        result["native_state_compact"] = binding.sparse_state
-    except Exception as exc:
-        result["native_error"] = str(exc)
-    result["ready_for_model_load"] = result["cuda_available"] and result.get("native_abi") == 2
+def doctor(backend="gguf"):
+    from .diagnostics import diagnose
+    result = diagnose(backend)
     print(json.dumps(result, indent=2))
     return 0 if result["ready_for_model_load"] else 1
 
 
-def main():
-    parser = argparse.ArgumentParser(description="LatentPort preview setup and diagnostics")
-    parser.add_argument("command", choices=("install-native", "download", "doctor"))
-    args = parser.parse_args()
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="LatentPort installation, diagnostics and demo")
+    commands = parser.add_subparsers(dest="command", required=True)
+    native = commands.add_parser("install-native", help="Install verified prebuilt binaries")
+    native.add_argument("--no-cuda", action="store_true", help="Use existing Windows CUDA runtime libraries")
+    check = commands.add_parser("doctor", help="Report readiness without downloading models")
+    check.add_argument("--backend", choices=("gguf", "bf16", "reference"), default="gguf")
+    fetch = commands.add_parser("download", help="Download the pinned transfer profile")
+    fetch.add_argument("--model-manifest", type=Path)
+    demo = commands.add_parser("demo", help="Launch the packaged browser demo")
+    from ._demo.server import add_arguments
+    add_arguments(demo)
+    args = parser.parse_args(argv)
+    try:
+        return dispatch(args)
+    except (RuntimeError, OSError, ValueError, ImportError) as exc:
+        print(f"LatentPort: {exc}", file=sys.stderr)
+        return 1
+
+
+def dispatch(args):
     if args.command == "install-native":
-        install_native()
+        install_native(with_cuda=not args.no_cuda)
         return 0
     if args.command == "download":
+        from ._dependencies import require_backend
+        require_backend("gguf")
         from .hub import gguf_model_file, gguf_bridge_file, bundle_root, model_snapshot
         root = bundle_root()
         manifest = json.loads((root / "latentport.json").read_text())
         for side in ("source", "target"):
-            print(f"{side}: {gguf_model_file(side)}", flush=True)
+            print(f"{side}: {gguf_model_file(side, manifest_path=args.model_manifest)}", flush=True)
             model_snapshot(manifest["models"][side], metadata_only=True)
         print(f"bridge: {gguf_bridge_file()}")
         return 0
-    return doctor()
+    if args.command == "demo":
+        from ._demo.server import run
+        return run(args)
+    return doctor(args.backend)
 
 
 if __name__ == "__main__":

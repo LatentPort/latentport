@@ -1,26 +1,29 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "latentport"
-version = "0.1.0"
+version = "0.2.0"
 description = "Programmable full-state transfer between hybrid language models"
 readme = "README.md"
 requires-python = ">=3.11"
-license = {file = "LICENSE"}
-dependencies = [
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+dependencies = []
+
+[project.optional-dependencies]
+gguf = [
   "huggingface_hub>=1.33,<2",
   "safetensors>=0.8,<1",
   "numpy>=2.3,<3",
   "torch>=2.11,<3",
   "transformers==5.17.0",
 ]
-
-[project.optional-dependencies]
-reference = ["accelerate>=1.15,<2", "bitsandbytes>=0.50.2,<0.51"]
-dev = ["pytest>=8", "build>=1"]
-compact = ["accelerate>=1.15,<2", "fla-core==0.6.0", "causal-conv1d==1.7.0"]
+bf16 = ["latentport[gguf]", "accelerate>=1.15,<2", "fla-core==0.6.0", "causal-conv1d==1.7.0"]
+reference = ["latentport[gguf]", "accelerate>=1.15,<2", "bitsandbytes>=0.50.2,<0.51"]
+dev = ["pytest>=8", "build>=1", "twine>=6"]
+compact = ["latentport[bf16]"]
 
 [project.scripts]
 latentport = "latentport.__main__:main"
@@ -35,4 +38,4 @@ Models = "https://huggingface.co/latentport"
 where = ["src"]
 
 [tool.setuptools.package-data]
-latentport = ["configs/*.json"]
+latentport = ["configs/*.json", "_demo/web/*"]

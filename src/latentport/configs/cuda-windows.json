@@ -1,0 +1,17 @@
+{
+  "source": "https://developer.download.nvidia.com/compute/cuda/redist/redistrib_13.0.0.json",
+  "components": [
+    {
+      "name": "cuda_cudart",
+      "url": "https://developer.download.nvidia.com/compute/cuda/redist/cuda_cudart/windows-x86_64/cuda_cudart-windows-x86_64-13.0.48-archive.zip",
+      "sha256": "82fb29001895810ce02e88b180cbaa90607b852a7f67a63f18f202079eaa2966",
+      "bytes": 2873274
+    },
+    {
+      "name": "libcublas",
+      "url": "https://developer.download.nvidia.com/compute/cuda/redist/libcublas/windows-x86_64/libcublas-windows-x86_64-13.0.0.19-archive.zip",
+      "sha256": "c8fb12715b9639f51983315cc4b195e272128c675aa3766b13c4f470b892e6c8",
+      "bytes": 399809469
+    }
+  ]
+}

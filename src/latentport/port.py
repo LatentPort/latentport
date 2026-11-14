@@ -67,7 +67,12 @@ class Port:
 def load(repo: str | Path = DEFAULT_REPO, *, revision: str = DEFAULT_REVISION,
          backend: str = "reference", source_path: str | Path | None = None,
          target_path: str | Path | None = None, device: str = "cuda:0",
-         bridge_gguf_path: str | Path | None = None, native_options=None) -> Port:
+         bridge_gguf_path: str | Path | None = None, native_options=None,
+         model_manifest: str | Path | None = None) -> Port:
+    if backend not in ("reference", "gguf"):
+        raise ValueError("backend must be 'reference' or 'gguf'")
+    from ._dependencies import require_backend
+    require_backend(backend)
     root = bundle_root(repo, revision=revision)
     manifest = json.loads((root / "latentport.json").read_text(encoding="utf-8"))
     if backend == "reference":
@@ -87,9 +92,9 @@ def load(repo: str | Path = DEFAULT_REPO, *, revision: str = DEFAULT_REVISION,
         library_path(native_options.library if native_options else None)
         from .hub import gguf_model_file
         if source_path is None:
-            source_path = gguf_model_file("source")
+            source_path = gguf_model_file("source", manifest_path=model_manifest)
         if target_path is None:
-            target_path = gguf_model_file("target")
+            target_path = gguf_model_file("target", manifest_path=model_manifest)
         runtime = GGUFBackend(source_path, target_path, root, manifest,
                               bridge_gguf_path=bridge_gguf_path, options=native_options)
         runtime.require_extension()

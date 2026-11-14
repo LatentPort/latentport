@@ -10,10 +10,10 @@ This allows developers to improve model performance, reduce inference costs and
 build longer-running agents without repeatedly processing the same context.
 
 <p align="center">
-  <img src="docs/assets/latentport-ascii.gif" alt="LatentPort: programmable model state" width="640">
+  <img src="https://raw.githubusercontent.com/LatentPort/latentport/main/docs/assets/latentport-ascii.gif" alt="LatentPort: programmable model state" width="640">
 </p>
 
-[Website](https://latentport.com) | [Get started](#get-started) | [Models](https://huggingface.co/latentport) | [Cookbook](docs/cookbook.md) | [API](docs/api.md)
+[Website](https://latentport.com) | [Get started](#get-started) | [Models](https://huggingface.co/latentport) | [Cookbook](https://github.com/LatentPort/latentport/blob/main/docs/cookbook.md) | [API](https://github.com/LatentPort/latentport/blob/main/docs/api.md)
 
 ![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)
 [![Runtime: 0.1](https://img.shields.io/badge/runtime-0.1-blue)](https://github.com/LatentPort/latentport/releases/tag/lpcompact-v0.1)
@@ -39,17 +39,38 @@ architecture or model pair.
 
 ## Get started
 
-Use Python 3.11 or later with CUDA-enabled PyTorch and a GPU sized for your chosen
-base model and context. Install the [shared runtime release](https://github.com/LatentPort/latentport/releases/tag/lpcompact-v0.1):
+Install the lightweight Python package with Python 3.11 or later:
 
 ```shell
-python -m pip install "https://github.com/LatentPort/latentport/releases/download/lpcompact-v0.1/latentport-0.1.0-py3-none-any.whl"
+python -m pip install latentport
+latentport doctor
 ```
+
+The base package includes the API, diagnostics and demo interface. Inference
+dependencies are optional: see [installation](https://github.com/LatentPort/latentport/blob/main/docs/installation.md) for
+`latentport[gguf]`, `latentport[bf16]` and CUDA PyTorch setup.
+
+### Try the browser demo
+
+On a qualified NVIDIA GPU host with Docker GPU access configured:
+
+```shell
+docker run --rm --gpus all -p 127.0.0.1:8768:8768 -v latentport-cache:/cache ghcr.io/latentport/latentport:0.2.0-gguf-cu128-sm120
+```
+
+Open **http://localhost:8768**. The demo prepares the models, transfers context,
+forks specialist sessions, and checks a generated repair with executable tests.
+The initial transfer profile requires an SM120 GPU with at least 32 GB VRAM and
+approximately 22.10 GB of model downloads; subsequent runs reuse the volume.
+Windows Docker GPU execution requires the WSL 2 backend.
+
+**Release status:** the PyPI and GHCR commands above target the 0.2.0 release.
+Until it is published, use the [source installation and local image build](https://github.com/LatentPort/latentport/blob/main/docs/installation.md).
 
 Choose the setup for your operation:
 
-- **Compaction:** [BF16 and GGUF setup](docs/compaction.md), including the BF16 kernel dependencies and native GGUF runtime.
-- **Model transfer:** [Windows GGUF setup](docs/installation.md) and [conversation recipes](docs/cookbook.md).
+- **Compaction:** [BF16 and GGUF setup](https://github.com/LatentPort/latentport/blob/main/docs/compaction.md), including the BF16 kernel dependencies and native GGUF runtime.
+- **Model transfer:** [Windows GGUF setup](https://github.com/LatentPort/latentport/blob/main/docs/installation.md) and [conversation recipes](https://github.com/LatentPort/latentport/blob/main/docs/cookbook.md).
 
 Set `LATENTPORT_HOME` to a directory with enough space for downloaded models and
 caches. The runtime downloads transformation weights when needed; base models are
@@ -85,7 +106,7 @@ token replay.
 
 One selector checkpoint serves Qwen3.8-27B BF16 and GGUF weight quantizations.
 For GGUF, use `backend="gguf"` and supply `model_path` with your chosen base-model
-file. See the [compaction guide](docs/compaction.md) for context sizing, policy
+file. See the [compaction guide](https://github.com/LatentPort/latentport/blob/main/docs/compaction.md) for context sizing, policy
 details and the `state.compaction` receipt.
 
 ## Transfer context between models
@@ -110,7 +131,7 @@ handoff and retains the target's state across turns. The default `cached_handoff
 policy translates once, then processes new input on the target. An explicit
 `strict` policy keeps the source model responsible for new user prompts.
 
-The [cookbook](docs/cookbook.md) covers both policies, answer continuation,
+The [cookbook](https://github.com/LatentPort/latentport/blob/main/docs/cookbook.md) covers both policies, answer continuation,
 streaming and MTP. Existing local GGUF files can be supplied through `source_path`
 and `target_path`.
 
@@ -143,9 +164,9 @@ reduces attention-state storage; model weights and recurrent state retain their
 existing representation. The transfer timing includes prefill, translation,
 installation and the first emitted token, excluding cold model loading.
 
-See [compaction validation](docs/compaction-validation.json),
-[transfer results](docs/composite-results.json) and
-[benchmark methodology](docs/benchmarks.md) for the full records.
+See [compaction validation](https://github.com/LatentPort/latentport/blob/main/docs/compaction-validation.json),
+[transfer results](https://github.com/LatentPort/latentport/blob/main/docs/composite-results.json) and
+[benchmark methodology](https://github.com/LatentPort/latentport/blob/main/docs/benchmarks.md) for the full records.
 
 ## A state operating layer for inference
 
@@ -173,11 +194,11 @@ weights are obtained separately.
 
 ## Demos and documentation
 
-- [Memory transplant demo](examples/memory_transplant/README.md): live state transfer, specialist branches and a repair checked by executable tests.
-- [State demos](docs/state-demos.md): cached conversations, branching, save/resume and fresh context updates.
-- [Time-to-first-token demo](docs/ttft-demo.md): compare native 27B and composite inference on a fresh 16K prompt.
-- [Compaction guide](docs/compaction.md), [cookbook](docs/cookbook.md) and [API contracts](docs/api.md).
-- [Native integration](docs/native-abi.md) and [contributing](CONTRIBUTING.md).
+- [Memory transplant demo](https://github.com/LatentPort/latentport/blob/main/examples/memory_transplant/README.md): live state transfer, specialist branches and a repair checked by executable tests.
+- [State demos](https://github.com/LatentPort/latentport/blob/main/docs/state-demos.md): cached conversations, branching, save/resume and fresh context updates.
+- [Time-to-first-token demo](https://github.com/LatentPort/latentport/blob/main/docs/ttft-demo.md): compare native 27B and composite inference on a fresh 16K prompt.
+- [Compaction guide](https://github.com/LatentPort/latentport/blob/main/docs/compaction.md), [cookbook](https://github.com/LatentPort/latentport/blob/main/docs/cookbook.md) and [API contracts](https://github.com/LatentPort/latentport/blob/main/docs/api.md).
+- [Native integration](https://github.com/LatentPort/latentport/blob/main/docs/native-abi.md) and [contributing](CONTRIBUTING.md).
 
 Report reproducible issues at [GitHub Issues](https://github.com/LatentPort/latentport/issues).
 Include the output of `python -m latentport doctor`, model identities and a minimal

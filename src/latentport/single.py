@@ -28,6 +28,10 @@ def _weight_fingerprint(path):
 def load_model(repo: str = MODEL, *, revision: str = REVISION, backend: str = "bf16",
                model_path: str | Path | None = None, native_options=None) -> Model:
     """Load standalone Qwen3.8-27B; translator loading remains lp.load()."""
+    if backend not in ("bf16", "gguf"):
+        raise ValueError("backend must be 'bf16' or 'gguf'")
+    from ._dependencies import require_backend
+    require_backend(backend)
     from .hub import model_snapshot
     if repo != MODEL:
         raise CompatibilityError("Standalone execution currently supports Qwen3.8-27B")

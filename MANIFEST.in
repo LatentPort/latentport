@@ -8,3 +8,5 @@ recursive-include tests *.py
 recursive-include examples *.py
 recursive-include docs/assets *.gif
 include CONTRIBUTING.md
+recursive-include docker Dockerfile *.txt
+include .dockerignore

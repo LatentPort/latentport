@@ -3,9 +3,13 @@
 Start with a focused issue or a small patch. Include a runnable reproduction for fixes.
 
 ```powershell
-python -m pip install -e .
-python -m unittest discover -s tests -v
+python -m pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cpu
+python -m pip install -e ".[gguf,dev]"
+python -m pytest -q
 ```
+
+Lightweight packaging checks also run without inference extras:
+`python -m unittest discover -s tests -p test_distribution.py`.
 
 GPU checks are separate and require an idle supported GPU. Use `scripts/smoke_gguf.py`
 for state/MTP correctness and `scripts/check_long_chat.py --policy cached_handoff`
