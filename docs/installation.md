@@ -1,8 +1,8 @@
 ﻿# Installation
 
-LatentPort 0.2.0 provides a lightweight package, optional backend dependencies,
-and prebuilt GPU images. The release must be published before the versioned
-PyPI/GHCR commands work; source and local Docker instructions are below.
+LatentPort 0.2.0 is available on PyPI as a lightweight package with optional
+backend dependencies. The GHCR images are pending GPU qualification and
+publication; source and local Docker build instructions are below.
 
 ## Try the demo with Docker
 

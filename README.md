@@ -64,8 +64,9 @@ The initial transfer profile requires an SM120 GPU with at least 32 GB VRAM and
 approximately 22.10 GB of model downloads; subsequent runs reuse the volume.
 Windows Docker GPU execution requires the WSL 2 backend.
 
-**Release status:** the PyPI and GHCR commands above target the 0.2.0 release.
-Until it is published, use the [source installation and local image build](https://github.com/LatentPort/latentport/blob/main/docs/installation.md).
+**Release status:** the Python package is available on [PyPI](https://pypi.org/project/latentport/).
+The GHCR images are pending GPU qualification and publication; until then, use
+the [local image build](https://github.com/LatentPort/latentport/blob/main/docs/installation.md).
 
 Choose the setup for your operation:
 
