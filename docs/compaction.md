@@ -43,12 +43,12 @@ Each trained state operation has its own Hugging Face repository, named for its
 operation and compatible model. The shared Python runtime remains in the
 [LatentPort GitHub repository](https://github.com/LatentPort/latentport).
 
-Install the [LatentPort 0.1 release wheel](https://github.com/LatentPort/latentport/releases/tag/lpcompact-v0.1).
+Install LatentPort from PyPI (0.2.0 or later).
 For BF16, use an environment with CUDA-enabled PyTorch and the CUDA compiler.
 Install the extra against that PyTorch installation:
 
 ```shell
-pip install --no-build-isolation "latentport[compact] @ https://github.com/LatentPort/latentport/releases/download/lpcompact-v0.1/latentport-0.1.0-py3-none-any.whl"
+pip install --no-build-isolation "latentport[bf16]"
 ```
 
 The BF16 backend uses the pinned Transformers runtime and CUDA recurrent kernels.

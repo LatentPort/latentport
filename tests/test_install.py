@@ -60,7 +60,7 @@ class InstallTests(unittest.TestCase):
                     self.assertFalse((home/"native/build/escape.dll").exists())
                 else:
                     install_native()
-                    self.assertEqual((home/"native/build/bin/llama.dll").read_bytes(), b"test-binary")
+                    self.assertEqual((home/"native"/spec["sha256"]/"llama.dll").read_bytes(), b"test-binary")
 
     def test_verified_native_archive_installs(self):
         self._native("llama.dll")
@@ -89,7 +89,7 @@ class InstallTests(unittest.TestCase):
                 install_native()
                 install_native()
                 self.assertEqual(download.call_count,1)
-                self.assertEqual((home/"native/build/bin/libllama.so").read_bytes(),b"qualified-native")
+                self.assertEqual((home/"native"/spec["linux"]["sha256"]/"libllama.so").read_bytes(),b"qualified-native")
 
     def test_release_download_rejects_corrupted_binary_before_install(self):
         import io

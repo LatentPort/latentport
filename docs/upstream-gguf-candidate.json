@@ -1,0 +1,16 @@
+{
+  "source": {
+    "repo_id": "lmstudio-community/Qwen3.5-4B-GGUF",
+    "revision": "f9f88ac3e234be915e23811a6d28ea287bdb927e",
+    "filename": "Qwen3.5-4B-Q4_K_M.gguf",
+    "bytes": 2707513696,
+    "sha256": "25082a7dd3776cc3c741c6347d3bd04523f05796607b3fbc32fa3a25dfa1418c"
+  },
+  "target": {
+    "repo_id": "bartowski/Qwen3.8-27B-GGUF",
+    "revision": "87410e7b9a5c21e6ca70c0c9cc5237de909fe621",
+    "filename": "Qwen3.8-27B-Q4_K_M.gguf",
+    "bytes": 17442399968,
+    "sha256": "880a52af8317974f7b4b064a6bc29ff49e188b91aa218e08eea3078b6b1cc673"
+  }
+}

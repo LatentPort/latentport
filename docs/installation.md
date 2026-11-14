@@ -1,134 +1,144 @@
-# Installation
+﻿# Installation
 
-The first preview targets **Windows x64 + RTX 5090 (32 GB)**. The native binary is built
-for compute capability 12.0. Linux, macOS, AMD, CPU-only execution and other NVIDIA
-architectures are not qualified by this release.
+LatentPort 0.2.0 is available on PyPI as a lightweight package with optional
+backend dependencies. The GHCR images are pending GPU qualification and
+publication; source and local Docker build instructions are below.
 
-## Prerequisites
+## Try the demo with Docker
 
-- Python **3.11 x64**.
-- An NVIDIA driver that supports CUDA 13.0. The validation machine used driver 610.88.
-- [CUDA Toolkit 13.0](https://developer.nvidia.com/cuda-13-0-0-download-archive), which supplies
-  the CUDA 13 runtime and cuBLAS DLLs used by the native backend. PyTorch's CUDA 12.8
-  wheel does **not** supply those CUDA 13 DLLs.
-- [Microsoft Visual C++ x64 Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist).
-- Approximately **40 GB of free disk space** for runtime dependencies and downloaded
-  artifacts. Use more space if saving long contexts or keeping extra environments.
-- Enough free VRAM for both models, bridge and caches. Close other GPU workloads.
+Prerequisites: an SM120 NVIDIA GPU with at least 32 GB VRAM, a compatible driver,
+Docker with GPU access, and enough space for the image, 22.10 GB of model files,
+and download/extraction scratch space. Start with at least 40 GB free; long saved
+contexts and Docker build caches require additional space. Actual VRAM use depends
+on context and other workloads. Linux needs NVIDIA Container Toolkit configured;
+Windows needs Docker Desktop with its WSL 2 backend. No host CUDA toolkit is needed.
 
-The supplied native runtime avoids a compiler installation. CUDA Toolkit runtime
-libraries are still required. The qualified configuration holds both models on the GPU;
-it does not silently fall back to CPU offload when allocations fail.
+```shell
+docker run --rm --gpus all -p 127.0.0.1:8768:8768 -v latentport-cache:/cache ghcr.io/latentport/latentport:0.2.0-gguf-cu128-sm120
+```
 
-## Install the published preview wheel
+Open http://localhost:8768. The UI reports setup stages before the interactive
+transfer/branch/repair demonstration. Downloads are cached in the named volume.
+Do not delete the volume to update the image. The first run downloads models;
+first-run setup is not included in the displayed inference TTFT measurement.
 
-```powershell
-$env:LATENTPORT_HOME = 'F:\LatentPort\runtime'
-$env:PIP_CACHE_DIR = "$env:LATENTPORT_HOME\pip-cache"
-py -3.11 -m venv "$env:LATENTPORT_HOME\venv"
-& "$env:LATENTPORT_HOME\venv\Scripts\Activate.ps1"
+For automated execution, append `demo --headless`. The exit code is nonzero on
+failure and the cache contains the evidence under `demos/`. This image supports
+Linux x86-64 / CUDA 12.8 / SM120; it does not enable CPU, Apple GPU, AMD, or other
+NVIDIA architectures. The BF16 image uses tag `0.2.0-bf16-cu128-sm120`; model size
+and context determine its larger VRAM requirement. Its default command is
+`doctor --backend bf16`, not the GGUF transfer demo.
+
+## Install the Python library
+
+Use a virtual environment with Python 3.11 or later:
+
+```shell
+python -m pip install latentport
+latentport --help
+latentport doctor
+```
+
+The base package does not install Torch, Transformers, CUDA or model weights.
+`doctor` emits JSON and exits with code 1 when inference prerequisites are missing;
+that is not an installation failure. CLI help and the browser layout preview work
+without inference dependencies:
+
+```shell
+latentport demo --ui-only
+```
+
+### GGUF inference
+
+Install the CUDA PyTorch build for your platform first. The qualified recipe uses
+Torch 2.11.0 with CUDA 12.8; a plain PyPI Torch install is not a portable way to
+select the CUDA variant, particularly on Windows.
+
+```shell
 python -m pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cu128
-python -m pip install "https://huggingface.co/latentport/latentport-4-27b-research-preview-GGUF/resolve/1415eb9591dfaf15355d8bba5ed38f64792026e0/runtime/latentport-0.1.0.dev1-py3-none-any.whl"
-python -m latentport install-native
-python -m latentport doctor
-python -m latentport download
+python -m pip install "latentport[gguf]"
+latentport install-native
+latentport doctor --backend gguf
+latentport demo
 ```
 
-Then run the Python example in the [README](../README.md#get-started). This route needs
-no repository checkout. The wheel URL pins an immutable Hugging Face revision. Its
-SHA-256 is `4971337b6609e550ac79a2a9e609ea3ffc8831dfa6273bdd7ed559b04bc37fb3`.
+`demo` installs the native runtime if missing, checks the GPU, downloads the exact
+model profile, then runs the packaged browser app. It does not install Python
+packages into your environment. On Windows `install-native` also downloads pinned
+CUDA 13 runtime/cuBLAS DLLs and their notices (about 403 MB compressed), avoiding a
+full CUDA toolkit install. The qualified Windows native binary uses CUDA 13 even
+though Torch uses CUDA 12.8. A driver supporting both is required; the previously
+qualified machine used driver 610.88. The Microsoft Visual C++ x64 runtime may be
+required. `--no-cuda` uses your existing CUDA runtime libraries instead.
 
-## Install from the repository
+On Linux the native binary uses CUDA 12.8. Use the container for an assembled
+runtime environment, or supply compatible CUDA runtime/cuBLAS libraries on the
+loader search path. Native archives are checksum-verified and installed into
+versioned directories. Activation happens after extraction and dependency setup.
+`LATENTPORT_NATIVE_LIB` can explicitly select a custom compatible library.
 
-```powershell
-git clone https://github.com/LatentPort/latentport.git
-cd latentport
-$env:LATENTPORT_HOME = 'F:\LatentPort\runtime'  # any suitable bulk-storage directory
-$env:PIP_CACHE_DIR = "$env:LATENTPORT_HOME\pip-cache"
-py -3.11 -m venv "$env:LATENTPORT_HOME\venv"
-& "$env:LATENTPORT_HOME\venv\Scripts\Activate.ps1"
-python -m pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cu128
-python -m pip install .
-python -m latentport install-native
-python -m latentport doctor
+### BF16 and reference inference
+
+BF16 kernels require a CUDA build environment when installing from source. Prefer
+the BF16 container if you do not want to build these locally. Install CUDA Torch
+first, followed by the pinned backend extra:
+
+```shell
+python -m pip install --no-build-isolation "latentport[bf16]"
+latentport doctor --backend bf16
 ```
 
-`doctor` checks Python, CUDA availability, the GPU and native ABI without loading the
-models. A successful report says `ready_for_model_load: true`; it is not a model-quality test.
+The `compact` extra remains an alias for BF16 dependencies. The `reference` extra
+adds the NF4/BF16 reference transfer dependencies, including bitsandbytes.
+GGUF also requires Torch for bridge execution and GPU state tensors; it is not a
+Torch-free backend. Diagnostics check prerequisites, not model quality or whether
+all selected model weights are already cached.
 
-The package is a development preview. Install this repository or the versioned preview
-wheel; do not assume that an unrelated PyPI package named `latentport` is this release.
-The maintainer must push this checkout before the clone command exposes these changes.
+## Cache and base-model repositories
 
-## Download once, run repeatedly
+Set `LATENTPORT_HOME` to a writable directory with sufficient free space. It defaults
+to `~/.cache/latentport`; Docker uses `/cache`. Exact compatible files in the normal
+Hugging Face cache are reused before downloading into LatentPort's cache. Set
+`HF_HUB_OFFLINE=1` after preparing the cache to run without Hub access. Native setup
+must already be complete for an offline run.
 
-```powershell
-python -m latentport download
-# With a repository checkout, run the included example:
-python examples/chat.py --prompt "Explain how database indexes work."
+A base model does not need to be hosted in the LatentPort repository. The model
+manifest records each file's repository, full commit revision, filename, byte size
+and SHA-256. The bridge remains in its own repository. Until external replacements
+pass qualification, the shipped defaults preserve the previously tested files.
+
+To test an externally pinned model pair:
+
+```shell
+latentport download --model-manifest models.json
+latentport demo --headless --model-manifest models.json
 ```
 
-The download command fetches the exact Q4_K_M reader and target, the FP32 bridge and
-pinned tokenizer metadata. Approximately 22 GB is downloaded on the first run; later
-runs reuse the cache. The target includes its trained MTP head. Hashes and revisions
-are pinned in `latentport/configs/gguf-models.json` and `native-release.json`.
+The same profile can be passed to `lp.load(backend="gguf", model_manifest="models.json")`.
+Use `scripts/pin_gguf_profile.py` to generate candidate manifests without downloading
+weights. Candidate files need compatible geometry, tokenizer streams and native
+runtime metadata. Same model name/quantization does not establish compatibility.
+The demo disables MTP; a target without MTP can run with `NativeOptions(mtp_drafts=0)`.
+Other MTP configurations require separate qualification. Existing snapshots remain
+bound to exact model weights and cannot silently switch to another quantization.
 
-`lp.load(backend="gguf")` also downloads missing model assets automatically. It never
-selects a different model pair or substitutes another quantization. `port.warm()` loads
-the GPU allocations before requests; downloads, file validation and cold loading can
-take substantially longer than warm TTFT. Keep one port alive for the conversation.
+Existing local files can also be supplied as `source_path`, `target_path` and
+`bridge_gguf_path` in `lp.load()`. These must satisfy the normal compatibility checks.
 
-Set `LATENTPORT_HOME` in each shell, or persist it in your environment. Without it,
-the default is `~/.cache/latentport`. Tokenizer metadata is downloaded from the pinned
-upstream model revisions, even when language-model weights use GGUF.
+## Build from this checkout
 
-## Use existing model files
-
-```python
-import latentport as lp
-
-port = lp.load(
-    backend="gguf",
-    source_path="F:/models/Qwen3.5-4B-Q4_K_M.gguf",
-    target_path="F:/models/Qwen3.8-27B-MTP-Q4_K_M.gguf",
-    native_options=lp.NativeOptions(context_size=18432, mtp_drafts=4),
-)
+```shell
+python -m pip install -e ".[gguf]"
+latentport demo
 ```
 
-Use the exact model revisions in the bridge manifest. Same-size fine-tunes or arbitrary
-GGUFs are not interchangeable. The published exact Q4_K_M pair is the qualified path.
-`bridge_gguf_path=` can also supply the local bridge. It must match the selected bridge hash.
-An explicit local canonical bundle can be passed as the first `lp.load(...)` argument.
+Install CUDA Torch first as above. For Docker:
 
-For a target without MTP weights, use `mtp_drafts=0`; `mtp=True` will then fail explicitly.
-Other quantizations require separate qualification. `context_size` includes the prompt,
-all replies and follow-up turns; 18432 is the tested allocation for a ~16K prompt.
-Context truncation or eviction is not automatic.
+```shell
+docker build -f docker/Dockerfile --target gguf -t latentport:local .
+docker run --rm --gpus all -p 127.0.0.1:8768:8768 -v latentport-cache:/cache latentport:local
+```
 
-## Offline use
-
-Download everything while online, then set `$env:HF_HUB_OFFLINE='1'`. Keep the same
-`LATENTPORT_HOME`. Local GGUF paths alone do not supply bridge/config/tokenizer files.
-A missing cached artifact produces an error rather than downloading an alternative.
-
-## Troubleshooting
-
-| Symptom | Action |
-| --- | --- |
-| `cuda_available: false` | Confirm the CUDA-enabled Torch wheel and NVIDIA driver; check `nvidia-smi`. |
-| Native library missing | Run `python -m latentport install-native` in the same cache environment. |
-| DLL load error / WinError 126 | Check CUDA 13.0 runtime/cuBLAS and the VC++ redistributable; keep all downloaded native DLLs together. |
-| Stock llama.cpp / ABI mismatch | Use the pinned LatentPort native download, not a system llama.cpp library. |
-| CUDA allocation failure | Close GPU workloads, release unused answer/state objects or reduce context capacity. |
-| New question rejected | The previous answer is unfinished. Continue with `generate()` before another `ask()`. |
-| Hub access error | Check network access and the configured HF login; the model releases are public. |
-| GPU lost / driver timeout | Inspect system and driver logs. Recover the GPU before another model run; an application restart alone may not suffice. |
-
-## Source builds and alternate backends
-
-The prebuilt archive includes corresponding native source and upstream licenses.
-See [native-abi.md](native-abi.md) to build the pinned extension yourself. A source build
-on a new platform is not equivalent to qualification. The Transformers/NF4 reference
-backend is available via `pip install ".[reference]"` and `backend="reference"`, but
-its package integration has not received the GGUF release-path checks. There is no
-vLLM backend in this preview.
+Use `--target bf16` for the BF16 image. The compiler exists only in the GGUF build
+stage; the BF16 target retains CUDA development tools for its runtime JIT kernels.
+See [releasing](releasing.md) for publishing, qualification and migration gates.

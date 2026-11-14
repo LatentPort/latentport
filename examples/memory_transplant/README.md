@@ -5,14 +5,12 @@ hybrid state to 27B, and forks the completed diagnosis into repair and regressio
 specialists. The model supplies a patch and test cases. The harness executes those
 cases against the original and repaired code before showing success.
 
-## Run on the validated local installation
+## Run the packaged demo
 
-From the LatentPort runtime repository in PowerShell:
+After installing the GGUF backend (see [installation](../../docs/installation.md)):
 
-```powershell
-$env:LATENTPORT_HOME = 'F:\LatentPort\runtime\launch-clean-home'
-$env:HF_HOME = "$env:LATENTPORT_HOME\hf-home"
-& 'F:\LatentPort\runtime\launch-clean-venv\Scripts\python.exe' examples/memory_transplant/server.py
+```shell
+latentport demo
 ```
 
 The browser opens at **http://127.0.0.1:8768**. Wait for **READY TO BEGIN**, start
@@ -49,8 +47,9 @@ The appearance follows latentport.com's actual logo, navy palette, blue gradient
 background grid and type hierarchy. Ctrl+C stops the server after the run. Restart
 the server after updating these files so the new presenter checkpoints take effect.
 
-On another configured installation, activate its Python environment and run
-`python examples/memory_transplant/server.py`. All large artifacts go below
+The compatibility entry point `python examples/memory_transplant/server.py` also
+uses the installed demo. The implementation and web resources live in
+`src/latentport/_demo`. All large artifacts go below
 `LATENTPORT_HOME/demos/transplant-...`. The server binds only to localhost and makes
 no cloud inference calls. First-time model downloads follow the normal runtime setup.
 

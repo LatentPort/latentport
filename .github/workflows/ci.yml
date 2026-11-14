@@ -1,0 +1,56 @@
+name: Package checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  lightweight:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ['3.11', '3.12', '3.13']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install build twine
+      - run: python -m build
+      - run: python -m twine check dist/*
+      - run: python -m pip install --no-deps --no-index --find-links dist latentport
+      - run: python scripts/check_distribution.py
+      - run: python -m unittest discover -s tests -p test_distribution.py
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install -e '.[gguf,dev]'
+      - run: pytest -q
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Make room for CUDA image layers on the disposable runner
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: gguf
+          load: true
+          tags: latentport:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - run: docker run --rm latentport:ci --help
+      - name: Check native dependencies without a GPU driver
+        run: >-
+          docker run --rm --entrypoint python latentport:ci -c
+          "import subprocess; from latentport._native.engine import library_path;
+          output = subprocess.check_output(['ldd', str(library_path())], text=True);
+          missing = {line.split()[0] for line in output.splitlines() if 'not found' in line};
+          assert missing <= {'libcuda.so.1'}, output"
