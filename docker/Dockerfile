@@ -16,7 +16,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cu128
 COPY --from=wheel /wheels /wheels
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -c /constraints.txt "latentport[gguf] @ file:///wheels/latentport-0.2.0-py3-none-any.whl" \
+    pip install -c /constraints.txt "latentport[gguf] @ file:///wheels/latentport-0.2.1-py3-none-any.whl" \
     && latentport install-native --no-cuda \
     && python -c "from latentport._native.engine import library_path; import shutil; shutil.copytree(library_path().parent, '/opt/native-lib')"
 
@@ -37,7 +37,7 @@ CMD ["demo", "--host", "0.0.0.0", "--no-browser"]
 FROM dependencies AS bf16
 ENV TORCH_CUDA_ARCH_LIST="12.0" MAX_JOBS=2 CAUSAL_CONV1D_FORCE_BUILD=TRUE
 RUN pip install --no-cache-dir packaging ninja 'setuptools<82' wheel \
-    && pip install --no-cache-dir --no-build-isolation -c /constraints.txt "latentport[bf16]==0.2.0" \
+    && pip install --no-cache-dir --no-build-isolation -c /constraints.txt "latentport[bf16]==0.2.1" \
     && pip check \
     && useradd --create-home --uid 10001 latentport && mkdir /cache && chown latentport /cache
 ENV LATENTPORT_HOME=/cache LATENTPORT_NATIVE_LIB=/opt/native-lib/libllama.so PYTHONUNBUFFERED=1

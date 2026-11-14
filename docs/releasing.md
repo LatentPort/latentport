@@ -1,8 +1,13 @@
 # Releasing installation artifacts
 
-The 0.2.0 release separates a lightweight Python package, optional inference
+LatentPort separates a lightweight Python package, optional inference
 dependencies, GPU images, and pinned model assets. Model weights never enter a
-wheel or Docker layer. Existing 0.1 model/native artifacts remain available.
+wheel or Docker layer. LPCompact is a compaction feature of the shared library;
+feature updates do not create separate GitHub product releases.
+
+Python distributions are published on PyPI. Native archives live in
+[`latentport/native-runtime`](https://huggingface.co/latentport/native-runtime),
+with immutable commit pins, compatibility metadata, checksums, and license notices.
 
 ## Maintainer setup
 
@@ -26,14 +31,14 @@ wheel or Docker layer. Existing 0.1 model/native artifacts remain available.
   and state save/load/fork tests. Exercise first download, restart after interruption,
   cache reuse, and offline operation. BF16 requires a separate real inference check.
 - Run Publish release with `destination=testpypi`. Install that artifact with
-  `pip install --index-url https://test.pypi.org/simple/ --no-deps latentport==0.2.0`
+  `pip install --index-url https://test.pypi.org/simple/ --no-deps latentport==0.2.1`
   in a fresh environment and run `scripts/check_distribution.py`.
 - Dispatch from the same reviewed commit with `destination=pypi`. The build job
   checks and uploads artifacts; the publishing job downloads those artifacts
   without rebuilding. Enable `publish_images` only after GPU qualification.
 - Confirm `pip install latentport` from the normal PyPI index, anonymous image
   pull, and the exact README command. Remove the pending-release note only then.
-- Tag the reviewed source commit and attach validation reports. Never replace
+- Record the reviewed source commit and validation reports. Never replace
   an already published version or silently move a versioned image tag.
 
 Base image digests are pinned in `docker/Dockerfile`. Direct inference dependencies are pinned in `docker/constraints.txt`. Record the
@@ -66,9 +71,12 @@ the current qualified defaults rather than silently selecting untested files.
 
 ## Native runtime maintenance
 
-The Python package uses the existing ABI-2 native release artifacts. New builds
+The Python package uses the existing ABI-2 native artifacts hosted on Hugging Face. New builds
 must pin the patched llama.cpp revision and record OS, CUDA, compute capability,
-ABI, byte size and SHA-256 in `native-release.json`. Windows CUDA runtime archives
+ABI, byte size and SHA-256 in `native-release.json`. Upload archives to
+`latentport/native-runtime`, verify anonymous downloads, and pin full Hub commit
+SHAs in the package's URLs before publishing a new package version. Preserve
+older pinned Hub commits and archives. Windows CUDA runtime archives
 are independently pinned in `cuda-windows.json`; preserve their supplied notices.
 Do not bundle NVIDIA drivers. Add GPU architectures only after executing tests
 on those architectures, including minimum driver compatibility.

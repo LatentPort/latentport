@@ -1,6 +1,6 @@
 ﻿# Installation
 
-LatentPort 0.2.0 is available on PyPI as a lightweight package with optional
+LatentPort 0.2.1 is available on PyPI as a lightweight package with optional
 backend dependencies. The GHCR images are pending GPU qualification and
 publication; source and local Docker build instructions are below.
 
@@ -14,7 +14,7 @@ on context and other workloads. Linux needs NVIDIA Container Toolkit configured;
 Windows needs Docker Desktop with its WSL 2 backend. No host CUDA toolkit is needed.
 
 ```shell
-docker run --rm --gpus all -p 127.0.0.1:8768:8768 -v latentport-cache:/cache ghcr.io/latentport/latentport:0.2.0-gguf-cu128-sm120
+docker run --rm --gpus all -p 127.0.0.1:8768:8768 -v latentport-cache:/cache ghcr.io/latentport/latentport:0.2.1-gguf-cu128-sm120
 ```
 
 Open http://localhost:8768. The UI reports setup stages before the interactive
@@ -25,7 +25,7 @@ first-run setup is not included in the displayed inference TTFT measurement.
 For automated execution, append `demo --headless`. The exit code is nonzero on
 failure and the cache contains the evidence under `demos/`. This image supports
 Linux x86-64 / CUDA 12.8 / SM120; it does not enable CPU, Apple GPU, AMD, or other
-NVIDIA architectures. The BF16 image uses tag `0.2.0-bf16-cu128-sm120`; model size
+NVIDIA architectures. The BF16 image uses tag `0.2.1-bf16-cu128-sm120`; model size
 and context determine its larger VRAM requirement. Its default command is
 `doctor --backend bf16`, not the GGUF transfer demo.
 
@@ -38,6 +38,12 @@ python -m pip install latentport
 latentport --help
 latentport doctor
 ```
+
+Upgrading from 0.2.0: run `python -m pip install --upgrade latentport` before a
+fresh native-runtime installation. Version 0.2.1 downloads native archives from
+[latentport/native-runtime](https://huggingface.co/latentport/native-runtime)
+at a pinned commit; 0.2.0 points to the retired GitHub feature release.
+The native binaries and their checksums are unchanged, so cached copies are reused.
 
 The base package does not install Torch, Transformers, CUDA or model weights.
 `doctor` emits JSON and exits with code 1 when inference prerequisites are missing;

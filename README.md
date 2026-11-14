@@ -16,7 +16,7 @@ build longer-running agents without repeatedly processing the same context.
 [Website](https://latentport.com) | [Get started](#get-started) | [Models](https://huggingface.co/latentport) | [Cookbook](https://github.com/LatentPort/latentport/blob/main/docs/cookbook.md) | [API](https://github.com/LatentPort/latentport/blob/main/docs/api.md)
 
 ![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)
-[![Runtime: 0.1](https://img.shields.io/badge/runtime-0.1-blue)](https://github.com/LatentPort/latentport/releases/tag/lpcompact-v0.1)
+[![PyPI](https://img.shields.io/pypi/v/latentport)](https://pypi.org/project/latentport/)
 
 ## A library of state operations
 
@@ -28,7 +28,7 @@ from the transformed state.
 | Operation | Purpose | Available today |
 | --- | --- | --- |
 | **Transfer** | Move working context into another model's state space. | Learned Qwen3.5-4B to Qwen3.8-27B bridge via `bridge.translate(state)`. |
-| **Compact** | Reduce attention memory while retaining the model's recurrent and convolutional state. | LPCompact 0.1 for Qwen3.8-27B via `state.compact()`. |
+| **Compact** | Reduce attention memory while retaining the model's recurrent and convolutional state. | LPCompact for Qwen3.8-27B via `state.compact()`. |
 | **Optimise** | Improve a state for the task or inference objective ahead. | Part of the roadmap. |
 | **Combine** | Bring information from multiple states into a shared working state. | Part of the roadmap. |
 
@@ -55,7 +55,7 @@ dependencies are optional: see [installation](https://github.com/LatentPort/late
 On a qualified NVIDIA GPU host with Docker GPU access configured:
 
 ```shell
-docker run --rm --gpus all -p 127.0.0.1:8768:8768 -v latentport-cache:/cache ghcr.io/latentport/latentport:0.2.0-gguf-cu128-sm120
+docker run --rm --gpus all -p 127.0.0.1:8768:8768 -v latentport-cache:/cache ghcr.io/latentport/latentport:0.2.1-gguf-cu128-sm120
 ```
 
 Open **http://localhost:8768**. The demo prepares the models, transfers context,

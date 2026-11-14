@@ -69,6 +69,6 @@ jobs:
           file: docker/Dockerfile
           target: ${{ matrix.backend }}
           push: true
-          tags: ghcr.io/latentport/latentport:0.2.0-${{ matrix.backend }}-cu128-sm120
+          tags: ghcr.io/latentport/latentport:0.2.1-${{ matrix.backend }}-cu128-sm120
           provenance: true
           sbom: true
