@@ -1,4 +1,4 @@
-# LPCompact 0.1
+# State compaction with LPCompact
 
 LPCompact adds `state.compact()` to LatentPort's library of LLM state operations.
 It uses a small learned selector to retain useful attention memory while
@@ -43,7 +43,7 @@ Each trained state operation has its own Hugging Face repository, named for its
 operation and compatible model. The shared Python runtime remains in the
 [LatentPort GitHub repository](https://github.com/LatentPort/latentport).
 
-Install LatentPort from PyPI (0.2.0 or later).
+Install LatentPort from PyPI (0.2.1 or later).
 For BF16, use an environment with CUDA-enabled PyTorch and the CUDA compiler.
 Install the extra against that PyTorch installation:
 

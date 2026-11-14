@@ -13,7 +13,7 @@ tags:
 
 # LPCompact-Qwen3.8-27B
 
-**LPCompact 0.1** is a learned state compaction model for **Qwen3.8-27B**,
+**LPCompact** is a learned state compaction model for **Qwen3.8-27B**,
 available through LatentPort's `state.compact()` operation.
 
 It selects useful attention-memory entries directly from a running model's
@@ -45,7 +45,7 @@ See the [runtime validation record](https://github.com/LatentPort/latentport/blo
 
 ## Use with LatentPort
 
-Install the [LatentPort runtime release](https://github.com/LatentPort/latentport/releases/tag/lpcompact-v0.1)
+Install [LatentPort from PyPI](https://pypi.org/project/latentport/) (0.2.1 or later)
 and follow the [BF16 or GGUF setup instructions](https://github.com/LatentPort/latentport/blob/main/docs/compaction.md).
 
 ```python
@@ -77,9 +77,9 @@ positions and selects the remaining memory within the requested budget.
 
 ## Artifact and version
 
-LPCompact 0.1 uses FP32 selector weights, a 3,072-feature input, a 128-unit hidden
+The compaction selector uses FP32 weights, a 3,072-feature input, a 128-unit hidden
 layer with GELU, and one output score. `config.json` records its architecture,
-policy and hashes. The `v0.1` tag identifies the original release checkpoint.
+policy and hashes. The `v0.1` tag identifies the original model checkpoint.
 The model weights are unchanged by the repository rename.
 
 Canonical repository: [latentport/LPCompact-Qwen3.8-27B](https://huggingface.co/latentport/LPCompact-Qwen3.8-27B).

@@ -5,10 +5,12 @@
   "abi": 2,
   "state_compact": true,
   "llama_cpp_revision": "b19cbe925be361d229f0fe03435affe4a2717f37",
-  "filename": "latentport-native-win-amd64-cuda13-sm120-abi2-lpcompact01.zip",
+  "repo_id": "latentport/native-runtime",
+  "revision": "e92466aa5694c2f0dbcf589c10e13206ad31f6aa",
+  "filename": "latentport-native-win-amd64-cuda13-sm120-abi2.zip",
   "sha256": "8d70364e295ca1de83dcb0d3043ac7aa21bfc15974c8b5ee5df3ef37da8fb910",
   "bytes": 40498469,
-  "url": "https://github.com/LatentPort/latentport/releases/download/lpcompact-v0.1/latentport-native-win-amd64-cuda13-sm120-abi2-lpcompact01.zip",
+  "url": "https://huggingface.co/latentport/native-runtime/resolve/e92466aa5694c2f0dbcf589c10e13206ad31f6aa/latentport-native-win-amd64-cuda13-sm120-abi2.zip",
   "linux": {
     "platform": "Linux x64",
     "cuda": "12.8",
@@ -16,9 +18,11 @@
     "abi": 2,
     "state_compact": true,
     "llama_cpp_revision": "b19cbe925be361d229f0fe03435affe4a2717f37",
-    "filename": "latentport-native-linux-x86_64-cuda12.8-sm120-abi2-lpcompact01.zip",
+    "repo_id": "latentport/native-runtime",
+    "revision": "e92466aa5694c2f0dbcf589c10e13206ad31f6aa",
+    "filename": "latentport-native-linux-x86_64-cuda12.8-sm120-abi2.zip",
     "sha256": "ab06473b2c827649ac21e594d8984108beef960f8971a31874755763312137fd",
     "bytes": 42766609,
-    "url": "https://github.com/LatentPort/latentport/releases/download/lpcompact-v0.1/latentport-native-linux-x86_64-cuda12.8-sm120-abi2-lpcompact01.zip"
+    "url": "https://huggingface.co/latentport/native-runtime/resolve/e92466aa5694c2f0dbcf589c10e13206ad31f6aa/latentport-native-linux-x86_64-cuda12.8-sm120-abi2.zip"
   }
 }

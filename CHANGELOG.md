@@ -1,6 +1,13 @@
 # Changelog
 
-## 0.2.0 (unreleased)
+## 0.2.1
+
+- Move native-runtime downloads to a dedicated Hugging Face repository with
+  immutable revision pins and the original SHA-256 checksums.
+- Present LPCompact as LatentPort's compaction feature and retire its separate
+  GitHub product release. Upgrade from 0.2.0 before a fresh native installation.
+
+## 0.2.0
 
 - Lightweight PyPI package with GGUF/BF16 backend extras and dependency-aware diagnostics.
 - Packaged browser demo with automatic runtime setup, model caching, disk checks,

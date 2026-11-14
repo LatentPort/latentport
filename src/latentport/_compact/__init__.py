@@ -1,4 +1,4 @@
-"""LPCompact 0.1: an immutable state-to-state attention-memory operation."""
+"""LPCompact: an immutable state-to-state attention-memory operation."""
 from dataclasses import replace
 from time import perf_counter
 from uuid import uuid4
@@ -19,7 +19,7 @@ def compact(state, *, ratio=8, force=False):
     if type(force) is not bool:
         raise TypeError("force must be a bool")
     if state.identity.repo_id != "Qwen/Qwen3.8-27B" or state.identity.backend not in ("bf16", "gguf", "reference"):
-        raise CapabilityError("LPCompact 0.1 supports Qwen3.8-27B states")
+        raise CapabilityError("LPCompact supports Qwen3.8-27B states")
     if state.identity.state_abi not in ("qwen3.5.complete-hybrid.v1",
                                         "llama.cpp.b19cbe9.qwen3.5.complete-hybrid.bf16.v2"):
         raise CapabilityError("LPCompact requires a supported complete hybrid-state layout")
