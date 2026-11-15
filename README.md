@@ -9,6 +9,16 @@ inference.
 This allows developers to improve model performance, reduce inference costs and
 build longer-running agents without repeatedly processing the same context.
 
+**Created by [Simon P. Villani](https://au.linkedin.com/in/simon-villani).**
+
+LatentPort is an independent AI research project developing programmable internal state for language models.
+
+The project began with [LatentPort: Beyond KV Cache](https://arxiv.org/abs/2609.25053), published in September 2026, demonstrating recurrent-state transfer between Qwen3.5 4B and 9B without target-prefix replay.
+
+The project now includes a shared Python runtime, learned model-to-model transfers, state compaction, and state persistence and branching.
+
+[Original paper](https://arxiv.org/abs/2609.25053) | [Research code](https://github.com/mmprotest/latentport-paper) | [Python package](https://pypi.org/project/latentport/)
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/LatentPort/latentport/main/docs/assets/latentport-ascii.gif" alt="LatentPort: programmable model state" width="640">
 </p>
