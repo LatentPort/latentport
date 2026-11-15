@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "Please cite this software. For the original recurrent-state transfer research, also cite arXiv:2609.25053."
+type: software
+title: "LatentPort: Programmable LLM State"
+authors:
+  - given-names: "Simon P."
+    family-names: "Villani"
+repository-code: "https://github.com/LatentPort/latentport"
+url: "https://latentport.com/"
+license: "Apache-2.0"
+version: "0.2.1"
