@@ -9,6 +9,12 @@ Python distributions are published on PyPI. Native archives live in
 [`latentport/native-runtime`](https://huggingface.co/latentport/native-runtime),
 with immutable commit pins, compatibility metadata, checksums, and license notices.
 
+Keep validation environments, downloaded SDKs, native builds and release archives
+outside the source checkout, using a separate bulk directory such as
+`F:/LatentPort/runtime` on Windows. Point `LATENTPORT_HOME`, `PIP_CACHE_DIR` and
+build output directories there. `.validation/` is ignored, excluded from source
+archives, and rejected by CI if tracked.
+
 ## Maintainer setup
 
 1. Verify the `latentport` project name in the maintainer PyPI account. A 404 or

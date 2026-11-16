@@ -10,3 +10,4 @@ recursive-include docs/assets *.gif
 include CONTRIBUTING.md
 recursive-include docker Dockerfile *.txt
 include .dockerignore
+prune .validation

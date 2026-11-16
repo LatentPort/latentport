@@ -14,6 +14,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
+      - name: Reject tracked validation caches
+        shell: python
+        run: |
+          import subprocess
+          paths = subprocess.check_output(["git", "ls-files", "--", ".validation"], text=True)
+          if paths.strip():
+              raise SystemExit("Validation caches belong outside the source repository.")
       - run: python -m pip install build twine
       - run: python -m build
       - run: python -m twine check dist/*
