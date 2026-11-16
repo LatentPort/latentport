@@ -93,6 +93,13 @@ The shared session supports:
 - `escalate(target=..., bridge=...)` uses the same transformation transaction as compaction, subject to bridge compatibility.
 - `close()` releases the handle while independently owned snapshots survive.
 
+`append()` preserves a literal token suffix; it does not insert spaces or record
+separators. When ingesting independent records, include the boundary explicitly,
+for example `session.append("\n\n" + record)`. Otherwise an unfinished line can
+join the next record and change how the model interprets it. For chunks cut from
+one already tokenized stream, append the original token IDs so chunk boundaries
+do not change tokenization.
+
 Consecutive resident appends reuse the working cache. Conversation preparation
 and generation currently freeze that cache and use the existing decode path;
 the next append reinstalls a resident cache. Accessing `session.state` or
