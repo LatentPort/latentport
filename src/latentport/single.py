@@ -17,8 +17,11 @@ def _weight_fingerprint(path):
     files=sorted(Path(path).glob("*.safetensors"))
     if not files:
         raise CompatibilityError("Transformers loading requires safetensors model weights")
+    # Identity verification can read tens of GB on a cold disk. Use the same
+    # progress controls as Hub downloads rather than leaving startup silent.
+    from huggingface_hub.utils import tqdm
     combined=hashlib.sha256()
-    for file in files:
+    for file in tqdm(files, desc="Verifying model weight shards", unit="shard"):
         digest=hashlib.sha256()
         with file.open("rb") as stream:
             for block in iter(lambda:stream.read(8*1024*1024),b""):

@@ -107,3 +107,25 @@ def test_resident_transaction_can_install_a_different_model():
             assert session.model is destination and child.identity == destination.identity
             session.append([5])
             assert session.clock == 3 and before.clock == 2
+
+
+def test_checkpoint_assignment_replaces_live_cache_and_validates_before_release():
+    with tiny_backend(BF16Backend) as (backend, identity, net):
+        model = Model(identity, backend, role="target")
+        with model.live() as session:
+            session.append([2, 3])
+            checkpoint = session.snapshot()
+            session.append([5, 7])
+            handle = session._resident
+            wrong = replace(checkpoint, identity=replace(identity, weights="wrong"))
+            with pytest.raises(CompatibilityError):
+                session.state = wrong
+            assert session._resident is handle and session.clock == 4
+            session.state = checkpoint
+            assert handle.closed and session.clock == 2
+            session.append([11])
+            assert session.clock == 3
+            session.state = None
+            assert session.clock == 0
+            session.append([13])
+            assert session.clock == 1

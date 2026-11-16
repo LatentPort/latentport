@@ -6,8 +6,7 @@
 | `Model` | Capture/append context and create sessions for one exact model identity. |
 | `State` | Immutable logical snapshot with owned tensor storage or a disk representation. |
 | `Bridge` | Translate a source snapshot into the supported target state space. |
-| `Session` | Advance a model's conversation or generation state. |
-| `LiveSession` | Keep a resident append cache, with explicit immutable snapshots and compaction boundaries. |
+| `Session` | Append, converse, generate, transform, fork and save state; optionally keep a resident ingestion cache. |
 | `CompositeSession` | Apply strict or cached-handoff execution policy. |
 | `Answer` | Current call's text/tokens, resulting state, finished flag and timings. |
 

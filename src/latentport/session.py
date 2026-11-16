@@ -29,6 +29,18 @@ class Session:
 
     @state.setter
     def state(self, value):
+        # Replacing a checkpoint must also replace any mutable working handle.
+        # Validate first so a rejected assignment leaves the session untouched.
+        self._check_open()
+        if value is not None:
+            value.require_model(self.model.identity)
+        if self._resident is not None:
+            self._resident.close()
+            self._resident = None
+        pending = getattr(self, "_pending_decode", None)
+        if pending is not None and hasattr(pending, "close"):
+            pending.close()
+        self._pending_decode = None
         self._state = value
 
     def _check_open(self):

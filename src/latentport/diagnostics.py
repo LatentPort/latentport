@@ -1,5 +1,6 @@
 """Read-only, backend-specific diagnostics. No model downloads or allocations."""
 import json
+import os
 import platform
 from pathlib import Path
 
@@ -32,7 +33,7 @@ def diagnose(backend="gguf", *, check_native=True):
     result = {"python": platform.python_version(), "platform": platform.platform(),
               "bulk_home": str(bulk_home()), "backend": backend,
               "package_installed": True, "missing_dependencies": missing_dependencies(backend),
-              "cuda_available": False, "ready_for_model_load": False, "errors": []}
+              "cuda_available": False, "ready_for_model_load": False, "errors": [], "warnings": []}
     if "torch" not in result["missing_dependencies"]:
         try:
             import torch
@@ -53,14 +54,18 @@ def diagnose(backend="gguf", *, check_native=True):
     if backend == "gguf":
         try:
             spec = native_spec()
+            custom = bool(os.environ.get("LATENTPORT_NATIVE_LIB"))
+            result['native_distribution'] = 'custom' if custom else 'packaged'
+            if custom:
+                result['warnings'].append("Custom native library selected; packaged GPU/CUDA qualification does not apply. Validate this build on the selected GPU.")
             if result['cuda_available']:
                 driver = driver_cuda_version()
                 result['driver_cuda_version'] = driver
                 # Major-version floor only: qualified hardware may require a newer driver.
-                if driver < int(spec['cuda'].split('.')[0]) * 1000:
+                if not custom and driver < int(spec['cuda'].split('.')[0]) * 1000:
                     result['errors'].append(f"Native CUDA {spec['cuda']} requires a newer NVIDIA driver.")
             capability = ".".join(map(str, result.get("gpu_capability", [])))
-            if capability and capability != spec["compute_capability"]:
+            if not custom and capability and capability != spec["compute_capability"]:
                 result["errors"].append(
                     f"This release is qualified for SM{spec['compute_capability']}, not SM{capability}.")
             if check_native:
