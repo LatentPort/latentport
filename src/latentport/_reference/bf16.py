@@ -38,6 +38,9 @@ class BF16Backend(ReferenceBackend):
         super().__init__(*args, **kwargs)
         self.options = options or ContextOptions()
 
+    def check_capacity(self, clock, physical, count=0):
+        self.options.check(clock, physical, count)
+
     def _model(self, identity):
         import torch
         side = self._side(identity)

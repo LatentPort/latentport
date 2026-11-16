@@ -127,9 +127,10 @@ final logical limit still applies even when substantial KV memory is free.
 The 4,096-position headroom in this example leaves space for question framing
 and generated tokens within the 262,144 physical bound.
 
-For small incremental chunks, `model.live()` keeps a resident working cache.
+For small incremental chunks, `model.session(resident=True)` keeps a resident working cache.
+`model.live()` is an alias returning the same `Session` type.
 It retains a bounded original-token tail for message boundaries and materializes
-immutable states only at explicit snapshot and compaction boundaries:
+immutable states at snapshot, transformation and generation boundaries:
 
 ```python
 with lp.load_model(backend="nf4", position_policy="yarn4") as model:
@@ -149,7 +150,7 @@ with lp.load_model(backend="nf4", position_policy="yarn4") as model:
 `live.append()` tokenizes only new text or accepts exact token IDs. It does not
 decode or replay historical input. Forks and published snapshots remain immutable.
 A failed append closes its working handle; restore an exact snapshot to resume.
-Failed compaction restores the preceding valid working state. `live.compact()`
+Failed compaction retains the preceding immutable state; the next append reinstalls it without replay. `live.compact()`
 and `state.compact()` use the same frozen selector and policy.
 
 Use `backend="bf16"` for BF16 weights, or `backend="gguf"` with `model_path` for

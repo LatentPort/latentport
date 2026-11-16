@@ -11,23 +11,145 @@ from .state import State
 
 
 class Session:
-    def __init__(self, model: "Model", state: State | None = None):
+    def __init__(self, model: "Model", state: State | None = None, *, resident: bool = False):
+        self._resident = None
+        self.resident = resident
+        self.closed = False
+        if resident and not hasattr(model.backend, "live"):
+            raise CapabilityError("This backend does not support resident execution")
         self.model, self.state = model, state
         self._pending_decode = None
         self.last_handoff_s = 0.0
         if state is not None:
             state.require_model(model.identity)
 
+    @property
+    def state(self):
+        return self._resident.snapshot() if self._resident is not None else self._state
+
+    @state.setter
+    def state(self, value):
+        self._state = value
+
+    def _check_open(self):
+        if self.closed:
+            raise StateError("Session is closed")
+
+    def _freeze(self):
+        self._check_open()
+        if self._resident is not None:
+            self._state = self._resident.snapshot(release=True)
+            self._resident = None
+        if self._pending_decode is not None:
+            if hasattr(self._pending_decode, "close"):
+                self._pending_decode.close()
+            self._pending_decode = None
+        return self._state
+
+    @property
+    def clock(self):
+        return self._resident.clock if self._resident is not None else self._state.clock if self._state else 0
+
+    @property
+    def physical(self):
+        return self._resident.physical if self._resident is not None else self._state.physical_kv_length if self._state else 0
+
+    def append(self, text):
+        self._check_open()
+        if self.resident:
+            if self._resident is None:
+                self._freeze()
+                from .stream import ResidentCache
+                self._resident = ResidentCache(self.model, self._state)
+                self._state = None
+            try:
+                return self._resident.append(text)
+            except BaseException:
+                if self._resident.closed:
+                    self.close()
+                raise
+        self._freeze()
+        if self._state is None:
+            if not isinstance(text, str):
+                raise ValueError("An initial nonresident append requires text; use resident=True for token IDs")
+            self._state = self.model.prefill(text)
+        else:
+            self._state = self.model.append(self._state, text)
+        return self.clock
+
+    def snapshot(self, *, release=False):
+        self._check_open()
+        state = self._freeze() if release else self.state
+        if state is None:
+            raise StateError("Capture state before snapshotting")
+        if release:
+            self.close()
+        return state
+
+    def save(self, path):
+        return self.snapshot().save(path)
+
+    def _transform(self, operation, *, target=None, decode=False):
+        """Freeze, transform and prepare installation before committing ownership.
+
+        A failure retains the exact source snapshot. Resident execution resumes
+        lazily from it, so recovery does not require a second allocation to work.
+        """
+        from ._transaction import transform_install
+        parent = self._freeze()
+        if parent is None:
+            raise StateError("Capture state before transforming")
+        destination = target or self.model
+        if self.resident and not hasattr(destination.backend, "live"):
+            raise CapabilityError("Destination backend does not support resident execution")
+        def install(child):
+            if self.resident:
+                from .stream import ResidentCache
+                return ResidentCache(destination, child)
+            if decode:
+                values = (child._read_tensors() if getattr(destination.backend, "copy_on_write", False)
+                          else child._tensors(device=getattr(destination.backend, "device", None)))
+                return destination.backend.begin_decode(destination.identity, values, child.clock)
+            destination.backend.install(destination.identity, child._read_tensors(), child.clock)
+        child, handle = transform_install(parent, operation, destination.identity, install)
+        self.model, self._state = destination, child
+        if self.resident:
+            self._resident = handle
+            self._state = None
+        else:
+            self._pending_decode = handle
+        return child
+
+    def compact(self, *, ratio=8, force=False):
+        return self._transform(lambda state: state.compact(ratio=ratio, force=force))
+
+    def close(self):
+        if self._resident is not None:
+            self._resident.close()
+            self._resident = None
+        if self._pending_decode is not None and hasattr(self._pending_decode, "close"):
+            self._pending_decode.close()
+        self._pending_decode = None
+        self.closed = True
+
+    def __enter__(self):
+        self._check_open()
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
     def fork(self, count: int = 1) -> "Session | tuple[Session, ...]":
-        if self.state is None:
-            raise StateError("Capture state before forking")
-        states = self.state.fork(count)
+        self._check_open()
+        parent = self.snapshot()
+        states = parent.fork(count)
         if count == 1:
-            return Session(self.model, states)
-        return tuple(Session(self.model, state) for state in states)
+            return Session(self.model, states, resident=self.resident)
+        return tuple(Session(self.model, state, resident=self.resident) for state in states)
 
     def prepare(self, question: str) -> State:
         """Consume a new user turn and native assistant prefix, without generating."""
+        self._freeze()
         if not isinstance(question, str) or not question:
             raise ValueError("ask needs a nonempty user question")
         if self.state is None:
@@ -92,6 +214,9 @@ class Session:
 
     def generate(self, *, max_new_tokens: int = 512, mtp: bool = False,
                  on_token: Callable[[int], None] | None = None) -> Answer:
+        self._check_open()
+        if self._resident is not None:
+            self._freeze()
         from contextlib import nullcontext
         started = perf_counter()
         guard = (self.model.backend.generation_guard() if hasattr(self.model.backend, "generation_guard")
@@ -205,6 +330,7 @@ class Session:
                                      **native_stats))
 
     def escalate(self, *, target: "Model", bridge: "Bridge") -> State:
+        self._freeze()
         if self.state is None:
             raise StateError("No state to escalate")
         if self.state.phase not in ("answer_ready", "in_answer", "context_ready"):
@@ -212,16 +338,8 @@ class Session:
         if bridge.source.identity != self.model.identity or bridge.target.identity != target.identity:
             raise CompatibilityError("Bridge direction or exact model identity differs")
         started = perf_counter()
-        translated = bridge.translate(self.state, target=target)
-        # Translation and full installation must succeed before changing the
-        # source session. An exception preserves it for retry or continuation.
-        values = (translated._read_tensors() if getattr(target.backend, "copy_on_write", False)
-                  else translated._tensors(device=getattr(target.backend, "device", None)))
-        prepared = target.backend.begin_decode(
-            target.identity, values,
-            translated.clock)
-        self.model, self.state = target, translated
-        self._pending_decode = prepared
+        translated = self._transform(lambda state: bridge.translate(state, target=target),
+                                     target=target, decode=True)
         self.last_handoff_s = perf_counter() - started
         return translated
 

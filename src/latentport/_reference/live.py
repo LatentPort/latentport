@@ -106,8 +106,10 @@ class LiveCache:
         """Use the public State operation and retain an isolated working cache."""
         parent = self.snapshot(release=True)
         try:
-            child = parent.compact(ratio=ratio, force=force)
-            replacement = type(self)(self.backend, self.identity, child)
+            from .._transaction import transform_install
+            child, replacement = transform_install(
+                parent, lambda state: state.compact(ratio=ratio, force=force), self.identity,
+                lambda state: type(self)(self.backend, self.identity, state))
         except BaseException:
             replacement = type(self)(self.backend, self.identity, parent, _owned=True)
             self.__dict__.update(replacement.__dict__)

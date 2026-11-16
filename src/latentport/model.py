@@ -51,10 +51,9 @@ class Model:
         ids = self.codec.encode(text) if isinstance(text, str) else tuple(int(x) for x in text)
         if not ids:
             raise ValueError("append requires one or more tokens")
-        options = getattr(self.backend, "options", None)
-        if options is not None:
-            context = options.context_options if hasattr(options, "context_options") else options
-            context.check(state.clock, state.physical_kv_length, len(ids))
+        check = getattr(self.backend, "check_capacity", None)
+        if check is not None:
+            check(state.clock, state.physical_kv_length, len(ids))
         working = (state._read_tensors() if getattr(self.backend, "copy_on_write", False)
                    else state._tensors(device=getattr(self.backend, "device", None)))
         values = self.backend.advance(self.identity, working,
@@ -70,16 +69,15 @@ class Model:
                      generated_token_ids=state.generated_token_ids,
                      parent_id=state.state_id, _components=values)
 
-    def session(self, state: State | None = None) -> "Session":
+    def session(self, state: State | None = None, *, resident: bool = False) -> "Session":
         if state is not None:
             state.require_model(self.identity)
         from .session import Session
-        return Session(self, state)
+        return Session(self, state, resident=resident)
 
     def live(self, state: State | None = None):
         """Keep a resident append cache; freeze immutable States only on request."""
-        from .stream import LiveSession
-        return LiveSession(self, state)
+        return self.session(state, resident=True)
 
     def prefill(self, context: str | Sequence[tuple[str, str]]) -> State:
         return self.capture(context, generation_prompt=False)

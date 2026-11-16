@@ -55,6 +55,10 @@ class GGUFBackend:
                 if stream.read(4) != b"GGUF":
                     raise CompatibilityError(f"{side} file is not a GGUF container: {path}")
 
+    def check_capacity(self, clock, physical, count=0):
+        options = self.options.context_options if self.options else ContextOptions()
+        options.check(clock, physical, count)
+
     def _bridge_file(self):
         from .hub import gguf_bridge_file
         path = gguf_bridge_file(self.bridge_gguf_path)
@@ -231,8 +235,10 @@ class _NativeLive:
     def compact(self,*,ratio=8,force=False):
         parent=self.snapshot(release=True)
         try:
-            child=parent.compact(ratio=ratio,force=force)
-            replacement=type(self)(self.backend,self.identity,child)
+            from ._transaction import transform_install
+            child,replacement=transform_install(
+                parent,lambda state:state.compact(ratio=ratio,force=force),self.identity,
+                lambda state:type(self)(self.backend,self.identity,state))
         except BaseException:
             replacement=type(self)(self.backend,self.identity,parent)
             self.__dict__.update(replacement.__dict__)

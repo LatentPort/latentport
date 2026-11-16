@@ -79,16 +79,60 @@ actual attention sequence dimension through `state.physical_kv_length`.
 `model.append(state, token_ids)` continues from that state using the same
 position policy. All input, formatting and generated tokens advance the clock.
 
-`model.live(state=None)` returns an owned resident ingestion session:
+`model.session(state=None, resident=True)` selects resident ingestion within
+the ordinary `Session` API. `model.live(state=None)` is a convenience alias
+returning the same type. The backend must explicitly provide resident execution.
+The shared session supports:
 
 - `append(text_or_token_ids)` processes only fresh input and returns the logical clock.
 - `clock` and `physical` expose logical and retained attention lengths separately.
 - `compact(ratio=8, force=False)` delegates to `State.compact()` and returns the immutable result.
 - `snapshot(release=False)` publishes an immutable `State`; `release=True` closes the live handle.
+- `ask()` / `prepare()` / `generate()` use the existing conversation and decoding rules.
+- `fork()` creates isolated sessions with the same residency preference.
+- `save(path)` saves an immutable snapshot without closing the session.
+- `escalate(target=..., bridge=...)` uses the same transformation transaction as compaction, subject to bridge compatibility.
 - `close()` releases the handle while independently owned snapshots survive.
+
+Consecutive resident appends reuse the working cache. Conversation preparation
+and generation currently freeze that cache and use the existing decode path;
+the next append reinstalls a resident cache. Accessing `session.state` or
+`snapshot()` materializes an immutable snapshot; use `clock` and `physical`
+for counters without copying state tensors. This is a unified execution API,
+not a claim of zero-copy transitions between all operations.
+
+Transformations freeze a source snapshot, validate the result against the
+destination identity, and prepare installation before committing the model
+change. If transformation or installation fails, the source model and exact
+snapshot remain available. A subsequent append resumes from that snapshot
+without text replay. Partial append failure closes the session; applications
+must restore their last explicit checkpoint.
 
 Live snapshots keep a bounded original-token suffix for exact stream boundaries.
 They can be saved, loaded, forked and queried through `model.session(state)`
 without replaying historical source. The suffix is boundary metadata, not text
 injected as replacement memory. Position/quantization configuration is part of
 state identity. See [compaction.md](compaction.md) for examples and native builds.
+
+
+### Bridge alignment compatibility
+
+The current E119 bridge requires the complete source token stream and its exact
+rendered bytes. Its numeric alignment maps each target token to a source
+coordinate using byte spans and produces dense target positions. The bridge
+explicitly rejects suffix-only streamed states and sparse/compacted states
+before loading or invoking the learned translator. Destination capacity is
+checked after token alignment and before translation. Ordinary dense handoffs
+continue through the shared transaction.
+
+A future streaming alignment contract must bind both tokenizer revisions and
+template rules, preserve exact source/target token boundaries and clocks, define
+how sparse retained positions map into the target cache, and survive save/load
+and forks. It must also define behavior when the destination has insufficient
+physical or positional capacity. Incrementally collected metadata could replace
+whole-text reconstruction, but the current checkpoint has no established sparse
+transfer contract. A bounded token suffix cannot supply that information.
+
+Reverse bridges and optimisers are not supplied by this API change. The internal
+snapshot-transform-install mechanism can install a different model identity,
+but each learned operation must declare and validate its supported inputs.
