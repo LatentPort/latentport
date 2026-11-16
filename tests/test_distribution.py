@@ -54,6 +54,7 @@ class DistributionTests(unittest.TestCase):
                 get_device_capability=lambda _: (8, 9), mem_get_info=lambda _: (48 * 1024**3, 48 * 1024**3)))
         with patch.dict('sys.modules', {'torch': fake}), \
              patch.dict('os.environ', {'LATENTPORT_NATIVE_LIB': '/custom/libllama.so'}), \
+             patch('latentport.diagnostics.native_spec', return_value={'cuda': '13.0', 'compute_capability': '12.0'}), \
              patch('latentport.diagnostics.missing_dependencies', return_value=[]), \
              patch('latentport.diagnostics.driver_cuda_version', return_value=12080):
             result = diagnose('gguf', check_native=False)
