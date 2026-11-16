@@ -40,10 +40,11 @@ class Session:
         if not state.messages:
             # A captured raw prefix can still feed different branch questions.
             # Keep it a literal stream; no whole-history template is invented.
-            if state.rendered_text is None:
+            if state.rendered_text is None and not state.stream_tail_ids:
                 raise StateError("Raw state has no exact rendered stream")
+            tail = state.rendered_text if state.rendered_text is not None else self.model.codec.decode(state.stream_tail_ids, special=True)
             suffix = self.model.codec.render((("user", question),), generation_prompt=True)
-            separator = self.model.codec.encode("\n") if not state.rendered_text.endswith("\n") else ()
+            separator = self.model.codec.encode("\n") if not tail.endswith("\n") else ()
             next_state = self.model.append(state, separator + suffix.token_ids, phase="answer_ready")
             self.state = replace(next_state, generated_token_ids=())
             self._pending_decode = None
@@ -178,6 +179,7 @@ class Session:
                         rendered_text=model.codec.decode(full_ids, special=True) if full_ids is not None else None,
                         rendered_token_ids=full_ids, messages=initial.messages,
                         generated_token_ids=initial.generated_token_ids + tuple(tokens),
+                         stream_tail_ids=((initial.stream_tail_ids or (initial.rendered_token_ids or ())[-32:]) + tuple(tokens))[-32:],
                         parent_id=initial.state_id, _components=snapshot)
         if finished and current.messages and tokens[-1] == model.codec.chat_eos_id:
             # The committed stream is authoritative. Re-rendering old turns

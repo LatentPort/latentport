@@ -29,6 +29,11 @@ typedef struct {
 LP_API int lp_abi(void);
 LP_API const char * lp_error(void);
 LP_API void * lp_open(const char * path, int side, int context, int batch, int threads, int drafts);
+// Additive ABI 2 extension. Position policy is chosen before the first token:
+// 0=original 262144 range; 1=static YaRN4, 1048576 logical positions.
+// physical_limit bounds the attention cache independently (at most 262144).
+LP_API void * lp_open_extended(const char * path, int side, int context, int batch,
+                              int threads, int drafts, int position_policy, int physical_limit);
 LP_API void lp_close(void * handle);
 LP_API int lp_get_info(void * handle, lp_info * out);
 LP_API int lp_tokenize(void * handle, const char * text, int bytes, int32_t * out, int capacity);

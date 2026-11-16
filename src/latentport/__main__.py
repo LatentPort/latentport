@@ -104,7 +104,7 @@ def main(argv=None):
     native = commands.add_parser("install-native", help="Install verified prebuilt binaries")
     native.add_argument("--no-cuda", action="store_true", help="Use existing Windows CUDA runtime libraries")
     check = commands.add_parser("doctor", help="Report readiness without downloading models")
-    check.add_argument("--backend", choices=("gguf", "bf16", "reference"), default="gguf")
+    check.add_argument("--backend", choices=("gguf", "bf16", "nf4", "reference"), default="gguf")
     fetch = commands.add_parser("download", help="Download the pinned transfer profile")
     fetch.add_argument("--model-manifest", type=Path)
     demo = commands.add_parser("demo", help="Launch the packaged browser demo")

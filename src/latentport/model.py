@@ -42,6 +42,7 @@ class Model:
                      phase="answer_ready" if generation_prompt else "context_ready",
                      origin="native_capture", target_prompt_tokens=record.sequence_length if self.role == "target" else 0,
                      rendered_text=record.decoded_text, rendered_token_ids=record.token_ids,
+                     stream_tail_ids=record.token_ids[-32:],
                      messages=rows or (), _components=values)
 
     def append(self, state: State, text: str | Sequence[int], *, phase: str | None = None,
@@ -50,6 +51,10 @@ class Model:
         ids = self.codec.encode(text) if isinstance(text, str) else tuple(int(x) for x in text)
         if not ids:
             raise ValueError("append requires one or more tokens")
+        options = getattr(self.backend, "options", None)
+        if options is not None:
+            context = options.context_options if hasattr(options, "context_options") else options
+            context.check(state.clock, state.physical_kv_length, len(ids))
         working = (state._read_tensors() if getattr(self.backend, "copy_on_write", False)
                    else state._tensors(device=getattr(self.backend, "device", None)))
         values = self.backend.advance(self.identity, working,
@@ -60,6 +65,7 @@ class Model:
                      origin="native_append", target_prompt_tokens=state.target_prompt_tokens +
                      (len(ids) if self.role == "target" and state.phase != "in_answer" else 0),
                      rendered_text=rendered, rendered_token_ids=full_ids,
+                     stream_tail_ids=((state.stream_tail_ids or (state.rendered_token_ids or ())[-32:]) + ids)[-32:],
                      messages=tuple(messages) if messages is not None else state.messages,
                      generated_token_ids=state.generated_token_ids,
                      parent_id=state.state_id, _components=values)
@@ -69,6 +75,11 @@ class Model:
             state.require_model(self.identity)
         from .session import Session
         return Session(self, state)
+
+    def live(self, state: State | None = None):
+        """Keep a resident append cache; freeze immutable States only on request."""
+        from .stream import LiveSession
+        return LiveSession(self, state)
 
     def prefill(self, context: str | Sequence[tuple[str, str]]) -> State:
         return self.capture(context, generation_prompt=False)

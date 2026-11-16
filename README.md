@@ -80,7 +80,7 @@ the [local image build](https://github.com/LatentPort/latentport/blob/main/docs/
 
 Choose the setup for your operation:
 
-- **Compaction:** [BF16 and GGUF setup](https://github.com/LatentPort/latentport/blob/main/docs/compaction.md), including the BF16 kernel dependencies and native GGUF runtime.
+- **Compaction:** [NF4, BF16 and GGUF setup](https://github.com/LatentPort/latentport/blob/main/docs/compaction.md), including static YaRN4 for continuous histories beyond the original physical window and the resident append API.
 - **Model transfer:** [Windows GGUF setup](https://github.com/LatentPort/latentport/blob/main/docs/installation.md) and [conversation recipes](https://github.com/LatentPort/latentport/blob/main/docs/cookbook.md).
 
 Set `LATENTPORT_HOME` to a directory with enough space for downloaded models and

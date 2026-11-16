@@ -18,7 +18,7 @@ def compact(state, *, ratio=8, force=False):
     budget(0, ratio)
     if type(force) is not bool:
         raise TypeError("force must be a bool")
-    if state.identity.repo_id != "Qwen/Qwen3.8-27B" or state.identity.backend not in ("bf16", "gguf", "reference"):
+    if state.identity.repo_id != "Qwen/Qwen3.8-27B" or state.identity.backend not in ("bf16", "gguf", "nf4", "reference"):
         raise CapabilityError("LPCompact supports Qwen3.8-27B states")
     if state.identity.state_abi not in ("qwen3.5.complete-hybrid.v1",
                                         "llama.cpp.b19cbe9.qwen3.5.complete-hybrid.bf16.v2"):
@@ -44,7 +44,7 @@ def compact(state, *, ratio=8, force=False):
         # All backend writes already materialize a private working copy.
         out = {name: value.index_select(2, indices.to(value.device)) if name.startswith(("K.", "V.")) else value
                for name, value in values.items()}
-        positions = values.get("P", torch.arange(state.clock, device=device))
+        positions = values["P"] if "P" in values else torch.arange(state.clock, device=device)
         out["P"] = positions.index_select(0, indices.to(positions.device))
     validate_components(out, state.clock, "target", native_precision=state.identity.backend == "gguf")
     sync()

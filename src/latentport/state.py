@@ -56,6 +56,8 @@ class State:
     _snapshot: Path | None = field(default=None, repr=False, compare=False)
     _disk_index: Mapping[str, Mapping[str, Any]] | None = field(default=None, repr=False, compare=False)
     compaction: CompactionInfo | None = None
+    # Bounded original token suffix for stream boundaries, never replay memory.
+    stream_tail_ids: tuple[int, ...] = ()
 
     def __post_init__(self):
         if self.clock <= 0 or self.phase not in PHASES or self.target_prompt_tokens < 0:
@@ -70,6 +72,28 @@ class State:
             raise StateError("Rendered source tokens exceed the state clock")
         if self.messages and any(len(row) != 2 for row in self.messages):
             raise StateError("Messages must be (role, content) pairs")
+        if len(self.stream_tail_ids) > min(32,self.clock) or any(type(x) is not int or x < 0 for x in self.stream_tail_ids):
+            raise StateError("Invalid original stream tail")
+
+    @property
+    def physical_kv_length(self) -> int:
+        """Actual attention sequence dimension, independent of the logical clock."""
+        shapes = ({name: tuple(value.shape) for name,value in self._components.items()}
+                  if self._components is not None else
+                  {name: tuple(item["shape"]) for name,item in (self._disk_index or {}).items()})
+        kv_shapes = [shape for name,shape in shapes.items() if name.startswith(("K.","V."))]
+        if any(len(shape)!=4 for shape in kv_shapes):
+            raise StateError("Invalid attention tensor rank")
+        lengths = {shape[2] for shape in kv_shapes}
+        if len(lengths)>1:
+            raise StateError("Attention tensors disagree on physical occupancy")
+        physical = next(iter(lengths), self.clock)
+        if "P" in shapes:
+            if shapes["P"] != (physical,):
+                raise StateError("Sparse positions disagree with attention occupancy")
+        elif lengths and physical != self.clock:
+            raise StateError("Dense attention occupancy differs from the logical clock")
+        return physical
 
     @property
     def info(self) -> StateInfo:
@@ -163,6 +187,7 @@ class State:
                       "generated_token_ids": self.generated_token_ids, "state_id": self.state_id,
                       "parent_id": self.parent_id, "shares_storage": False, "tensor_index": index,
                       "compaction": asdict(self.compaction) if self.compaction else None,
+                       "stream_tail_ids": self.stream_tail_ids,
                       "tensor_sha256": _digest(staging / "tensors.safetensors"),
                       "tensor_file_bytes": (staging / "tensors.safetensors").stat().st_size}
             (staging / "manifest.json").write_text(json.dumps(record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -202,6 +227,7 @@ class State:
                    state_id=record["state_id"], parent_id=record.get("parent_id"),
                    shares_storage=False,
                    compaction=CompactionInfo(**record["compaction"]) if record.get("compaction") else None,
+                    stream_tail_ids=tuple(record.get("stream_tail_ids", ())),
                    _snapshot=root, _disk_index=record["tensor_index"])
 
 

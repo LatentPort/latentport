@@ -7,6 +7,7 @@
 | `State` | Immutable logical snapshot with owned tensor storage or a disk representation. |
 | `Bridge` | Translate a source snapshot into the supported target state space. |
 | `Session` | Advance a model's conversation or generation state. |
+| `LiveSession` | Keep a resident append cache, with explicit immutable snapshots and compaction boundaries. |
 | `CompositeSession` | Apply strict or cached-handoff execution policy. |
 | `Answer` | Current call's text/tokens, resulting state, finished flag and timings. |
 
@@ -63,3 +64,31 @@ snapshot in cached-handoff mode does not unload the reader's model weights.
 Native states use BF16 K/V and FP32 H/C/R with explicit bridge coordinate conversion.
 MTP draft caches are transient runtime state and are rebuilt from a newly generated
 committed suffix after restore. See [native-abi.md](native-abi.md).
+
+## Standalone extended-position execution
+
+`lp.load_model(backend="nf4" | "bf16" | "gguf", position_policy="yarn4")`
+selects static YaRN factor 4 from the first token, with a logical limit of
+1,048,576 positions. The default position policy retains the 262,144 logical
+limit. `max_kv_positions` independently bounds physical attention occupancy
+(at most 262,144); it does not change the rotary position range.
+
+`state.compact(ratio=8)` is the shared learned compaction operation. Its result
+retains original absolute positions and the same logical clock. Inspect the
+actual attention sequence dimension through `state.physical_kv_length`.
+`model.append(state, token_ids)` continues from that state using the same
+position policy. All input, formatting and generated tokens advance the clock.
+
+`model.live(state=None)` returns an owned resident ingestion session:
+
+- `append(text_or_token_ids)` processes only fresh input and returns the logical clock.
+- `clock` and `physical` expose logical and retained attention lengths separately.
+- `compact(ratio=8, force=False)` delegates to `State.compact()` and returns the immutable result.
+- `snapshot(release=False)` publishes an immutable `State`; `release=True` closes the live handle.
+- `close()` releases the handle while independently owned snapshots survive.
+
+Live snapshots keep a bounded original-token suffix for exact stream boundaries.
+They can be saved, loaded, forked and queried through `model.session(state)`
+without replaying historical source. The suffix is boundary metadata, not text
+injected as replacement memory. Position/quantization configuration is part of
+state identity. See [compaction.md](compaction.md) for examples and native builds.

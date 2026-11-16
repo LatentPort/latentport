@@ -14,6 +14,7 @@ from typing import Mapping
 from .errors import CapabilityError, CompatibilityError, StateError
 from .hub import model_snapshot
 from ._reference.native import validate_components
+from .context import ContextOptions, execution_weights
 
 
 STATE_ABI = "llama.cpp.b19cbe9.qwen3.5.complete-hybrid.bf16.v2"
@@ -66,7 +67,9 @@ class GGUFBackend:
 
     def weights(self, side):
         if side not in self._hashes:
-            self._hashes[side] = "gguf-sha256:" + _hash_file(self.paths[side])
+            options = ContextOptions(getattr(self.options, "position_policy", "default"),
+                                     getattr(self.options, "physical_limit", 262144))
+            self._hashes[side] = execution_weights("gguf-sha256:" + _hash_file(self.paths[side]), options)
         return self._hashes[side]
 
     def require_extension(self):
@@ -132,6 +135,9 @@ class GGUFBackend:
         validate_components(values, clock + len(token_ids), side, native_precision=True)
         return values
 
+    def live(self, identity, state=None):
+        return _NativeLive(self,identity,state)
+
     def first_logits(self, identity, components, clock):
         side = self._side(identity)
         validate_components(components, clock, side, native_precision=True)
@@ -184,6 +190,58 @@ class _NativeTranslator:
         values = self.backend._native().translate(components, metadata)
         validate_components(values, metadata["target_length"], "target")
         return values
+
+
+class _NativeLive:
+    def __init__(self,backend,identity,state=None):
+        self.backend,self.identity=backend,identity
+        self.side=backend._side(identity)
+        self.parent_id=state.state_id if state is not None else None
+        if state is not None:
+            state.require_model(identity)
+        values=state._read_tensors() if state is not None else None
+        self.handle=backend._native().begin_append(self.side,values,state.clock if state is not None else 0)
+        self.closed=False
+
+    @property
+    def clock(self):
+        return self.handle.clock
+
+    @property
+    def physical(self):
+        return self.handle.physical
+
+    def append(self,ids):
+        if self.closed:
+            raise StateError("Native live cache is closed")
+        return self.handle.append(tuple(int(x) for x in ids))
+
+    def snapshot(self,*,release=False):
+        from .state import State
+        if self.closed:
+            raise StateError("Native live cache is closed")
+        values=self.handle.snapshot()
+        validate_components(values,self.clock,self.side,finite=True,native_precision=True)
+        state=State(self.identity,self.clock,"context_ready","gguf_live_boundary",target_prompt_tokens=self.clock,
+                    parent_id=self.parent_id,_components=values)
+        self.parent_id=state.state_id
+        if release:self.close()
+        return state
+
+    def compact(self,*,ratio=8,force=False):
+        parent=self.snapshot(release=True)
+        try:
+            child=parent.compact(ratio=ratio,force=force)
+            replacement=type(self)(self.backend,self.identity,child)
+        except BaseException:
+            replacement=type(self)(self.backend,self.identity,parent)
+            self.__dict__.update(replacement.__dict__)
+            raise
+        self.__dict__.update(replacement.__dict__)
+        return child
+
+    def close(self):
+        self.handle.close();self.closed=True
 
 
 class _NativeDecodeHandle:
