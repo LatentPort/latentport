@@ -148,7 +148,7 @@ class Library:
 class Engine:
     def __init__(self, source, target, bridge, bundle_root, options=None):
         self.options=options or NativeOptions()
-        self.paths={"source":str(source),"target":str(target)}
+        self.paths={side:str(path) for side,path in (("source",source),("target",target)) if path is not None}
         self.binding=Library(self.options.library)
         self.lib=self.binding.lib
         self._models={}; self._active={}; self._lock=RLock(); self._closed=False
@@ -168,6 +168,8 @@ class Engine:
                 "mtp_commit_and_rollback":self.options.mtp_drafts>0}
 
     def _model(self, side):
+        if side not in self.paths:
+            raise CapabilityError(f"No {side} model is configured in this runtime")
         if self._closed:
             raise StateError("Native engine is closed")
         if side not in self._models:
@@ -402,7 +404,10 @@ class Engine:
 
     def warm(self):
         with self._lock:
-            self._model("source");self._model("target");self.bridge.warm()
+            for side in self.paths:
+                self._model(side)
+            if self.bridge is not None:
+                self.bridge.warm()
 
     def residency(self):
         import torch
@@ -413,11 +418,12 @@ class Engine:
                 "torch_allocated_bytes":int(torch.cuda.memory_allocated(0)),
                 "torch_reserved_bytes":int(torch.cuda.memory_reserved(0)),
                 "torch_cache_reclaims":self._cache_reclaims,
-                "source_resident":True,"target_resident":True,"bridge_resident":True,
-                "mtp_resident":bool(self.options.mtp_drafts),
+                "source_resident":"source" in self._models,"target_resident":"target" in self._models,
+                "bridge_resident":self.bridge is not None,
+                "mtp_resident":bool(self.options.mtp_drafts and "target" in self._models),
                 "native_auxiliary_bytes":sum(x[1].auxiliary_bytes for x in self._models.values()),
                 "context_capacity":self.options.context_size,"cache_dtype":"bf16",
-                "mtp_heads":self._models["target"][1].mtp_heads,
+                "mtp_heads":self._models["target"][1].mtp_heads if "target" in self._models else 0,
                 "paged_attention_sharing":False,"snapshot_sharing":True,
                 "native":{side:self.trace(side) for side in self._models}}
 

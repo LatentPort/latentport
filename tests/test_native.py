@@ -28,6 +28,29 @@ def gguf_bytes(*, kind=0, offset=0, truncate=0):
 
 
 class NativeTests(unittest.TestCase):
+    def test_standalone_residency_only_warms_configured_model(self):
+        from types import SimpleNamespace
+        from latentport._native.engine import Engine
+        from latentport.errors import CapabilityError
+        with patch('latentport._native.engine.Library'):
+            engine=Engine(None,'target.gguf',None,None,NativeOptions(mtp_drafts=0))
+        def loaded(side):
+            engine._models[side]=(object(),SimpleNamespace(auxiliary_bytes=0,mtp_heads=0))
+        with patch.object(engine,'_model',side_effect=loaded) as load, \
+             patch.object(engine,'trace',return_value={}), \
+             patch('torch.cuda.synchronize'), \
+             patch('torch.cuda.mem_get_info',return_value=(10,20)), \
+             patch('torch.cuda.memory_allocated',return_value=0), \
+             patch('torch.cuda.memory_reserved',return_value=0):
+            result=engine.residency()
+        load.assert_called_once_with('target')
+        self.assertTrue(result['target_resident'])
+        self.assertFalse(result['source_resident'])
+        self.assertFalse(result['bridge_resident'])
+        self.assertFalse(result['mtp_resident'])
+        with self.assertRaisesRegex(CapabilityError,'No source model'):
+            engine._model('source')
+
     def test_f32_gguf_dimensions_and_values(self):
         with tempfile.TemporaryDirectory() as d:
             path=Path(d)/"bridge.gguf";path.write_bytes(gguf_bytes())
