@@ -147,21 +147,22 @@ def gguf_model_specs(manifest_path=None, *, root=None):
     """Resolve an explicit pinned profile; repositories need not be owned by us."""
     import json
     import re
-    if not manifest_path:
+    if manifest_path:
+        specs = json.loads(Path(manifest_path).read_text())
+    else:
         root = Path(root) if root is not None else bundle_root()
-        return json.loads((root / "latentport.json").read_text())["gguf_models"]
-    specs = json.loads(Path(manifest_path).read_text())
+        specs = json.loads((root / "latentport.json").read_text())["gguf_models"]
     for side in ("source", "target"):
         spec = specs[side]
-        if manifest_path:  # Existing release manifests remain backwards compatible.
+        if manifest_path or spec.get("repo_id"):
             if not re.fullmatch(r"[0-9a-f]{40}", spec.get("revision", "")):
                 raise ValueError(f"{side}: model revision must be a full commit SHA")
-            if not re.fullmatch(r"[0-9a-f]{64}", spec.get("sha256", "")):
-                raise ValueError(f"{side}: model SHA-256 is required")
-            if type(spec.get("bytes")) is not int or spec["bytes"] <= 0:
-                raise ValueError(f"{side}: positive model byte size is required")
-            if not spec.get("repo_id") or not spec.get("filename"):
-                raise ValueError(f"{side}: repository and filename are required")
+            if not spec.get("repo_id"):
+                raise ValueError(f"{side}: repository is required")
+        if not re.fullmatch(r"[0-9a-f]{64}", spec.get("sha256", "")):
+            raise ValueError(f"{side}: model SHA-256 is required")
+        if type(spec.get("bytes")) is not int or spec["bytes"] <= 0 or not spec.get("filename"):
+            raise ValueError(f"{side}: positive model byte size and filename are required")
     return specs
 
 

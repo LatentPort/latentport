@@ -1,4 +1,4 @@
-"""Lazy Transformers/NF4 backend for the selected Qwen 4B and 27B pair."""
+"""Lazy Transformers backend for a manifest-bound dense Qwen hybrid pair."""
 from __future__ import annotations
 
 from contextlib import contextmanager
@@ -173,11 +173,13 @@ class ReferenceBackend:
         if any(info.get(k) for k in ("missing_keys", "unexpected_keys", "mismatched_keys", "error_msgs")):
             raise CompatibilityError(f"{side} checkpoint key mismatch")
         from .architecture import geometry
-        if geometry(config) != self.specs[side].get("geometry", _geometry(side)):
+        if geometry(config) != (self.specs[side].get("geometry") or _geometry(side)):
             raise CompatibilityError(f"{side} model geometry changed")
         # The source checkpoint has no generation_config.json. The selected
         # bridge's native policy terminates at either end-of-text or chat EOS.
-        model.generation_config.eos_token_id = [248044, 248046]
+        eos = model.generation_config.eos_token_id
+        ids = list(eos) if isinstance(eos, (list, tuple)) else ([] if eos is None else [eos])
+        model.generation_config.eos_token_id = sorted(set(ids + [self.codec(identity).chat_eos_id]))
         model.eval().requires_grad_(False)
         self._models[side] = model
         return model

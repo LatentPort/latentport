@@ -138,7 +138,7 @@ with lp.load("latentport/LPBridge-Qwen3.5-4b-Qwen3.8-27b", backend="nf4") as por
     print(answer.text)
 ```
 
-Select `backend="bf16"`, `"nf4"` or `"gguf"`. Set `thinking=True` to use the thinking-on templates and correction bank. For GGUF, supply the source and target files named in the bridge manifest. The same API accepts a different bridge repository and revision, or a verified local bundle directory.
+Select `backend="bf16"`, `"nf4"` or `"gguf"`. Set `thinking=True` to use the thinking-on templates and correction bank. GGUF downloads the two base models from the publishers pinned in the bridge manifest. The same API accepts a different bridge repository and revision, or a verified local bundle directory.
 
 For a complete conversation, `port.composite.session()` handles the initial
 handoff and retains the target's state across turns. The default `cached_handoff`

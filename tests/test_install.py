@@ -33,8 +33,9 @@ class InstallTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp)/"model.gguf"
             p.write_bytes(b"modified")
-            spec = {"source": {"repo_id": "test/model", "revision": "pinned", "filename": p.name,
-                                "bytes": 8, "sha256": hashlib.sha256(b"original").hexdigest()}}
+            spec = {side: {"repo_id": "test/model", "revision": "a"*40, "filename": p.name,
+                           "bytes": 8, "sha256": hashlib.sha256(b"original").hexdigest()}
+                    for side in ("source", "target")}
             (Path(tmp) / "latentport.json").write_text(json.dumps({"gguf_models": spec}))
             with self.assertRaisesRegex(ValueError, "SHA-256"):
                 gguf_model_file("source", root=Path(tmp), local_path=p)

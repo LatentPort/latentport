@@ -5,9 +5,7 @@ dependencies, GPU images, and pinned model assets. Model weights never enter a
 wheel or Docker layer. LPCompact is a compaction feature of the shared library;
 feature updates do not create separate GitHub product releases.
 
-Python distributions are published on PyPI. Native archives live in
-[`latentport/native-runtime`](https://huggingface.co/latentport/native-runtime),
-with immutable commit pins, compatibility metadata, checksums, and license notices.
+Python distributions are published on PyPI. Native binaries are distributed as versioned GitHub release assets with SHA-256 checksums. The bridge Hub contains inference parameters, bridge constants, and metadata.
 
 Keep validation environments, downloaded SDKs, native builds and release archives
 outside the source checkout, using a separate bulk directory such as
@@ -37,7 +35,7 @@ archives, and rejected by CI if tracked.
   and state save/load/fork tests. Exercise first download, restart after interruption,
   cache reuse, and offline operation. BF16 requires a separate real inference check.
 - Run Publish release with `destination=testpypi`. Install that artifact with
-  `pip install --index-url https://test.pypi.org/simple/ --no-deps latentport==0.2.1`
+  `pip install --index-url https://test.pypi.org/simple/ --no-deps latentport==0.3.0`
   in a fresh environment and run `scripts/check_distribution.py`.
 - Dispatch from the same reviewed commit with `destination=pypi`. The build job
   checks and uploads artifacts; the publishing job downloads those artifacts
@@ -52,37 +50,14 @@ full resolved dependency list for each image; this file is not a transitive lock
 When changing the package version, update the versioned image tags and Docker
 wheel filename at the same time. Public publish workflows are deliberately manual.
 
-## External base-model migration
+## Add a bridge
 
-The bridge repository only needs the bridge, its license, model card, and
-compatibility/verification metadata. Base models can live in other Hugging Face
-repositories. `scripts/pin_gguf_profile.py` writes candidate manifests from exact
-Hub revisions, filenames, byte counts and LFS SHA-256 values. This does not qualify
-the files for inference.
+Publish one directional pair per Hub repository. Its `latentport.json` uses schema `latentport.bridge-bundle.v2`. For the supported `qwen-hybrid-mixed-v1` architecture, the bundle provides the endpoint geometry, architecture settings, calibration, component weights, trained thinking-mode order and GGUF bridge. Record each artifact's byte size and SHA-256. A new 4B or 9B pair using this graph can be selected by repository and commit without changing the runtime default.
 
-`docs/upstream-gguf-candidate.json` contains a metadata-pinned candidate using
-LM Studio's Qwen3.5-4B and Bartowski's Qwen3.8-27B Q4_K_M files. It is not the
-default and has not been GPU-qualified. No base-model files need to be copied
-into the bridge repository to test or subsequently adopt this profile.
+Pin each source and target tokenizer, template and model shard to its upstream repository and full commit. Use `scripts/pin_gguf_profile.py` to collect an external GGUF publisher's immutable file receipts. Populate `gguf_models` in the candidate bundle and test that local bundle before publishing. Compare both thinking modes, query-boundary handoff, native continuation and multi-turn chat on each backend. Each quantization requires qualification.
 
-Run `latentport demo --headless --model-manifest candidate.json` on the qualified
-GPU, then check save/load, continuation, tokenizer parity and bridge behavior.
-Validate MTP separately if the profile enables it. Different Q4_K_M conversions
-can change both precision and metadata. Do not transfer benchmark claims from
-the previous files without measurement.
-
-Only after those checks replace `src/latentport/configs/gguf-models.json`. Keep
-older pinned files for old releases/saved states. The initial 0.2.0 code retains
-the current qualified defaults rather than silently selecting untested files.
+The runtime's Python API accepts `lp.load(repo, revision=commit, backend="nf4")`. The CLI and demo accept `--repo` and `--revision`. After publishing, check the bridge file list and verify a fresh download. Change the default bridge and revision together when superseding an earlier release.
 
 ## Native runtime maintenance
 
-The Python package uses the existing ABI-2 native artifacts hosted on Hugging Face. New builds
-must pin the patched llama.cpp revision and record OS, CUDA, compute capability,
-ABI, byte size and SHA-256 in `native-release.json`. Upload archives to
-`latentport/native-runtime`, verify anonymous downloads, and pin full Hub commit
-SHAs in the package's URLs before publishing a new package version. Preserve
-older pinned Hub commits and archives. Windows CUDA runtime archives
-are independently pinned in `cuda-windows.json`; preserve their supplied notices.
-Do not bundle NVIDIA drivers. Add GPU architectures only after executing tests
-on those architectures, including minimum driver compatibility.
+Pin the patched llama.cpp revision, platform, CUDA version, compute capability, archive size and SHA-256 in `configs/native-release.json`. Publish native binaries as GitHub release assets and verify anonymous downloads. Windows CUDA redistributables have independent pins in `configs/cuda-windows.json`. Retain the supplied license notices.
