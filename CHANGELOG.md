@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.4.1
+
+- Support the Qwen3.5-4B to Qwen3.5-9B step-64 bridge with BF16, NF4 and Q4_K_M GGUF query handoff.
 
 - Restore request boundaries after failed ordinary and composite asks. Emit tokens
   only after backend commit, and report failed streams with `GenerationInterrupted`.

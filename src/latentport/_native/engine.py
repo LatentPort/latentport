@@ -6,6 +6,7 @@ Interleaved sessions park to device snapshots, never to host serialized blobs.
 """
 from __future__ import annotations
 import ctypes as ct
+import json
 from dataclasses import dataclass
 import os
 from pathlib import Path
@@ -159,7 +160,13 @@ class Engine:
             if self.options.position_policy != "default":
                 raise CapabilityError("Extended positions apply to standalone models, not pretrained translator pairs")
             from .bridge import GGUFTranslator
-            self.bridge=GGUFTranslator(bridge,bundle_root)
+            from ..hub import LAYER_ALIGNED
+            config = json.loads((Path(bundle_root) / "bridge_config.json").read_text())
+            if config["architecture"] == LAYER_ALIGNED:
+                from .._reference.layer_aligned import LayerAlignedTranslator
+                self.bridge = LayerAlignedTranslator(Path(bundle_root), gguf_path=bridge)
+            else:
+                self.bridge = GGUFTranslator(bridge, bundle_root)
             self.geometry = self.bridge.geo
 
     def capabilities(self):
