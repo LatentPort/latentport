@@ -2,181 +2,154 @@
 
 **LatentPort makes LLM internal states programmable.**
 
-We're building a library of learned state transformations that enable models and
-agents to transfer, compact, optimise and combine their internal states during
-inference.
+Capture a model's working context, transfer it to another model, compact its
+attention memory, or save and branch it for later use. Learned transformations
+operate on inference state so supported models can continue without replaying
+the historical context.
 
-This allows developers to improve model performance, reduce inference costs and
-build longer-running agents without repeatedly processing the same context.
+The interface follows the operation. Select a supported bridge or model when
+loading; use the same methods to work with its state.
 
-**Created by [Simon P. Villani](https://au.linkedin.com/in/simon-villani).**
+```python
+transferred = port.bridge.translate(state)
+compacted = state.compact()
+branches = state.fork(2)
+state.save("saved-state")
+```
 
-LatentPort is an independent AI research project developing programmable internal state for language models.
-
-The project began with [LatentPort: Beyond KV Cache](https://arxiv.org/abs/2609.25053), published in September 2026, demonstrating recurrent-state transfer between Qwen3.5 4B and 9B without target-prefix replay.
-
-The project now includes a shared Python runtime, learned model-to-model transfers, state compaction, and state persistence and branching.
-
-[Original paper](https://arxiv.org/abs/2609.25053) | [Research code](https://github.com/mmprotest/latentport-paper) | [Python package](https://pypi.org/project/latentport/)
+Translation and compaction each have their own compatibility requirements. The
+runtime checks them before proceeding; a shared interface does not make every
+model pair or sequence of operations compatible.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/LatentPort/latentport/main/docs/assets/latentport-ascii.gif" alt="LatentPort: programmable model state" width="640">
 </p>
 
-[Website](https://latentport.com) | [Get started](#get-started) | [Models](https://huggingface.co/latentport) | [Cookbook](https://github.com/LatentPort/latentport/blob/main/docs/cookbook.md) | [API](https://github.com/LatentPort/latentport/blob/main/docs/api.md)
+[Website](https://latentport.com) | [Get started](#get-started) | [Supported transformations](#supported-transformations) | [Cookbook](docs/cookbook.md) | [API](docs/api.md)
 
 ![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)
 [![PyPI](https://img.shields.io/pypi/v/latentport)](https://pypi.org/project/latentport/)
 
-### Transfer a query to Qwen3.5-9B
+## State operations
 
-Install CUDA PyTorch and `latentport[reference]==0.4.1` for NF4 or BF16 bridge inference.
-Use `backend="bf16"` for BF16 model weights, or `backend="gguf"` for
-the pinned Q4_K_M models. GGUF requires `latentport[gguf]` and a LatentPort
-native library built for your GPU. See [installation](docs/installation.md).
-Select the 9B writer by its model repository:
-
-```python
-import latentport as lp
-
-with lp.load("latentport/LPBridge-Qwen3.5-4b-Qwen3.5-9b", backend="nf4", thinking=False) as port:
-    prefix = port.source.prefill([("user", "The ticket is red.")])
-    request = port.target.codec.render(
-        [("user", "The ticket is red."), ("user", "What color is the ticket?")],
-        generation_prompt=True,
-    )
-    assert request.token_ids[:prefix.clock] == prefix.rendered_token_ids
-    ready = port.handoff(prefix, target_suffix_ids=request.token_ids[prefix.clock:])
-    print(port.target.session(ready).generate(max_new_tokens=16).text)
-```
-
-The checkpoint supports text-only, thinking-off handoff before the final question.
-See [the runnable example](https://github.com/LatentPort/latentport/blob/main/examples/bridge_9b.py).
-
-## A library of state operations
-
-A model's internal state carries what it has already processed. LatentPort exposes
-that state as an object developers can transform, persist, reuse and branch.
-Learned operators work directly on state tensors, allowing inference to continue
-from the transformed state.
-
-| Operation | Purpose | Available today |
+| Operation | API | Purpose |
 | --- | --- | --- |
-| **Transfer** | Move working context into another model's state space. | Qwen3.5-4B to Qwen3.8-27B via `bridge.translate(state)`, and Qwen3.5-4B to Qwen3.5-9B via `port.handoff()`. |
-| **Compact** | Reduce attention memory while retaining the model's recurrent and convolutional state. | LPCompact for Qwen3.5-4B, Qwen3.5-9B and Qwen3.8-27B via `state.compact()`. |
-| **Optimise** | Improve a state for the task or inference objective ahead. | Part of the roadmap. |
-| **Combine** | Bring information from multiple states into a shared working state. | Part of the roadmap. |
+| Capture | `model.capture(context)` | Read context and retain its complete inference state. |
+| Transfer | `bridge.translate(state)` | Transform a source snapshot into the supported target model's state. |
+| Compact | `state.compact()` | Reduce attention KV while preserving recurrent memory, convolution state and logical positions. |
+| Append | `model.append(state, text)` | Process new input from an existing state. |
+| Fork | `state.fork(2)` | Create independent descendants of a shared immutable snapshot. |
+| Save / load | `state.save(path)` / `lp.State.load(path)` | Persist and restore state without historical prompt prefill. |
 
-The shared runtime also provides capture, append, save, load and fork operations.
-Snapshots are immutable, so branches can share a starting context while advancing
-independently. Each learned transformation is trained for its supported model
-architecture or model pair.
+Learned optimisation, multi-parent state combination and automatic operation
+selection are on the roadmap. They are not implemented in this release.
 
 ## Get started
 
-Install the lightweight Python package with Python 3.11 or later:
+Install the lightweight package with Python 3.11 or later:
 
 ```shell
 python -m pip install latentport
 latentport doctor
 ```
 
-The base package includes the API, diagnostics and demo interface. Inference
-dependencies are optional: see [installation](https://github.com/LatentPort/latentport/blob/main/docs/installation.md) for
-`latentport[gguf]`, `latentport[bf16]` and CUDA PyTorch setup.
+Inference requires CUDA PyTorch and the appropriate backend dependencies.
+See [installation](docs/installation.md) for NF4, BF16 and GGUF setup. GGUF also
+requires a compatible LatentPort native library. Prebuilt libraries target
+specific GPU and CUDA configurations; check the guide before downloading models.
 
-### Try the browser demo
+Set `LATENTPORT_HOME` to a directory with enough space for model downloads and
+caches. The runtime resolves pinned transformation artifacts and compatible base
+models. Model weights and transformation weights are separate downloads.
 
-On a qualified NVIDIA GPU host with Docker GPU access configured:
+## Transfer context
+
+Choose `bridge_repo` from the [supported transformations](#supported-transformations)
+below. This workflow is the same for every supported bridge:
+
+```python
+import latentport as lp
+
+history = [("user", "The ticket is red.")]
+
+with lp.load(bridge_repo, backend="nf4") as port:
+    state = port.source.capture(history)
+    transferred = port.bridge.translate(state)
+    answer = port.target.session(transferred).ask("What color is the ticket?")
+    print(answer.text)
+```
+
+The source reads the history, `translate()` creates target state, and the target
+processes the new question. Changing the bridge repository selects the model
+pair and trained transformation. It does not change the operation or require
+manual token slicing. `port.handoff()` remains an advanced interface for callers
+that already own an exact target-token suffix.
+
+Use `backend="nf4"`, `"bf16"` or `"gguf"` where the selected bridge supports it.
+Existing base files can be supplied with `source_path` and `target_path`.
+Thinking mode, transfer boundaries and tokenizer compatibility are properties
+of the selected checkpoint; see its model card and the [API contracts](docs/api.md).
+
+### Conversations
+
+The composite session manages transfer and continuation with the same calls:
+
+```python
+with lp.load(bridge_repo, backend="nf4") as port:
+    chat = port.composite.session(history)
+    answer = chat.ask("What color is the ticket?")
+    print(answer.text, end="")
+    while not answer.finished:
+        answer = chat.generate()
+        print(answer.text, end="")
+    print()
+    print(chat.ask("What evidence supports that answer?").text)
+```
+
+The default `cached_handoff` policy transfers the initial context once and keeps
+the target's state for follow-ups. The runtime selects the checkpoint's supported
+transfer boundary. Some bridges require the target to read the new question;
+others can transfer its prepared answer state. Neither route replays historical
+context on the target. A prefix-only bridge with no initial history runs the
+new question directly on the target because there is no context to transfer.
+
+`policy="strict"` synchronizes completed answers back to the source and transfers
+again on subsequent turns. See the [cookbook](docs/cookbook.md) for streaming,
+answer continuation, branching and MTP requirements.
+
+The same command accepts any supported bridge repository:
 
 ```shell
-docker build -f docker/Dockerfile --target gguf -t latentport:local .
-docker run --rm --gpus all -p 127.0.0.1:8768:8768 -v latentport-cache:/cache latentport:local
+python examples/chat.py --repo BRIDGE_REPOSITORY --backend nf4 --context "The ticket is red." --prompt "What color is the ticket?"
 ```
 
-Open **http://localhost:8768**. The demo prepares the models, transfers context,
-forks specialist sessions, and checks a generated repair with executable tests.
-The initial transfer profile requires an SM120 GPU with at least 32 GB VRAM and
-space for the bridge and the two pinned GGUF bases. The runtime fetches each from its publisher.
-Windows Docker GPU execution requires the WSL 2 backend.
+Replace `BRIDGE_REPOSITORY` with a repository from the table below. Use `--followup`
+for another turn, or `--backend gguf` for a compatible native profile.
 
-**Release status:** the Python package is available on [PyPI](https://pypi.org/project/latentport/).
-The GHCR images are pending GPU qualification and publication; until then, use
-the [local image build](https://github.com/LatentPort/latentport/blob/main/docs/installation.md).
+## Compact context
 
-Choose the setup for your operation:
-
-- **Compaction:** [NF4, BF16 and GGUF setup](https://github.com/LatentPort/latentport/blob/main/docs/compaction.md), including static YaRN4 for continuous histories beyond the original physical window and the resident append API.
-- **Model transfer:** [Windows GGUF setup](https://github.com/LatentPort/latentport/blob/main/docs/installation.md) and [conversation recipes](https://github.com/LatentPort/latentport/blob/main/docs/cookbook.md).
-
-Set `LATENTPORT_HOME` to a directory with enough space for downloaded models and
-caches. The runtime downloads transformation weights when needed; base models are
-separate artifacts. Prebuilt GGUF runtimes are available for Windows x64 / CUDA 13
-and Linux x64 / CUDA 12.8 on Blackwell SM120.
-
-## Compact a running model's state
-
-Each supported base model has a dedicated learned selector. The runtime chooses it from the state’s model identity.
+Choose a supported `model_id` from the table below. The runtime selects the
+matching learned compaction weights from the state's identity:
 
 ```python
-state = state.compact()
-```
-
-Given an agent's accumulated `history`, continue from its compacted state:
-
-```python
-import latentport as lp
-
-with lp.load_model("Qwen/Qwen3.5-4B", backend="bf16") as model:
+with lp.load_model(model_id, backend="nf4") as model:
     state = model.prefill(history)
-    state = state.compact()
-    answer = model.session(state).ask("Continue the task.")
+    compacted = state.compact()
+    answer = model.session(compacted).ask("Continue the task.")
     print(answer.text)
 ```
 
-The default policy retains one eighth of attention KV positions on histories with
-at least 65,536 retained positions. A 4x setting is available with
-`state.compact(ratio=4)`. Recurrent state, convolution state and the original
-logical positions are preserved. Compaction uses no text summary or historical
-token replay.
+The default policy retains one eighth of attention KV at or above 65,536 retained
+positions. Shorter histories return unchanged unless `force=True` is supplied.
+Use `ratio=4` for a larger retained budget. Compaction preserves the logical clock
+and original positions; it does not replace context with a text summary.
 
-Pass `"Qwen/Qwen3.5-9B"` to use the 9B selector. The default base model is Qwen3.8-27B.
-Each base model uses the same selector across its supported weight formats.
-For GGUF, use `backend="gguf"` and supply `model_path` with your chosen base-model
-file. See the [compaction guide](https://github.com/LatentPort/latentport/blob/main/docs/compaction.md) for context sizing, policy
-details and the `state.compaction` receipt.
-
-## Transfer context between models
-
-The default L127 step-64 transfer bridge lets Qwen3.5-4B read a context and Qwen3.8-27B continue
-from the translated state. It transfers attention K/V, recurrent memory,
-convolution history and the terminal hidden state.
-
-```python
-import latentport as lp
-
-with lp.load("latentport/LPBridge-Qwen3.5-4b-Qwen3.8-27b", backend="nf4") as port:
-    port.warm()
-    context = port.source.capture([("user", "Repository context: ...")])
-    transferred = port.bridge.translate(context)
-    answer = port.target.session(transferred).ask("Explain the repository.")
-    print(answer.text)
-```
-
-Select `backend="bf16"`, `"nf4"` or `"gguf"`. Set `thinking=True` to use the thinking-on templates and correction bank. GGUF downloads the two base models from the publishers pinned in the bridge manifest. The same API accepts a different bridge repository and revision, or a verified local bundle directory.
-
-For a complete conversation, `port.composite.session()` handles the initial
-handoff and retains the target's state across turns. The default `cached_handoff`
-policy translates once, then processes new input on the target. An explicit
-`strict` policy keeps the source model responsible for new user prompts.
-
-The [cookbook](https://github.com/LatentPort/latentport/blob/main/docs/cookbook.md) covers both policies, answer continuation,
-streaming and MTP. Existing local GGUF files can be supplied through `source_path`
-and `target_path`.
+For a running session, `session.compact(reserve_tokens=...)` can make room for an
+upcoming request within the configured physical capacity. Compaction reduces KV
+storage, not model-weight memory. See the [compaction guide](docs/compaction.md)
+for context sizing, extended positions, backend options and validation receipts.
 
 ## Reuse, branch and resume
-
-The same state abstraction supports persistence and independent continuations:
 
 ```python
 review_state, planning_state = state.fork(2)
@@ -184,68 +157,75 @@ state.save("saved-state")
 restored = lp.State.load("saved-state")
 ```
 
-Prepare a repository once, let different agents work from the same snapshot, or
-save a long-running session and resume it later. Restoring a state reuses the
-captured context. Appending new tool results processes the new input.
+Prepare context once for several agents, retain a checkpoint before a risky step,
+or resume a saved session. Snapshots record exact model and runtime identities.
+Forks share immutable storage; advancing a branch requires its own working state.
+Snapshots contain prompt-derived tensors and conversation text, so protect them
+like the original conversation. See [persistence and ownership](docs/api.md#memory-and-ownership).
 
-Each snapshot records its exact model identity and runtime compatibility. Forks
-share immutable storage; execution uses the selected backend's scheduling.
+## Supported transformations
 
-## Measured results
+One Python runtime serves the following trained artifacts. This is the current
+support catalog, not a separate API for each checkpoint.
 
-| Transformation | Measurement | Validation |
+| Operation | Supported models | Selection |
 | --- | --- | --- |
-| LPCompact Qwen3.5-4B and 9B, 128K history at 8× | Attention KV tensors fell from **4 GiB to 512 MiB** on each model. | BF16, NF4, GGUF Q4_K_M and GGUF Q8_0 passed continuation, fork, save/load and repeated compaction at 64K and 128K. [Results by task and model](docs/lpcompact-qwen35-validation.json) |
-| LPCompact Qwen3.8-27B, 128K history at 8x | Attention KV tensors reduced from **8 GiB to 1 GiB**. | BF16, Q4_K_M and Q8_0 tested at 64K and 128K on RTX PRO 6000; continued generation, save/load, forks and repeated compaction passed. |
-| Historical E119 transfer, approximately 16K prompts | **2.19x paired time-to-first-token speedup**; native median 24.663 s, composite median 11.087 s. | E120 resident NF4/BF16 research runtime on RTX 5090; paired 95% interval 2.15-2.23x. |
+| Transfer | Qwen3.5-4B to Qwen3.5-9B | [`latentport/LPBridge-Qwen3.5-4b-Qwen3.5-9b`](https://huggingface.co/latentport/LPBridge-Qwen3.5-4b-Qwen3.5-9b) as `bridge_repo` |
+| Transfer | Qwen3.5-4B to Qwen3.8-27B | [`latentport/LPBridge-Qwen3.5-4b-Qwen3.8-27b`](https://huggingface.co/latentport/LPBridge-Qwen3.5-4b-Qwen3.8-27b) as `bridge_repo` |
+| Compact | Qwen3.5-4B | `Qwen/Qwen3.5-4B` as `model_id`; [selector](https://huggingface.co/latentport/LPCompact-Qwen3.5-4B) |
+| Compact | Qwen3.5-9B | `Qwen/Qwen3.5-9B` as `model_id`; [selector](https://huggingface.co/latentport/LPCompact-Qwen3.5-9B) |
+| Compact | Qwen3.8-27B | `Qwen/Qwen3.8-27B` as `model_id`; [selector](https://huggingface.co/latentport/LPCompact-Qwen3.8-27B) |
 
-These measurements describe their stated workloads and configurations. Compaction
-reduces attention-state storage; model weights and recurrent state retain their
-existing representation. The transfer timing includes prefill, translation,
-installation and the first emitted token, excluding cold model loading.
+Each bridge is directional and tied to exact checkpoints. Current bridges require
+dense source state with complete alignment metadata; compacted and suffix-only
+source states cannot be transferred. Supported quantizations and execution modes
+are declared per artifact. An unsupported combination fails explicitly.
 
-See [compaction validation](https://github.com/LatentPort/latentport/blob/main/docs/compaction-validation.json),
-[transfer results](https://github.com/LatentPort/latentport/blob/main/docs/composite-results.json) and
-[benchmark methodology](https://github.com/LatentPort/latentport/blob/main/docs/benchmarks.md) for the full records.
+## Validation and performance
 
-## A state operating layer for inference
+Published measurements describe specific checkpoints, hardware and workloads:
 
-The long-term direction is a state operating layer for AI inference:
+- At 128K context, 8x compaction reduced attention KV from 4 GiB to 512 MiB on
+  Qwen3.5-4B/9B and from 8 GiB to 1 GiB on Qwen3.8-27B.
+  See [compaction results](docs/lpcompact-qwen35-validation.json) and
+  [backend validation](docs/compaction-validation.json) for exact configurations.
+- Historical resident transfer measurements reported 2.19x paired initial
+  time-to-first-token speedup at approximately 16K tokens. This is not a general
+  throughput claim or a benchmark for every bridge. See [methodology](docs/benchmarks.md)
+  and [transfer results](docs/composite-results.json).
 
-- **Model-specific translators** connect the internal state spaces of compatible models.
-- **Reusable operators** transfer, compact, optimise and combine state through a shared interface.
-- **A policy engine** selects transformations automatically according to the application's capability, latency and memory requirements.
-
-The current release provides explicit transfer and compaction operations, plus
-the state lifecycle primitives. Learned optimisation, state combination and
-automatic policy selection are the next layers of that vision.
-
-## One runtime, separate transformation models
-
-The shared Python runtime lives in this GitHub repository. Each trained state
-transformation has its own Hugging Face repository, with model compatibility,
-weights, versions and a model card.
-
-- Compaction selectors for [Qwen3.5-4B](https://huggingface.co/latentport/LPCompact-Qwen3.5-4B), [Qwen3.5-9B](https://huggingface.co/latentport/LPCompact-Qwen3.5-9B) and [Qwen3.8-27B](https://huggingface.co/latentport/LPCompact-Qwen3.8-27B).
-- The [directional 4B to 27B bridge](https://huggingface.co/latentport/LPBridge-Qwen3.5-4b-Qwen3.8-27b) contains the Safetensors and lossless GGUF bridge weights. Its manifest identifies the separate base checkpoints and supported model profiles.
-
-Transformation repositories contain their own learned artifacts. Base-model
-weights are obtained separately.
+State copies, model loading, backend scheduling and retained branches affect
+memory and latency. GPU qualification and CPU contract tests cover different
+parts of the runtime; consult the records for the profile you intend to use.
 
 ## Demos and documentation
 
-- [Memory transplant demo](https://github.com/LatentPort/latentport/blob/main/examples/memory_transplant/README.md): live state transfer, specialist branches and a repair checked by executable tests.
-- [State demos](https://github.com/LatentPort/latentport/blob/main/docs/state-demos.md): cached conversations, branching, save/resume and fresh context updates.
-- [Time-to-first-token demo](https://github.com/LatentPort/latentport/blob/main/docs/ttft-demo.md): compare native 27B and composite inference on a fresh 16K prompt.
-- [Compaction guide](https://github.com/LatentPort/latentport/blob/main/docs/compaction.md), [cookbook](https://github.com/LatentPort/latentport/blob/main/docs/cookbook.md) and [API contracts](https://github.com/LatentPort/latentport/blob/main/docs/api.md).
-- [Native integration](https://github.com/LatentPort/latentport/blob/main/docs/native-abi.md) and [contributing](CONTRIBUTING.md).
+- [Chat example](examples/chat.py): select a bridge and use the same conversation flags.
+- [Browser demo setup](docs/installation.md): native runtime and local Docker instructions.
+- [Memory transplant demo](examples/memory_transplant/README.md): transfer, specialist branches and executable repair checks.
+- [State demos](docs/state-demos.md): cached conversations, branching, save/resume and fresh context.
+- [Compaction guide](docs/compaction.md), [cookbook](docs/cookbook.md) and [API contracts](docs/api.md).
+- [Native integration](docs/native-abi.md) and [contributing](CONTRIBUTING.md).
 
 Report reproducible issues at [GitHub Issues](https://github.com/LatentPort/latentport/issues).
-Include the output of `python -m latentport doctor`, model identities and a minimal
-example, with private prompts and credentials removed.
+Include `python -m latentport doctor`, exact model identities and a minimal example
+with private prompts and credentials removed.
+
+## Project
+
+Created by [Simon P. Villani](https://au.linkedin.com/in/simon-villani), LatentPort
+is an independent AI research project. It began with
+[LatentPort: Beyond KV Cache](https://arxiv.org/abs/2609.25053), published in
+September 2026, and now includes learned transfer, compaction and state lifecycle
+operations. Learned optimisation, combination and automatic policy selection
+are the next stages of the project.
+
+[Original research code](https://github.com/mmprotest/latentport-paper) |
+[Transformation models](https://huggingface.co/latentport) |
+[Python package](https://pypi.org/project/latentport/)
 
 ## License
 
-The LatentPort runtime and transformation weights are Apache-2.0. Qwen base models
+The LatentPort runtime and transformation weights are Apache-2.0. Base models
 retain their upstream licenses, and llama.cpp retains its MIT license. See
-[LICENSE](LICENSE) and the notices supplied with the model and native downloads.
+[LICENSE](LICENSE) and the notices supplied with model and native downloads.

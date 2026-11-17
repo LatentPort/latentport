@@ -8,13 +8,10 @@ SYSTEM = ("Use supplied evidence as authoritative. Later accepted corrections re
 
 def answer(port, evidence, question):
     history = [("system", SYSTEM), ("user", "Evidence:\n" + evidence)]
-    prefix = port.source.prefill(history)
-    request = port.target.codec.render([*history, ("user", question)], generation_prompt=True)
-    if request.token_ids[:prefix.clock] != prefix.rendered_token_ids:
-        raise ValueError("Source and target disagree on the evidence prefix")
-    ready = port.handoff(prefix, target_suffix_ids=request.token_ids[prefix.clock:])
-    with port.target.session(ready) as session:
-        return session.generate(max_new_tokens=16).text.strip()
+    state = port.source.capture(history)
+    transferred = port.bridge.translate(state)
+    with port.target.session(transferred) as session:
+        return session.ask(question, max_new_tokens=16).text.strip()
 
 
 if __name__ == "__main__":

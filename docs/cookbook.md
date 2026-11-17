@@ -1,6 +1,7 @@
 # Build with reusable model state
 
-All examples use a resident `port = lp.load(backend="gguf")`. Call `port.warm()` once,
+Select a supported bridge with `port = lp.load(bridge_repo, backend="gguf")`.
+The recipes use the same operations for every bridge. Call `port.warm()` once,
 and `port.close()` when done. Start with [installation](installation.md).
 
 ## Finish an answer, then ask another question
@@ -22,15 +23,17 @@ def complete(session, question, *, mtp=False, chunks=8):
         raise RuntimeError("Answer still in progress; increase the budget or resume later")
     return "".join(parts)
 
-chat = port.composite.session()
-print(complete(chat, "Read this document: ..."))
+chat = port.composite.session([("user", "Document: ...")])
+print(complete(chat, "Summarize the document."))
 print(complete(chat, "What assumptions does the author make?"))
 ```
 
-The 4B reads the initial prompt, the bridge transfers state, and the 27B generates.
-Later questions append to the retained target state. No history is replayed. Choose
-`policy="strict"` to keep every user input on the 4B; this synchronizes the last target
-answer and retranslates the updated full state on each turn. Policy stays fixed.
+The source reads the context, the bridge transfers state, and the target generates.
+The runtime handles whether the checkpoint transfers before or after the question.
+Later questions append to the retained target state. No history is replayed on the
+target. Choose `policy="strict"` to keep the reader synchronized with each turn;
+this feeds back the last answer and retranslates before the next answer. For
+prefix-only bridges the target also reads the new question. Policy stays fixed.
 
 ## Prepare once, branch into different tasks
 
@@ -45,7 +48,7 @@ print(complete(summarize, "Extract dates, owners and deadlines."))
 The context is translated once. Each target branch reads its own new question. Forks
 share immutable snapshot storage; generation installs a private working cache. Requests
 queue on one GPU. There is no claim of simultaneous agent execution or paged sharing
-between active sequences. A native 27B can also cache a shared prefix: LatentPort's
+between active sequences. A native target can also cache a shared prefix: LatentPort's
 additional benefit is preparing that initial context through the smaller model.
 
 You can also branch a completed cached conversation:
