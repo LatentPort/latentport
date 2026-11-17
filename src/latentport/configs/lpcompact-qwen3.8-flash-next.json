@@ -1,0 +1,27 @@
+{
+  "name": "LPCompact-Qwen3.8-Flash-Next",
+  "version": "0.1",
+  "repo_id": "latentport/LPCompact-Qwen3.8-Flash-Next",
+  "revision": "22dc3207c7546fc4b4c757defff3f72fa5b5ec17",
+  "filename": "model.safetensors",
+  "sha256": "fa53b071e0fb8b90af673e1a1678faceb54033a81bbc3dc6fc64490b90a0a581",
+  "base_model": "Qwen/Qwen3.8-Flash-Next",
+  "base_revision": "812d96e10a0dd82b69d749e68693698cf6c36daa",
+  "feature_layers": [
+    3,
+    15,
+    31
+  ],
+  "feature_dimension": 1536,
+  "hidden_dimension": 128,
+  "activation": "gelu",
+  "minimum_physical_positions": 65536,
+  "protected_prefix": 512,
+  "protected_suffix": 512,
+  "kv_budget_floor": 1024,
+  "block_size": 4,
+  "ratios": [
+    4,
+    8
+  ]
+}
