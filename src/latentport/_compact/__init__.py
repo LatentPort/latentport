@@ -4,14 +4,14 @@ from time import perf_counter
 from uuid import uuid4
 
 from ..errors import CapabilityError
-from .._models import MODEL_REVISIONS, FLASH_NEXT, FLASH_ABI, model_geometry
+from .._models import MODEL_REVISIONS, FLASH_NEXT, FLASH_ABI, GEMMA, GEMMA_ABI, model_geometry
 from ..identity import CompactionInfo
 from .._positions import physical_length
 from .policy import budget, choose, MIN_CONTEXT
 
 
 def _device(values):
-    return values["V.3"].device
+    return next(value.device for name, value in values.items() if name.startswith("V."))
 
 
 def compact(state, *, ratio=8, force=False, allow_unqualified=False):
@@ -21,7 +21,7 @@ def compact(state, *, ratio=8, force=False, allow_unqualified=False):
         raise TypeError("force must be a bool")
     repo = state.identity.repo_id
     if repo not in MODEL_REVISIONS or state.identity.backend not in ("bf16", "gguf", "nf4", "reference"):
-        raise CapabilityError("LPCompact requires a supported Qwen model and state backend")
+        raise CapabilityError("LPCompact requires a supported model and state backend")
     if state.identity.revision != MODEL_REVISIONS[repo]:
         raise CapabilityError("LPCompact requires the trained base revision")
     from .compatibility import require_weights
@@ -29,7 +29,9 @@ def compact(state, *, ratio=8, force=False, allow_unqualified=False):
     is_flash = repo == FLASH_NEXT
     if is_flash and (state.identity.state_abi != FLASH_ABI or state.identity.backend != "bf16"):
         raise CapabilityError("Flash-Next requires its complete BF16 indexed state")
-    if not is_flash and state.identity.state_abi not in ("qwen3.5.complete-hybrid.v1",
+    if repo == GEMMA and (state.identity.state_abi != GEMMA_ABI or state.identity.backend != "bf16"):
+        raise CapabilityError("Gemma 4 requires its complete BF16 sliding and global attention state")
+    if repo not in (GEMMA, FLASH_NEXT) and state.identity.state_abi not in ("qwen3.5.complete-hybrid.v1",
                                         "llama.cpp.b19cbe9.qwen3.5.complete-hybrid.bf16.v2"):
         raise CapabilityError("LPCompact requires a supported complete hybrid-state layout")
     from .._reference.native import validate_components
@@ -69,8 +71,8 @@ def compact(state, *, ratio=8, force=False, allow_unqualified=False):
     validate_components(out, state.clock, "target", geometry=geometry, native_precision=state.identity.backend == "gguf")
     sync()
     elapsed = perf_counter() - started
-    kv_before = sum(v.numel() * v.element_size() for k, v in values.items() if k.startswith(("K.", "V.")))
-    kv_after = sum(v.numel() * v.element_size() for k, v in out.items() if k.startswith(("K.", "V.")))
+    kv_before = sum(v.numel() * v.element_size() for k, v in values.items() if k.startswith(("K.", "V.", "SK.", "SV.")))
+    kv_after = sum(v.numel() * v.element_size() for k, v in out.items() if k.startswith(("K.", "V.", "SK.", "SV.")))
     protected = 1024 + physical % 4 if is_flash else 1024
     info = CompactionInfo("LPCompact", "0.1", ratio, physical, target, state.clock,
                           kv_before, kv_after, elapsed, max(0, target - protected), target <= protected)

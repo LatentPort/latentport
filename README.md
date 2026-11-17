@@ -178,6 +178,7 @@ support catalog, not a separate API for each checkpoint.
 | Compact | Qwen3.5-9B | `Qwen/Qwen3.5-9B` as `model_id`; [selector](https://huggingface.co/latentport/LPCompact-Qwen3.5-9B) |
 | Compact | Qwen3.8-27B | `Qwen/Qwen3.8-27B` as `model_id`; [selector](https://huggingface.co/latentport/LPCompact-Qwen3.8-27B) |
 | Compact | Qwen3.8-Flash-Next | `Qwen/Qwen3.8-Flash-Next` as `model_id`; [selector](https://huggingface.co/latentport/LPCompact-Qwen3.8-Flash-Next) |
+| Compact | Gemma 4 31B IT | `google/gemma-4-31B-it` as `model_id`; [selector](https://huggingface.co/latentport/LPCompact-Gemma-4-31B-it) |
 
 Each bridge is directional and tied to exact checkpoints. Current bridges require
 dense source state with complete alignment metadata; compacted and suffix-only

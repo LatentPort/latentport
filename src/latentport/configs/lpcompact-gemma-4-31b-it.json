@@ -1,0 +1,26 @@
+{
+  "name": "LPCompact-Gemma-4-31B-it",
+  "version": "0.1",
+  "repo_id": "latentport/LPCompact-Gemma-4-31B-it",
+  "revision": "3d1353a256691c8e8718522d840b1f5295a9f1b8",
+  "filename": "model.safetensors",
+  "sha256": "1c2228668e7f641b69347fac135994ba0c34f3ceafd667e39858b40574be9e23",
+  "base_model": "google/gemma-4-31B-it",
+  "base_revision": "842da3794eaa0b77d5f08bae87a17459d91ff475",
+  "feature_layers": [
+    5,
+    29,
+    59
+  ],
+  "feature_dimension": 6144,
+  "hidden_dimension": 128,
+  "activation": "gelu",
+  "minimum_physical_positions": 65536,
+  "protected_prefix": 512,
+  "protected_suffix": 512,
+  "kv_budget_floor": 1024,
+  "ratios": [
+    4,
+    8
+  ]
+}

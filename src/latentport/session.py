@@ -201,6 +201,11 @@ class Session:
             return Session(self.model, states, resident=self.resident)
         return tuple(Session(self.model, state, resident=self.resident) for state in states)
 
+    def _turn_suffix(self, record):
+        ids = record.token_ids
+        bos = getattr(self.model.codec, "initial_bos_id", None)
+        return ids[1:] if bos is not None and ids[:1] == (bos,) else ids
+
     def prepare(self, question: str) -> State:
         """Consume a new user turn and native assistant prefix, without generating."""
         self._freeze()
@@ -221,7 +226,7 @@ class Session:
             tail = state.rendered_text if state.rendered_text is not None else self.model.codec.decode(state.stream_tail_ids, special=True)
             suffix = self.model.codec.render((("user", question),), generation_prompt=True)
             separator = self.model.codec.encode("\n") if not tail.endswith("\n") else ()
-            next_state = self.model.append(state, separator + suffix.token_ids, phase="answer_ready")
+            next_state = self.model.append(state, separator + self._turn_suffix(suffix), phase="answer_ready")
             self.state = replace(next_state, generated_token_ids=())
             self._pending_decode = None
             return self.state
@@ -237,14 +242,15 @@ class Session:
             # Qwen's whole-history template strips thinking from earlier
             # assistant turns. A live state cannot be rewritten. Append only
             # the new native user/assistant boundary instead.
+            boundary = getattr(self.model.codec, "turn_end_text", "<|im_end|>")
             if state.rendered_text is None or not (
-                state.rendered_text.endswith("<|im_end|>") or
-                state.rendered_text.endswith("<|im_end|>\n")
+                state.rendered_text.endswith(boundary) or
+                state.rendered_text.endswith(boundary + "\n")
             ):
                 raise CapabilityError("Prior state lacks a native turn boundary; replay is forbidden")
             suffix = self.model.codec.render((("user", question),), generation_prompt=True)
-            newline = self.model.codec.encode("\n") if state.rendered_text.endswith("<|im_end|>") else ()
-            delta = newline + suffix.token_ids
+            newline = self.model.codec.encode("\n") if state.rendered_text.endswith(boundary) else ()
+            delta = newline + self._turn_suffix(suffix)
             expected = old_ids + delta
         if not delta:
             raise StateError("No new question tokens")
