@@ -8,6 +8,7 @@ from typing import Any, Sequence
 from .errors import CompatibilityError, StateError
 from .identity import ModelIdentity
 from .state import State
+from ._tokens import token_ids
 
 
 def _messages(value):
@@ -29,9 +30,16 @@ class Model:
         if role not in ("source", "target") or identity.backend != backend.name or identity.state_abi != backend.state_abi:
             raise CompatibilityError("Model/backend role or state ABI mismatch")
         self.identity, self.backend, self.role = identity, backend, role
+        self.closed = False
+        self._owner = None
+
+    def _check_open(self):
+        if self.closed or (self._owner is not None and self._owner.closed):
+            raise StateError("Model is closed")
 
     @property
     def codec(self):
+        self._check_open()
         return self.backend.codec(self.identity)
 
     def capture(self, context: str | Sequence[tuple[str, str]], *, generation_prompt: bool = False) -> State:
@@ -43,12 +51,13 @@ class Model:
                      origin="native_capture", target_prompt_tokens=record.sequence_length if self.role == "target" else 0,
                      rendered_text=record.decoded_text, rendered_token_ids=record.token_ids,
                      stream_tail_ids=record.token_ids[-32:],
-                     messages=rows or (), _components=values)
+                     messages=rows or (), messages_complete=bool(rows), _components=values)
 
     def append(self, state: State, text: str | Sequence[int], *, phase: str | None = None,
                messages: Sequence[tuple[str, str]] | None = None) -> State:
+        self._check_open()
         state.require_model(self.identity)
-        ids = self.codec.encode(text) if isinstance(text, str) else tuple(int(x) for x in text)
+        ids = self.codec.encode(text) if isinstance(text, str) else token_ids(text)
         if not ids:
             raise ValueError("append requires one or more tokens")
         check = getattr(self.backend, "check_capacity", None)
@@ -66,10 +75,12 @@ class Model:
                      rendered_text=rendered, rendered_token_ids=full_ids,
                      stream_tail_ids=((state.stream_tail_ids or (state.rendered_token_ids or ())[-32:]) + ids)[-32:],
                      messages=tuple(messages) if messages is not None else state.messages,
+                     messages_complete=state.messages_complete and (messages is not None or not state.messages),
                      generated_token_ids=state.generated_token_ids,
                      parent_id=state.state_id, _components=values)
 
     def session(self, state: State | None = None, *, resident: bool = False) -> "Session":
+        self._check_open()
         if state is not None:
             state.require_model(self.identity)
         from .session import Session
@@ -83,11 +94,15 @@ class Model:
         return self.capture(context, generation_prompt=False)
 
     def close(self):
-        """Release this model's backend; independently owned snapshots survive."""
-        if hasattr(self.backend, "close"):
+        """Close this view; only standalone models own their backend."""
+        if self.closed:
+            return
+        self.closed = True
+        if self._owner is None and hasattr(self.backend, "close"):
             self.backend.close()
 
     def __enter__(self):
+        self._check_open()
         return self
 
     def __exit__(self, *exc):

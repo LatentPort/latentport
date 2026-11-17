@@ -96,8 +96,10 @@ def test_legacy_snapshot_without_optional_receipt_remains_readable(geometry):
         root = parent.save(Path(temp) / "legacy")
         manifest = json.loads((root / "manifest.json").read_text())
         manifest.pop("compaction")
+        manifest["format"] = "latentport.state.v1"
         (root / "manifest.json").write_text(json.dumps(manifest))
-        loaded = State.load(root)
+        (root / "manifest.sha256").unlink()
+        loaded = State.load(root, allow_legacy=True)
         assert loaded.compaction is None and loaded.clock == parent.clock
         assert "P" not in loaded._read_tensors()
 

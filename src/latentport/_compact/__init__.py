@@ -4,7 +4,7 @@ from time import perf_counter
 from uuid import uuid4
 
 from ..errors import CapabilityError
-from .._models import DEFAULT_MODEL, MODEL_REVISIONS, model_geometry
+from .._models import MODEL_REVISIONS, model_geometry
 from ..identity import CompactionInfo
 from .._positions import physical_length
 from .policy import budget, choose, MIN_CONTEXT
@@ -22,7 +22,7 @@ def compact(state, *, ratio=8, force=False):
     repo = state.identity.repo_id
     if repo not in MODEL_REVISIONS or state.identity.backend not in ("bf16", "gguf", "nf4", "reference"):
         raise CapabilityError("LPCompact requires a supported Qwen model and state backend")
-    if repo != DEFAULT_MODEL and state.identity.revision != MODEL_REVISIONS[repo]:
+    if state.identity.revision != MODEL_REVISIONS[repo]:
         raise CapabilityError("LPCompact requires the trained base revision")
     if state.identity.state_abi not in ("qwen3.5.complete-hybrid.v1",
                                         "llama.cpp.b19cbe9.qwen3.5.complete-hybrid.bf16.v2"):

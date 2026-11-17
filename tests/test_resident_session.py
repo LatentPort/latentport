@@ -53,7 +53,7 @@ def test_resident_transformation_failure_retains_exact_source_and_can_resume(fai
                     raise RuntimeError("operation failed")
                 if failure == "identity":
                     return replace(state, identity=replace(identity, weights="wrong"))
-                return state
+                return replace(state, origin="test_transform")
             with patch.object(State, "compact", side_effect=operation, autospec=True):
                 if failure == "install":
                     with patch("latentport.stream.ResidentCache", side_effect=RuntimeError("install failed")):

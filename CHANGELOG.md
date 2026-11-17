@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Restore request boundaries after failed ordinary and composite asks. Emit tokens
+  only after backend commit, and report failed streams with `GenerationInterrupted`.
+- Protect translation inputs with private tensor storage and give `Port` sole
+  ownership of its shared runtime; model views close independently.
+- Reject invalid exact token IDs and explicitly mark incomplete handoff transcripts.
+- Write v2 snapshots with manifest integrity receipts; trusted v1 snapshots require
+  explicit `allow_legacy=True` when loading.
+- Preserve resident handles on no-op transforms, add session compaction token
+  reservations, and enforce the trained revision for the default compaction model.
+- Repair compact example backend options and MTP allocation in the chat example.
+
 ## 0.4.0
 
 - Load standalone Qwen3.5-4B and Qwen3.5-9B by model ID and compact their

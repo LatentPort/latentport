@@ -31,6 +31,8 @@ class Bridge:
 
     def prepare(self):
         """Load the selected bridge without translating a prompt."""
+        self.source._check_open()
+        self.target._check_open()
         if self._translator is None:
             if self.source.identity.backend in ("nf4", "bf16", "reference"):
                 from ._reference.bridge import ReferenceTranslator
@@ -51,13 +53,13 @@ class Bridge:
             # Live state contains exactly these bytes. Whole-history rendering
             # would silently remove old thinking during multi-turn handoffs.
             target_record = target_codec.record(state.rendered_text)
-        elif state.phase == "in_answer" and state.messages:
+        elif state.phase == "in_answer" and state.messages and state.messages_complete:
             target_base = target_codec.render(state.messages, generation_prompt=True)
             committed = source_codec.decode(state.generated_token_ids, special=True)
             target_record = target_codec.record(target_base.decoded_text + committed)
             if target_record.decoded_text != target_base.decoded_text + committed:
                 raise CompatibilityError("Target tokenizer changed the committed assistant prefix")
-        elif state.messages:
+        elif state.messages and state.messages_complete:
             target_record = target_codec.render(state.messages, generation_prompt=state.phase == "answer_ready")
         else:
             target_record = target_codec.record(state.rendered_text)
@@ -71,13 +73,14 @@ class Bridge:
             source_record = _record_from_ids(source_codec, state.rendered_token_ids or ())
         if source_record.sequence_length != state.clock:
             raise StateError("Source state clock and rendered stream disagree")
-        if state.phase != "in_answer" and not any(role == "assistant" for role, _ in state.messages):
+        if state.messages_complete and state.phase != "in_answer" and not any(role == "assistant" for role, _ in state.messages):
             require_equivalent_content(source_record, target_record, state.messages)
         return source_record, target_record
 
     def translate(self, state: State, *, target: "Model | None" = None) -> State:
         state.require_model(self.source.identity)
         destination = target or self.target
+        destination._check_open()
         destination.identity.require_same(self.target.identity)
         # This checkpoint uses dense token alignment. A bounded suffix is not
         # an alignment ledger, and evicted KV cannot be reconstructed by it.
@@ -94,7 +97,9 @@ class Bridge:
         if self._translator is None:
             self.prepare()
         started = perf_counter()
-        source_values = state._read_tensors(device=getattr(self.source.backend, "translation_device", None))
+        # Version counters are only diagnostics, not ownership enforcement:
+        # inference tensors have none, and detection cannot undo a mutation.
+        source_values = state._tensors(device=getattr(self.source.backend, "translation_device", None))
         versions = {name: _tensor_version(value) for name, value in source_values.items()}
         values = self._translator.translate(source_values, state.clock, metadata)
         if any(_tensor_version(value) != versions[name]
@@ -112,6 +117,7 @@ class Bridge:
                      phase=state.phase, origin="translated:" + ":".join(provenance),
                      target_prompt_tokens=0, rendered_text=target_record.decoded_text,
                      rendered_token_ids=target_record.token_ids, messages=state.messages,
+                     messages_complete=state.messages_complete,
                      generated_token_ids=generated, parent_id=state.state_id,
                      _components=values)
 

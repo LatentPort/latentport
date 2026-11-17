@@ -44,7 +44,8 @@ class ContextOptions:
         if clock + count > self.logical_limit:
             raise StateError("Logical position limit exceeded")
         if physical + count > self.physical_limit:
-            raise StateError("Physical attention limit exceeded; call state.compact() before appending")
+            raise StateError("Physical attention limit exceeded; use session.compact(reserve_tokens=...) "
+                             "or state.compact(force=True) before appending")
 
     def record(self):
         rope = YARN4 if self.position_policy == "yarn4" else json.loads(
