@@ -228,3 +228,7 @@ Select `Qwen/Qwen3.8-Flash-Next` with `lp.load_model(model_id, backend="bf16")` 
 ## Gemma 4 31B IT
 
 Select `google/gemma-4-31B-it` with `lp.load_model(model_id, backend="bf16")`, then call `model.prefill(history)` and `state.compact()`. The selector scores global attention values from layers 5, 29 and 59. Compaction gathers the selected positions in all ten global attention layers and keeps the native sliding-window cache in the other fifty. The BF16 loader can stream layers from the pinned checkpoint on a single GPU. This release supports batch-one text.
+
+## Qwen3-14B
+
+Select `Qwen/Qwen3-14B` with `lp.load_model(model_id, backend="bf16")`. Use the same `model.prefill(history)`, `state.compact()` and `model.session(compacted).ask(question)` calls. The native-position selector starts at 32,768 physical positions and scores layers 3, 15 and 31. It gathers the same retained positions in all forty attention layers, preserving the logical clock and absolute positions. The pinned checkpoint permits a total logical length of 40,960 tokens. Qualification uses 16K and 32K histories with thinking disabled.

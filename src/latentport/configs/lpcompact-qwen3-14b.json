@@ -1,0 +1,26 @@
+{
+  "name": "LPCompact-Qwen3-14B",
+  "version": "0.1",
+  "repo_id": "latentport/LPCompact-Qwen3-14B",
+  "revision": "b8387f5dedec19de0e903815801efcab80833830",
+  "filename": "model.safetensors",
+  "sha256": "f720d8a8b64f24423bafc7d7fd639dbf394e9c2639a826679423b2008f92e182",
+  "base_model": "Qwen/Qwen3-14B",
+  "base_revision": "40c069824f4251a91eefaf281ebe4c544efd3e18",
+  "feature_layers": [
+    3,
+    15,
+    31
+  ],
+  "feature_dimension": 3072,
+  "hidden_dimension": 128,
+  "activation": "gelu",
+  "minimum_physical_positions": 32768,
+  "protected_prefix": 512,
+  "protected_suffix": 512,
+  "kv_budget_floor": 1024,
+  "ratios": [
+    4,
+    8
+  ]
+}

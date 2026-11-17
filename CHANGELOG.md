@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.7
+
+- Add Qwen3-14B BF16 LPCompact through the standard model, state and session APIs with native positions and 32K activation.
+
 ## 0.4.6
 
 - Add standalone BF16 text inference and LPCompact for Gemma 4 31B IT. Global attention uses the learned selector and sliding attention retains its native window.

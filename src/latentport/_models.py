@@ -4,6 +4,8 @@ from .context import PINNED_REVISION
 DEFAULT_MODEL = "Qwen/Qwen3.8-27B"
 FLASH_NEXT = "Qwen/Qwen3.8-Flash-Next"
 FLASH_ABI = "qwen4-exp.complete-indexed-text.v1"
+QWEN3 = "Qwen/Qwen3-14B"
+QWEN3_ABI = "qwen3.complete-attention-text.v1"
 GEMMA = "google/gemma-4-31B-it"
 GEMMA_ABI = "gemma4.sliding-global-text.v1"
 
@@ -13,6 +15,7 @@ def feature_layers(repo):
 
 
 MODEL_REVISIONS = {
+    QWEN3: "40c069824f4251a91eefaf281ebe4c544efd3e18",
     GEMMA: "842da3794eaa0b77d5f08bae87a17459d91ff475",
     FLASH_NEXT: "812d96e10a0dd82b69d749e68693698cf6c36daa",
     DEFAULT_MODEL: PINNED_REVISION,
@@ -23,6 +26,8 @@ MODEL_REVISIONS = {
 
 def model_geometry(repo):
     from ._reference.native import _geometry
+    if repo == QWEN3:
+        return dict(types=["full_attention"] * 40, hidden=5120, kv_heads=8, head_dim=128, minimum_context=32768)
     if repo == GEMMA:
         return dict(types=(["sliding_attention"] * 5 + ["full_attention"]) * 10,
                     hidden=5376, kv_heads=4, head_dim=512, sliding_window=1024,
