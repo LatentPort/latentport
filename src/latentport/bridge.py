@@ -35,7 +35,7 @@ class Bridge:
         self.source._check_open()
         self.target._check_open()
         if self._translator is None:
-            if self.manifest["architecture"] == LAYER_ALIGNED:
+            if self.manifest["architecture"] == LAYER_ALIGNED and self.source.identity.backend != "gguf":
                 from ._reference.layer_aligned import LayerAlignedTranslator
                 self._translator = LayerAlignedTranslator(self.bundle_root)
             elif self.source.identity.backend in ("nf4", "bf16", "reference"):
@@ -99,7 +99,7 @@ class Bridge:
         if self.manifest.get("architecture") == LAYER_ALIGNED:
             if state.phase != "context_ready" or source_record.token_ids != target_record.token_ids:
                 raise CompatibilityError("This bridge requires a token-identical prefix before the final request")
-            metadata = {}
+            metadata = {"target_length": target_record.sequence_length}
         else:
             metadata = numeric_alignment(source_record, target_record)
         metadata["thinking_mode"] = self.thinking_mode

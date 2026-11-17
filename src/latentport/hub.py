@@ -14,7 +14,7 @@ DEFAULT_REVISION = "e37ef2d5e4d5581406ea30037b37271544ae2fff"
 LAYER_ALIGNED = "qwen-hybrid-layer-aligned-v1"
 BRIDGE_REVISIONS = {
     DEFAULT_REPO: DEFAULT_REVISION,
-    "latentport/LPBridge-Qwen3.5-4b-Qwen3.5-9b": "5a98186cc8251fe3b139318bad2efea401496745",
+    "latentport/LPBridge-Qwen3.5-4b-Qwen3.5-9b": "664f3f506e7dea5764446c657cfc34c9b4cb6f39",
 }
 
 
@@ -107,9 +107,9 @@ def bundle_root(value: str | Path = DEFAULT_REPO, *, revision=None, full=False, 
         raise ValueError("Bridge repository identity mismatch")
     files = manifest["artifacts"]
     aligned = manifest["architecture"] == LAYER_ALIGNED
-    if aligned and backend not in (None, "nf4", "reference"):
+    if aligned and backend and backend not in manifest["runtime"]["backends"]:
         from .errors import CapabilityError
-        raise CapabilityError("The layer-aligned bridge supports the NF4 backend")
+        raise CapabilityError(f"This bridge does not declare {backend} execution")
     required = {"bridge_config.json", "configs/geometry.json"}
     if not aligned:
         required.update(("configs/calibration.json", "configs/architecture_v2.json"))
@@ -129,7 +129,7 @@ def bundle_root(value: str | Path = DEFAULT_REPO, *, revision=None, full=False, 
                for name in (*endpoint["metadata_files"], *endpoint["weight_files"])):
             raise ValueError("Invalid base model filename")
     gguf = manifest.get("gguf_bridge")
-    if (gguf is not None or not aligned) and gguf not in files:
+    if (gguf is not None or not aligned or "gguf" in manifest["runtime"]["backends"]) and gguf not in files:
         raise ValueError("Missing GGUF receipt")
     names = [name for name in files if name.endswith(".json") or
              (full and (name == gguf if backend == "gguf" else name.endswith(".safetensors")))]

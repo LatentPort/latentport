@@ -30,7 +30,10 @@ The project now includes a shared Python runtime, learned model-to-model transfe
 
 ### Transfer a query to Qwen3.5-9B
 
-Install CUDA PyTorch and `latentport[reference]==0.4.1` for NF4 bridge inference.
+Install CUDA PyTorch and `latentport[reference]==0.4.1` for NF4 or BF16 bridge inference.
+Use `backend="bf16"` for BF16 model weights, or `backend="gguf"` for
+the pinned Q4_K_M models. GGUF requires `latentport[gguf]` and a LatentPort
+native library built for your GPU. See [installation](docs/installation.md).
 Select the 9B writer by its model repository:
 
 ```python

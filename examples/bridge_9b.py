@@ -18,5 +18,10 @@ def answer(port, evidence, question):
 
 
 if __name__ == "__main__":
-    with lp.load(REPO, backend="nf4", thinking=False) as port:
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--backend", choices=("nf4", "bf16", "gguf"), default="nf4")
+    args = parser.parse_args()
+    with lp.load(REPO, backend=args.backend, thinking=False) as port:
         print(answer(port, "The ticket is red.", "What color is the ticket? Reply with one word: red or blue."))

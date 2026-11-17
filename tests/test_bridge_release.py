@@ -88,6 +88,7 @@ def test_layer_aligned_nf4_bundle_without_gguf(tmp_path):
     manifest_path = root / "latentport.json"
     manifest = json.loads(manifest_path.read_text())
     manifest["architecture"] = LAYER_ALIGNED
+    manifest["runtime"] = {"backends": ["nf4"]}
     del manifest["gguf_bridge"]
     for name in ("bridge.gguf", "configs/architecture_v2.json", "configs/calibration.json"):
         del manifest["artifacts"][name]
@@ -99,5 +100,38 @@ def test_layer_aligned_nf4_bundle_without_gguf(tmp_path):
     manifest_path.write_text(json.dumps(manifest))
     assert bundle_root(root, full=True, backend="nf4") == root
     for backend in ("bf16", "gguf"):
-        with pytest.raises(CapabilityError, match="NF4"):
+        with pytest.raises(CapabilityError, match="does not declare"):
             bundle_root(root, full=True, backend=backend)
+
+    manifest["runtime"]["backends"].append("bf16")
+    manifest_path.write_text(json.dumps(manifest))
+    assert bundle_root(root, full=True, backend="bf16") == root
+    manifest["runtime"]["backends"].append("gguf")
+    manifest_path.write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="Missing GGUF receipt"):
+        bundle_root(root, full=True, backend="gguf")
+
+
+def test_layer_aligned_gguf_restores_rank_five_weights(tmp_path, monkeypatch):
+    import numpy as np
+    import torch
+    from types import SimpleNamespace
+    from latentport._native import gguf_reader
+    from latentport._reference import layer_aligned
+
+    shape = (2, 3, 2, 2, 2)
+    class TinyWriter(torch.nn.Module):
+        def __init__(self, source, target):
+            super().__init__()
+            self.kv = torch.nn.Parameter(torch.zeros(shape))
+
+        def cuda(self):
+            return self
+
+    values = np.arange(np.prod(shape), dtype=np.float32)
+    monkeypatch.setattr(layer_aligned, "Writer", TinyWriter)
+    monkeypatch.setattr(gguf_reader, "BridgeGGUF", lambda path: SimpleNamespace(tensors={"writer.kv": values}))
+    root = make_bundle(tmp_path / "bundle", "fixtures/layer-aligned", 4096)
+    translator = layer_aligned.LayerAlignedTranslator(root, gguf_path=root / "bridge.gguf")
+    translator.warm()
+    torch.testing.assert_close(translator.writer.kv, torch.from_numpy(values.reshape(shape)))

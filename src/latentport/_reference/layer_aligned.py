@@ -66,9 +66,10 @@ class Writer(nn.Module):
 
 
 class LayerAlignedTranslator:
-    def __init__(self, root):
+    def __init__(self, root, *, gguf_path=None):
         import json
         self.root = root
+        self.gguf_path = gguf_path
         self.config = json.loads((root / "bridge_config.json").read_text())
         self.geo = json.loads((root / "configs/geometry.json").read_text())
         self.writer = None
@@ -77,7 +78,24 @@ class LayerAlignedTranslator:
         from safetensors.torch import load_file
         if self.writer is None:
             writer = Writer(self.geo["source"], self.geo["target"])
-            writer.load_state_dict(load_file(self.root / self.config["weights"]["writer"]), strict=True)
+            if self.gguf_path is None:
+                weights = load_file(self.root / self.config["weights"]["writer"])
+            else:
+                from .._native.gguf_reader import BridgeGGUF
+                tensors = BridgeGGUF(self.gguf_path).tensors
+                expected = writer.state_dict()
+                if set(tensors) != {"writer." + key for key in expected}:
+                    raise ValueError("GGUF writer tensor inventory mismatch")
+                weights = {}
+                for key, value in expected.items():
+                    tensor = torch.from_numpy(tensors["writer." + key])
+                    # GGUF permits at most four dimensions. Higher-rank writer
+                    # tensors are stored in contiguous row-major order.
+                    shape = (value.numel(),) if value.ndim > 4 else value.shape
+                    if tensor.shape != shape:
+                        raise ValueError(f"Unexpected GGUF tensor shape for {key}")
+                    weights[key] = tensor.reshape_as(value)
+            writer.load_state_dict(weights, strict=True)
             self.writer = writer.cuda().eval().requires_grad_(False)
 
     @torch.inference_mode()
