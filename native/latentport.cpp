@@ -1,6 +1,7 @@
 #include "latentport.h"
 #include "layout.h"
 #include "speculation.h"
+#include "context.h"
 #include "llama.h"
 #include "llama-ext.h"
 #include "llama-context.h"
@@ -77,6 +78,7 @@ struct port_context {
     llama_context_params params{};
     lp_info info{};
     lp_trace trace{};
+    lp_context_policy position_options{};
     int clock=0,batch=0,tap_capacity=0,last_count=0;
     bool ready=false,pending=false,poisoned=false;
     ~port_context(){
@@ -171,7 +173,7 @@ struct port_context {
         r->set_rs_idx(0,0);r->cells[tail].src=tail;lp_device_sync();
     }
     int physical()const{return positions.empty()?clock:(int)positions.size();}
-    int remaining()const{return std::min(info.context_size-physical(),262144-clock);}
+    int remaining()const{return position_options.remaining(clock,physical(),info.context_size);}
 };
 port_context & get(void * p){require(p,"null native context");return *(port_context*)p;}
 
@@ -242,11 +244,19 @@ extern "C" {
 int lp_abi(){return 2;}
 const char * lp_error(){return error.c_str();}
 void * lp_open(const char * path,int side,int context,int batch,int threads,int drafts){
+    return lp_open_extended(path,side,context,batch,threads,drafts,0,262144);
+}
+void * lp_open_extended(const char * path,int side,int context,int batch,int threads,int drafts,
+                       int position_policy,int physical_limit){
     try{
         error.clear();require(side==0||side==1,"invalid model side");
-        require(context>=32&&batch>=16&&batch<=1024&&drafts>=0&&drafts<=8,"invalid native options");
+        lp_context_policy positions{position_policy,physical_limit};
+        require(positions.valid()&&context>=32&&context<=physical_limit&&batch>=16&&batch<=1024&&
+                threads>=1&&threads<=128&&drafts>=0&&drafts<=8,"invalid native options");
+        require(position_policy==0||side==1,"extended positions require the standalone target model");
         static std::once_flag once;std::call_once(once,[]{llama_backend_init();});
         auto p=std::make_unique<port_context>();
+        p->position_options=positions;
         auto mp=llama_model_default_params();mp.n_gpu_layers=999;mp.split_mode=LLAMA_SPLIT_MODE_NONE;mp.main_gpu=0;mp.load_mtp=drafts>0;
         p->gpu_weights={{{".*",ggml_backend_cuda_buffer_type(0)},{nullptr,nullptr}}};
         mp.tensor_buft_overrides=p->gpu_weights.data();
@@ -259,6 +269,11 @@ void * lp_open(const char * path,int side,int context,int batch,int threads,int 
                 "GGUF geometry differs from selected bridge");
         require(h.n_head_kv()==4&&h.n_embd_head_k()==256&&h.ssm_dt_rank==(side?48:32)&&h.ssm_n_group==16,"GGUF head geometry mismatch");
         for(int i=0;i<(int)h.n_layer();++i)require(h.is_recr(i)==((i+1)%4!=0),"GGUF layer pattern differs");
+        if(position_policy==1){
+            require(h.n_ctx_train==262144&&h.n_rot(3)==64&&h.rope_freq_base_train==10000000.0f&&
+                    h.rope_freq_scale_train==1.0f&&h.rope_sections==std::array<int,4>{11,11,10,0},
+                    "GGUF rotary geometry differs from the pinned static YaRN4 base");
+        }
         if(drafts)require(h.n_layer_nextn>0,"MTP requested but GGUF contains no trained MTP weights");
         p->info={2,(int)h.n_layer(),(int)h.n_embd,4,256,(int)(h.ssm_d_inner+2*h.ssm_n_group*h.ssm_d_state),
                  (int)h.ssm_dt_rank,(int)h.n_layer_nextn,drafts,context,llama_vocab_n_tokens(llama_model_get_vocab(p->model)),0};
@@ -269,6 +284,12 @@ void * lp_open(const char * path,int side,int context,int batch,int threads,int 
         cp.n_rs_seq=drafts;cp.n_threads=threads;cp.n_threads_batch=threads;
         cp.flash_attn_type=LLAMA_FLASH_ATTN_TYPE_ENABLED;cp.type_k=GGML_TYPE_BF16;cp.type_v=GGML_TYPE_BF16;
         cp.offload_kqv=true;cp.op_offload=true;cp.cb_eval_user_data=p.get();
+        if(position_policy==1){
+            cp.rope_scaling_type=LLAMA_ROPE_SCALING_TYPE_YARN;
+            cp.rope_freq_base=10000000.0f;cp.rope_freq_scale=0.25f;
+            cp.yarn_orig_ctx=262144;cp.yarn_ext_factor=1.0f;
+            cp.yarn_attn_factor=1.0f;cp.yarn_beta_fast=32.0f;cp.yarn_beta_slow=1.0f;
+        }
         p->params=cp;
         p->ctx=llama_init_from_model(p->model,cp);require(p->ctx,"could not initialize full-GPU target context");
         p->mem=dynamic_cast<llama_memory_hybrid*>(llama_get_memory(p->ctx));require(p->mem,"hybrid cache missing");
@@ -315,7 +336,7 @@ int lp_export(void * ptr,const lp_field * fields,int count){LP_TRY
     lp_device_sync();++p.trace.exports;return 0;LP_CATCH}
 int lp_install_sparse(void * ptr,const lp_field * fields,int count,int clock,const int32_t * positions,int n){LP_TRY
     auto & p=get(ptr);
-    require(positions&&n>0&&n<=clock&&clock<=262144,"invalid sparse state clock");
+    require(positions&&n>0&&n<=clock&&clock<=p.position_options.logical_limit(),"invalid sparse state clock");
     for(int i=0;i<n;++i)require(positions[i]>=0&&positions[i]<clock&&(!i||positions[i]>positions[i-1]),"invalid sparse positions");
     validate(p,fields,count,n); // Validate all caller data before mutating native state.
     int rc=lp_install(ptr,fields,count,n);require(rc==0,"sparse tensor install failed");
@@ -330,7 +351,7 @@ int lp_kv_positions(void * ptr,int32_t * out,int capacity){LP_TRY
     if(out){require(capacity>=n,"small position output");std::copy(p.positions.begin(),p.positions.end(),out);}
     return n;LP_CATCH}
 int lp_resize_context(void * ptr,int capacity){LP_TRY
-    auto & p=get(ptr);require(capacity>=32&&capacity<=262144,"invalid working cache capacity");
+    auto & p=get(ptr);require(capacity>=32&&capacity<=p.position_options.physical_limit,"invalid working cache capacity");
     if(capacity==p.info.context_size)return 0;
     auto cp=p.params;cp.n_ctx=capacity;
     // Allocate replacement caches before releasing the previous allocation.

@@ -7,8 +7,9 @@ from .port import Port, load
 from .session import Session
 from .state import State
 from .single import load_model
+from .context import ContextOptions
 from ._native import NativeOptions
 
 __all__ = ["Answer", "Bridge", "CapabilityError", "CompatibilityError", "HandoffError",
            "LatentPortError", "Model", "ModelIdentity", "Port", "ReplayError", "RunStats",
-           "Session", "State", "StateError", "StateInfo", "NativeOptions", "load", "load_model", "CompactionInfo"]
+           "Session", "State", "StateError", "StateInfo", "NativeOptions", "ContextOptions", "load", "load_model", "CompactionInfo"]

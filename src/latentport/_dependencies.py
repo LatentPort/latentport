@@ -6,11 +6,11 @@ from .errors import CapabilityError
 
 def missing_dependencies(backend):
     modules = ["torch", "numpy", "transformers", "safetensors", "huggingface_hub"]
-    if backend in ("bf16", "reference"):
+    if backend in ("bf16", "nf4", "reference"):
         modules.append("accelerate")
-    if backend == "bf16":
+    if backend in ("bf16", "nf4"):
         modules.extend(["fla", "causal_conv1d"])
-    if backend == "reference":
+    if backend in ("nf4", "reference"):
         modules.append("bitsandbytes")
     return [name for name in modules if find_spec(name) is None]
 

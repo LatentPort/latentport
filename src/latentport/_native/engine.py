@@ -15,6 +15,7 @@ from time import perf_counter
 from ..errors import CapabilityError, StateError
 from .._reference.native import _geometry, validate_components
 from .._positions import physical_length
+from ..context import ContextOptions
 
 
 @dataclass(frozen=True)
@@ -24,14 +25,25 @@ class NativeOptions:
     threads: int = 8
     mtp_drafts: int = 4
     library: str | None = None
+    position_policy: str = "default"
+    physical_limit: int = 262144
 
     def __post_init__(self):
-        if not 32 <= self.context_size <= 262144:
-            raise ValueError("context_size must be 32..262144")
+        context = self.context_options
+        if type(self.context_size) is not int or not 32 <= self.context_size <= context.physical_limit:
+            raise ValueError("context_size must be 32..physical_limit")
         if not 16 <= self.batch_size <= 1024 or not 1 <= self.threads <= 128:
             raise ValueError("invalid batch size or thread count")
         if not 0 <= self.mtp_drafts <= 8:
             raise ValueError("mtp_drafts must be 0..8; zero disables MTP allocation")
+
+    @property
+    def context_options(self):
+        return ContextOptions(self.position_policy, self.physical_limit)
+
+    @property
+    def logical_limit(self):
+        return self.context_options.logical_limit
 
 
 def library_path(explicit=None):
@@ -114,6 +126,10 @@ class Library:
             raise CapabilityError("This is stock llama.cpp, not a LatentPort-enabled build") from exc
         if self.lib.lp_abi()!=2:
             raise CapabilityError("Native ABI differs; rebuild the pinned runtime")
+        self.extended_context = hasattr(self.lib, "lp_open_extended")
+        if self.extended_context:
+            self.lib.lp_open_extended.argtypes = [ct.c_char_p, i, i, i, i, i, i, i]
+            self.lib.lp_open_extended.restype = p
         self.sparse_state = all(hasattr(self.lib, name) for name in
                                 ("lp_install_sparse", "lp_kv_positions", "lp_resize_context"))
         if self.sparse_state:
@@ -132,28 +148,40 @@ class Library:
 class Engine:
     def __init__(self, source, target, bridge, bundle_root, options=None):
         self.options=options or NativeOptions()
-        self.paths={"source":str(source),"target":str(target)}
+        self.paths={side:str(path) for side,path in (("source",source),("target",target)) if path is not None}
         self.binding=Library(self.options.library)
         self.lib=self.binding.lib
         self._models={}; self._active={}; self._lock=RLock(); self._closed=False
         self._cache_reclaims=0
         self.bridge=None
         if bridge is not None:
+            if self.options.position_policy != "default":
+                raise CapabilityError("Extended positions apply to standalone models, not pretrained translator pairs")
             from .bridge import GGUFTranslator
             self.bridge=GGUFTranslator(bridge,bundle_root)
 
     def capabilities(self):
         return {"abi":2,"full_hybrid_state_install":True,"device_resident_state":True,
                 "immutable_snapshot_sharing":True,"paged_attention_sharing":False,
+                "extended_positions":getattr(self.binding,"extended_context",False),
+                "logical_position_limit":self.options.logical_limit,"physical_kv_limit":self.options.physical_limit,
                 "mtp_commit_and_rollback":self.options.mtp_drafts>0}
 
     def _model(self, side):
+        if side not in self.paths:
+            raise CapabilityError(f"No {side} model is configured in this runtime")
         if self._closed:
             raise StateError("Native engine is closed")
         if side not in self._models:
             opts=self.options
-            handle=self.lib.lp_open(os.fsencode(self.paths[side]),int(side=="target"),opts.context_size,
-                                    opts.batch_size,opts.threads,opts.mtp_drafts if side=="target" else 0)
+            args=(os.fsencode(self.paths[side]),int(side=="target"),opts.context_size,
+                  opts.batch_size,opts.threads,opts.mtp_drafts if side=="target" else 0)
+            if not opts.context_options.legacy:
+                if not getattr(self.binding,"extended_context",False):
+                    raise CapabilityError("Native library lacks extended-position support; rebuild with the current native sources")
+                handle=self.lib.lp_open_extended(*args,int(opts.position_policy=="yarn4"),opts.physical_limit)
+            else:
+                handle=self.lib.lp_open(*args)
             if not handle:
                 raise CapabilityError(self.lib.lp_error().decode("utf-8",errors="replace"))
             info=Info()
@@ -198,17 +226,18 @@ class Engine:
 
     def _install(self,side,values,clock):
         validate_components(values,clock,side,native_precision=True)
+        physical=physical_length(values,clock)
+        self.options.context_options.check(clock,physical)
         if "P" in values:
             if not self.binding.sparse_state:
                 raise CapabilityError("Rebuild the native runtime to enable state.compact() continuations")
-            physical=physical_length(values,clock)
-            self._resize(side,min(262144,((physical+1024+255)//256)*256))
+            self._resize(side,min(self.options.physical_limit,((physical+1024+255)//256)*256))
         else:
             _,info=self._model(side)
             if clock>info.context_size:
-                if clock>self.options.context_size:
+                if self.options.context_options.legacy and clock>self.options.context_size:
                     raise StateError("Dense state exceeds configured context capacity")
-                self._resize(side,self.options.context_size)
+                self._resize(side,max(clock,self.options.context_size))
         handle,_=self._model(side)
         started=perf_counter()
         fields,keep=self._fields(values)
@@ -224,6 +253,8 @@ class Engine:
                 "target_first_token_compute_s":trace["last_head_s"]}
 
     def _resize(self,side,capacity):
+        if not 32 <= capacity <= self.options.physical_limit:
+            raise StateError("Working cache exceeds the physical attention limit")
         handle,info=self._model(side)
         if capacity==info.context_size:
             return
@@ -236,19 +267,23 @@ class Engine:
         handle,info=self._model(side)
         clock=self.binding.check(self.lib.lp_clock(handle))
         if partial:
-            count=min(count,262144-clock)
-        if clock+count>262144:
-            raise StateError("Continuation exceeds the model's logical position limit")
+            count=min(count,self.options.logical_limit-clock)
         n=self.binding.check(self.lib.lp_kv_positions(handle,None,0)) if self.binding.sparse_state else 0
         physical=n or clock
+        if partial:
+            count=min(count,self.options.physical_limit-physical)
+            if count <= 0:
+                raise StateError("No remaining logical or physical attention capacity")
+        self.options.context_options.check(clock,physical,count)
         if physical+count<=info.context_size:
             return
-        if not n and physical+count>self.options.context_size:
+        if not n and self.options.context_options.legacy and physical+count>self.options.context_size:
             if partial:
                 return # Original lp_greedy commits only the available suffix.
             raise StateError("Dense continuation exceeds configured context capacity")
         values=self._snapshot(side)
-        capacity=(min(262144,max(physical+count,info.context_size*2)) if n else self.options.context_size)
+        capacity=(min(self.options.physical_limit,max(physical+count,info.context_size*2))
+                  if n or not self.options.context_options.legacy else self.options.context_size)
         self._resize(side,capacity)
         fields,keep=self._fields(values)
         if n:
@@ -300,14 +335,17 @@ class Engine:
             return tuple(out[:n])
 
     def capture(self,side,ids):
+        if not ids:
+            raise StateError("Prefill requires one or more tokens")
+        self.options.context_options.check(0,0,len(ids))
         with self._lock:
             self._park(side)
             handle,_=self._model(side)
             _,info=self._model(side)
             if len(ids)>info.context_size:
-                if len(ids)>self.options.context_size:
+                if self.options.context_options.legacy and len(ids)>self.options.context_size:
                     raise StateError("Prefill exceeds configured context capacity")
-                self._resize(side,self.options.context_size)
+                self._resize(side,max(len(ids),self.options.context_size))
             self.binding.check(self.lib.lp_reset(handle))
             tokens=(ct.c_int32*len(ids))(*ids)
             self.binding.check(self.lib.lp_prefill(handle,tokens,len(ids)))
@@ -346,6 +384,12 @@ class Engine:
             handle._activate()
             return handle
 
+    def begin_append(self,side,values=None,clock=0):
+        with self._lock:
+            handle=AppendHandle(self,side,values,clock,False)
+            handle._activate()
+            return handle
+
     def eos_ids(self,side):
         return (248044,248046)
 
@@ -360,7 +404,10 @@ class Engine:
 
     def warm(self):
         with self._lock:
-            self._model("source");self._model("target");self.bridge.warm()
+            for side in self.paths:
+                self._model(side)
+            if self.bridge is not None:
+                self.bridge.warm()
 
     def residency(self):
         import torch
@@ -371,11 +418,12 @@ class Engine:
                 "torch_allocated_bytes":int(torch.cuda.memory_allocated(0)),
                 "torch_reserved_bytes":int(torch.cuda.memory_reserved(0)),
                 "torch_cache_reclaims":self._cache_reclaims,
-                "source_resident":True,"target_resident":True,"bridge_resident":True,
-                "mtp_resident":bool(self.options.mtp_drafts),
+                "source_resident":"source" in self._models,"target_resident":"target" in self._models,
+                "bridge_resident":self.bridge is not None,
+                "mtp_resident":bool(self.options.mtp_drafts and "target" in self._models),
                 "native_auxiliary_bytes":sum(x[1].auxiliary_bytes for x in self._models.values()),
                 "context_capacity":self.options.context_size,"cache_dtype":"bf16",
-                "mtp_heads":self._models["target"][1].mtp_heads,
+                "mtp_heads":self._models["target"][1].mtp_heads if "target" in self._models else 0,
                 "paged_attention_sharing":False,"snapshot_sharing":True,
                 "native":{side:self.trace(side) for side in self._models}}
 
@@ -469,3 +517,44 @@ class DecodeHandle:
             if self.engine._active.get(self.side) is self:
                 self.engine._active.pop(self.side)
             self.values=None;self.closed=True
+
+
+class AppendHandle(DecodeHandle):
+    """Resident append transaction; exports only at explicit snapshot boundaries."""
+    def _activate(self):
+        if self.closed:
+            raise StateError("Append handle is closed or failed")
+        e=self.engine
+        if e._active.get(self.side) is not self:
+            e._park(self.side)
+            if self.values is None and self.clock==0:
+                native,_=e._model(self.side)
+                e.binding.check(e.lib.lp_reset(native))
+            else:
+                self.install_timings=e._install(self.side,self.values,self.clock)
+            e._active[self.side]=self
+
+    @property
+    def physical(self):
+        with self.engine._lock:
+            self._activate()
+            e=self.engine;native,_=e._model(self.side)
+            n=e.binding.check(e.lib.lp_kv_positions(native,None,0)) if e.binding.sparse_state else 0
+            return n or self.clock
+
+    def append(self,ids):
+        if not ids:
+            raise StateError("append requires one or more tokens")
+        with self.engine._lock:
+            self._activate()
+            e=self.engine
+            e._ensure_room(self.side,len(ids))
+            native,_=e._model(self.side)
+            tokens=(ct.c_int32*len(ids))(*ids)
+            try:
+                e.binding.check(e.lib.lp_prefill(native,tokens,len(ids)))
+                self.clock=e.binding.check(e.lib.lp_clock(native));self.dirty=True
+                return self.logits()
+            except BaseException:
+                self.close()
+                raise

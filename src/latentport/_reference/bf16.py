@@ -2,9 +2,8 @@
 from contextlib import contextmanager
 
 from .native import ReferenceBackend, validate_components
-from . import cache_abi
-from .._positions import continuation_inputs, extend_positions
 from ..errors import CapabilityError, CompatibilityError, StateError
+from ..context import ContextOptions, configure_text
 
 
 @contextmanager
@@ -35,6 +34,13 @@ class BF16Backend(ReferenceBackend):
     name = "bf16"
     kernels = staticmethod(fast_kernels)
 
+    def __init__(self, *args, options=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.options = options or ContextOptions()
+
+    def check_capacity(self, clock, physical, count=0):
+        self.options.check(clock, physical, count)
+
     def _model(self, identity):
         import torch
         side = self._side(identity)
@@ -44,7 +50,7 @@ class BF16Backend(ReferenceBackend):
             raise CapabilityError("BF16 execution requires CUDA")
         from transformers import AutoConfig, Qwen3_5ForCausalLM
         path = self._path(side)
-        config = AutoConfig.from_pretrained(path, local_files_only=True).text_config
+        config = configure_text(AutoConfig.from_pretrained(path, local_files_only=True).text_config, self.options)
         model, info = Qwen3_5ForCausalLM.from_pretrained(
             path, config=config, dtype=torch.bfloat16, device_map={"": 0},
             attn_implementation="sdpa", local_files_only=True,
@@ -54,40 +60,37 @@ class BF16Backend(ReferenceBackend):
                       if not key.startswith(("model.visual.", "mtp.", "model.mtp."))]
         if info["missing_keys"] or unexpected:
             raise CompatibilityError("BF16 text checkpoint tensor mismatch")
-        from .architecture import geometry
-        from .native import _geometry
-        if geometry(config) != _geometry("target"):
-            raise CompatibilityError("LPCompact model geometry mismatch")
+        if any(p.device.type != "cuda" or p.device.index != 0 for p in model.parameters()):
+            raise CompatibilityError("BF16 weights must remain on cuda:0")
         model.generation_config.eos_token_id = [248044, 248046]
         self._models[side] = model.eval().requires_grad_(False)
         return model
 
     def _run(self, identity, values, clock, ids):
-        import torch
-        if not ids or clock + len(ids) > 262144:
-            raise StateError("Invalid continuation length or logical position limit")
-        model = self._model(identity)
-        cache = self._cache(model, values, clock) if values is not None else cache_abi.new_cache(model.config)
-        terminal = []
-        hook = model.model.norm.register_forward_pre_hook(lambda _, args: terminal.append(args[0][:, -1:].detach().clone()))
-        try:
-            with torch.inference_mode(), self.kernels():
-                for offset in range(0, len(ids), 1024):
-                    batch = ids[offset:offset + 1024]
-                    # Explicit positions also protect chunked native prefill.
-                    physical = int(cache.get_seq_length())
-                    layout = {"P": torch.arange(physical, device=self.device)} if physical else {}
-                    extra = continuation_inputs(layout, clock + offset, len(batch), device=self.device, dtype=torch.bfloat16)
-                    model(input_ids=torch.tensor([batch], device=self.device), past_key_values=cache,
-                          use_cache=True, logits_to_keep=1, **extra)
-                    terminal[:] = terminal[-1:]
-        finally:
-            hook.remove()
-        out = self._extract(model, cache, terminal[-1])
-        if values is not None and "P" in values:
-            out["P"] = extend_positions(values, clock, len(ids))
-        validate_components(out, clock + len(ids), "target", finite=True)
-        return out
+        from .._positions import physical_length
+        from ..state import State
+        from .live import LiveCache
+        if not ids:
+            raise StateError("append requires one or more tokens")
+        physical = physical_length(values, clock) if values is not None else 0
+        self.options.check(clock, physical, len(ids))
+        parent = State(identity, clock, "context_ready", "standalone_install", _components=values) if values is not None else None
+        with LiveCache(self, identity, parent, _owned=True) as live:
+            for start in range(0, len(ids), 1024):
+                live.append(ids[start:start + 1024])
+            return live.snapshot(release=True)._read_tensors()
+
+    def live(self, identity, state=None):
+        from .live import LiveCache
+        return LiveCache(self, identity, state)
+
+    def begin_decode(self, identity, components, clock, *, mtp=False):
+        from ..state import State
+        from .live import LiveCache, LiveDecode
+        if mtp:
+            raise CapabilityError("Standalone Transformers execution disables MTP")
+        parent = State(identity, clock, "answer_ready", "standalone_decode", _components=components)
+        return LiveDecode(LiveCache(self, identity, parent, _owned=True))
 
     def capture(self, identity, token_ids):
         return self._run(identity, None, 0, list(token_ids))

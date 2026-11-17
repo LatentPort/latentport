@@ -30,10 +30,10 @@ print(compact.compaction)
 The selector operates directly on state tensors. No text summary or historical
 token replay is needed for the operation.
 
-## One selector for BF16 and GGUF
+## One selector for NF4, BF16 and GGUF
 
 The [LPCompact-Qwen3.8-27B model](https://huggingface.co/latentport/LPCompact-Qwen3.8-27B) contains one
-selector checkpoint. The same weights serve Qwen3.8-27B BF16 and GGUF weight
+selector checkpoint. The same weights serve Qwen3.8-27B NF4, BF16 and GGUF weight
 quantizations. Weight precision is independent of the selector: each adapter
 exposes the same complete hybrid-state layout with BF16 attention keys and values.
 Model identities still bind snapshots to the exact base weights and runtime that
@@ -88,4 +88,113 @@ working cache have their own allocation lifetimes. `force=True` enables smaller
 diagnostic runs with the same budget rules.
 
 The logical clock continues from the original history, including after repeated
-compactions. Use the model's existing native logical-position range.
+compactions. `state.clock` counts every consumed token, including chat framing
+and generated replies. `state.physical_kv_length` reports the actual attention
+sequence dimension. Compaction changes physical occupancy while preserving the
+original positions, recurrent state, convolution endpoints and continuation clock.
+
+## Continuous histories beyond the original window
+
+Standalone NF4, BF16 and GGUF support two static position policies:
+
+| `position_policy` | Maximum logical clock | Maximum physical KV positions |
+| --- | ---: | ---: |
+| `"default"` | 262,144 | 262,144 |
+| `"yarn4"` | 1,048,576 | 262,144 |
+
+Choose the policy at model loading, before processing any input. YaRN4 uses the
+pinned Qwen3.8-27B revision and its original rotary geometry, with static factor
+4 throughout the lineage. Position rules and quantization are included in state
+identity; incompatible snapshots are rejected. Existing default-policy BF16 and
+GGUF identities remain compatible. The pretrained translator-pair API keeps its
+original position rules.
+
+```python
+import latentport as lp
+
+with lp.load_model(backend="nf4", position_policy="yarn4") as model:
+    state = model.prefill(initial_context)
+    for token_ids in new_input_chunks:
+        if state.physical_kv_length + len(token_ids) > 258_048:
+            state = state.compact(ratio=8)
+        state = model.append(state, token_ids)
+    state.save("million-token-state")
+```
+
+This is the ordinary immutable `State` flow. Each input chunk must fit in the
+remaining physical and logical budgets. Compaction preserves the clock; the
+final logical limit still applies even when substantial KV memory is free.
+The 4,096-position headroom in this example leaves space for question framing
+and generated tokens within the 262,144 physical bound.
+
+For small incremental chunks, `model.session(resident=True)` keeps a resident working cache.
+`model.live()` is an alias returning the same `Session` type.
+It retains a bounded original-token tail for message boundaries and materializes
+immutable states at snapshot, transformation and generation boundaries:
+
+```python
+with lp.load_model(backend="nf4", position_policy="yarn4") as model:
+    with model.live() as live:
+        for token_ids in new_input_chunks:  # e.g. 1,024 tokens per chunk
+            if live.physical + len(token_ids) > 258_048:
+                compacted = live.compact(ratio=8)
+                # live.compact() freezes a State, calls State.compact(), then
+                # installs a private working cache. Release unused snapshots.
+                del compacted
+            live.append(token_ids)
+        state = live.snapshot(release=True)
+    state.save("streamed-state")
+    answer = model.session(state).ask("What did the first record say?")
+```
+
+`live.append()` tokenizes only new text or accepts exact token IDs. It does not
+decode or replay historical input. Forks and published snapshots remain immutable.
+A failed append closes its working handle; restore an exact snapshot to resume.
+Failed compaction retains the preceding immutable state; the next append reinstalls it without replay. `live.compact()`
+and `state.compact()` use the same frozen selector and policy.
+
+Use `backend="bf16"` for BF16 weights, or `backend="gguf"` with `model_path` for
+a GGUF file. `max_kv_positions` can lower the physical ceiling for a smaller
+memory budget. Both capacities remain finite, and fitting a particular policy
+depends on weights, working caches, snapshots and transient allocations.
+
+## Installing these backends from source
+
+Install CUDA PyTorch first, then the relevant extra from this checkout:
+
+```shell
+pip install --no-build-isolation ".[nf4]"
+# Or for BF16:
+pip install --no-build-isolation ".[bf16]"
+```
+
+NF4 uses double-quantized 4-bit weights, BF16 computation/KV/conv state and FP32
+recurrent state, on CUDA:0, with CPU/disk weight offload disabled. MTP is disabled
+for the standalone Transformers backends.
+
+GGUF extended positions require a native library rebuilt from this checkout.
+The additive `lp_open_extended` entry point carries the static position policy
+and physical limit into C++; older native binaries continue serving default
+positions and report an explicit rebuild error for extended positions. Existing
+prebuilt archive hashes are unchanged.
+
+On Windows, `scripts/build_native.ps1` builds the current native sources. Select
+the resulting library explicitly:
+
+```python
+options = lp.NativeOptions(
+    context_size=262_144, mtp_drafts=0, library="F:/my-build/bin/llama.dll"
+)
+model = lp.load_model(
+    backend="gguf", model_path="Qwen3.8-27B-Q4_K_M.gguf",
+    position_policy="yarn4", native_options=options,
+)
+```
+
+The logical clock and retained positions are preserved across native cache
+resizes. A smaller initial native context can grow to the physical ceiling
+under the extended policy. Default-policy legacy capacity behavior is retained.
+
+This supports bounded attention memory across an extended, finite logical
+history. Retrieval quality and latency depend on the workload; the API does not
+promise unlimited context or native-window accuracy across a million tokens.

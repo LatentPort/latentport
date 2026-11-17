@@ -179,3 +179,24 @@ The measured follow-up took 1.11 s versus 148 ms for a persistent native session
 with the same committed history. Initial prompt acceleration therefore does
 not establish an advantage for subsequent questions over an existing native
 27B cache.
+
+## Extended logical positions
+
+`lp_open_extended(path, side, context, batch, threads, drafts, position_policy,
+physical_limit)` is an additive ABI 2 entry point. Existing struct layouts and
+the original `lp_open` entry point are retained. Policy 0 keeps the original
+262,144 logical range; policy 1 selects static YaRN4 for the standalone 27B
+target, with a logical limit of 1,048,576. Physical KV capacity remains at most
+262,144 and may be set lower.
+
+The native context receives YaRN settings before initialization, independently
+of its physical `n_ctx`. Cache resizes carry the same static settings. Sparse
+installation checks the logical clock against the selected policy and tensor
+sizes against physical occupancy. Every continuation uses original positions;
+compaction never rebases them or changes recurrent/conv endpoints.
+
+The Python binding discovers this entry point explicitly. An older native
+library can continue default-policy execution but cannot silently execute an
+extended-policy state. Rebuild the native library from the current sources to
+use the extended policy. `native/test_context.cpp` checks the physical/logical
+capacity distinction on the CPU, without loading a model.

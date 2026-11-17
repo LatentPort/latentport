@@ -38,6 +38,7 @@ class DistributionTests(unittest.TestCase):
                 get_device_capability=lambda _: (12, 0), mem_get_info=lambda _: (32 * 1024**3, 32 * 1024**3)))
         with patch.dict('sys.modules', {'torch': fake}), \
              patch('latentport.diagnostics.missing_dependencies', return_value=[]), \
+             patch.dict('os.environ', {'LATENTPORT_NATIVE_LIB': ''}), \
              patch('latentport.diagnostics.native_spec', return_value={'cuda': '13.0', 'compute_capability': '12.0'}), \
              patch('latentport.diagnostics.driver_cuda_version', return_value=12080):
             result = diagnose('gguf', check_native=False)
@@ -45,6 +46,23 @@ class DistributionTests(unittest.TestCase):
             self.assertTrue(any('newer NVIDIA driver' in error for error in result['errors']))
             # BF16 does not depend on the GGUF binary's CUDA-13 requirement.
             self.assertTrue(diagnose('bf16')['ready_for_model_load'])
+
+    def test_custom_native_diagnostics_do_not_apply_packaged_sm_restriction(self):
+        from types import SimpleNamespace
+        fake = SimpleNamespace(__version__='test', version=SimpleNamespace(cuda='12.8'),
+            cuda=SimpleNamespace(is_available=lambda: True, get_device_name=lambda _: 'L40S',
+                get_device_capability=lambda _: (8, 9), mem_get_info=lambda _: (48 * 1024**3, 48 * 1024**3)))
+        with patch.dict('sys.modules', {'torch': fake}), \
+             patch.dict('os.environ', {'LATENTPORT_NATIVE_LIB': '/custom/libllama.so'}), \
+             patch('latentport.diagnostics.native_spec', return_value={'cuda': '13.0', 'compute_capability': '12.0'}), \
+             patch('latentport.diagnostics.missing_dependencies', return_value=[]), \
+             patch('latentport.diagnostics.driver_cuda_version', return_value=12080):
+            result = diagnose('gguf', check_native=False)
+            self.assertTrue(result['ready_for_model_load'])
+            self.assertEqual(result['native_distribution'], 'custom')
+            self.assertTrue(result['warnings'])
+            with patch('latentport._native.engine.library_path', side_effect=CapabilityError('Missing custom library')):
+                self.assertFalse(diagnose('gguf')['ready_for_model_load'])
 
     def test_external_profile_requires_immutable_revision(self):
         with tempfile.TemporaryDirectory() as directory:

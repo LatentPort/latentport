@@ -81,7 +81,16 @@ class Bridge:
         state.require_model(self.source.identity)
         destination = target or self.target
         destination.identity.require_same(self.target.identity)
+        # This checkpoint uses dense token alignment. A bounded suffix is not
+        # an alignment ledger, and evicted KV cannot be reconstructed by it.
+        if state.physical_kv_length != state.clock:
+            raise CompatibilityError("This bridge does not support compacted/sparse source states")
+        if state.rendered_text is None or state.rendered_token_ids is None:
+            raise CompatibilityError("This bridge requires complete source alignment metadata; streamed suffix-only states are unsupported")
         source_record, target_record = self._record_pair(state)
+        check = getattr(destination.backend, "check_capacity", None)
+        if check is not None:
+            check(target_record.sequence_length, target_record.sequence_length)
         metadata = numeric_alignment(source_record, target_record)
         if self._translator is None:
             self.prepare()
