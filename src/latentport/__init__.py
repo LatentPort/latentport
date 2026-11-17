@@ -7,9 +7,10 @@ from .port import Port, load
 from .session import Session
 from .state import State
 from .single import load_model
+from .flash_next import compact_flash_next_cache
 from .context import ContextOptions
 from ._native import NativeOptions
 
 __all__ = ["Answer", "Bridge", "CapabilityError", "CompatibilityError", "GenerationInterrupted", "HandoffError",
            "LatentPortError", "Model", "ModelIdentity", "Port", "ReplayError", "RunStats",
-           "Session", "State", "StateError", "StateInfo", "NativeOptions", "ContextOptions", "load", "load_model", "CompactionInfo"]
+           "Session", "State", "StateError", "StateInfo", "NativeOptions", "ContextOptions", "load", "load_model", "compact_flash_next_cache", "CompactionInfo"]

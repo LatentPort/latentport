@@ -12,7 +12,8 @@ from .._models import DEFAULT_MODEL, MODEL_REVISIONS
 def _model(device, repo, override):
     import torch
     from safetensors.torch import load_file
-    if repo not in MODEL_REVISIONS:
+    from ..flash_next import BASE_MODEL as FLASH_NEXT
+    if repo not in MODEL_REVISIONS and repo != FLASH_NEXT:
         raise CompatibilityError(f"Unsupported LPCompact base: {repo}")
     name = "lpcompact" if repo == DEFAULT_MODEL else "lpcompact-" + repo.split("/")[-1].lower()
     spec = json.loads((Path(__file__).parent.parent / "configs" / (name + ".json")).read_text())
@@ -40,7 +41,7 @@ def score(values, repo=DEFAULT_MODEL):
     chunks = []
     # Bounded scratch space at 128K and beyond; math matches the frozen selector.
     for start in range(0, values["V.3"].shape[2], 8192):
-        x = torch.cat([values[f"V.{i}"][0, :, start:start + 8192].transpose(0, 1).flatten(1)
+        x = torch.cat([values[f"V.{i}"][0, :, start:start + 8192].transpose(0, 1).flatten(1).to(device)
                        for i in (3, 15, 31)], dim=-1).float()
         x = x / (x.square().mean(-1, keepdim=True) + 1e-6).sqrt()
         chunks.append(model(x).squeeze(-1))

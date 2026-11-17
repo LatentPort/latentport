@@ -1,0 +1,102 @@
+{
+  "model": "latentport/LPCompact-Qwen3.8-Flash-Next",
+  "release_revision": "22dc3207c7546fc4b4c757defff3f72fa5b5ec17",
+  "base_revision": "812d96e10a0dd82b69d749e68693698cf6c36daa",
+  "selector_sha256": "fa53b071e0fb8b90af673e1a1678faceb54033a81bbc3dc6fc64490b90a0a581",
+  "training": {
+    "warmup_updates": 256,
+    "utility_updates": 1024
+  },
+  "history_benchmark": [
+    {
+      "stage": "history_prefill",
+      "tokens": 16384,
+      "seconds": 186.89154137800506,
+      "tokens_per_second": 87.66581879092044,
+      "peak_gpu_gib": 62.163846015930176
+    },
+    {
+      "stage": "question_append",
+      "tokens": 34,
+      "seconds": 167.7566827730043,
+      "tokens_per_second": 0.20267448925421494,
+      "next_token": "run",
+      "peak_gpu_gib": 62.163846015930176
+    }
+  ],
+  "per_task": [
+    {
+      "task": "Repository function lookup",
+      "history_tokens": 65536,
+      "total": 16,
+      "native": 16,
+      "compact": 16,
+      "lost": 0,
+      "gained": 0
+    },
+    {
+      "task": "Repository function lookup",
+      "history_tokens": 131072,
+      "total": 16,
+      "native": 16,
+      "compact": 16,
+      "lost": 0,
+      "gained": 0
+    },
+    {
+      "task": "Latest decision",
+      "history_tokens": 65536,
+      "total": 16,
+      "native": 16,
+      "compact": 15,
+      "lost": 1,
+      "gained": 0
+    },
+    {
+      "task": "Latest decision",
+      "history_tokens": 131072,
+      "total": 16,
+      "native": 16,
+      "compact": 16,
+      "lost": 0,
+      "gained": 0
+    },
+    {
+      "task": "Structured record lookup",
+      "history_tokens": 65536,
+      "total": 16,
+      "native": 16,
+      "compact": 16,
+      "lost": 0,
+      "gained": 0
+    },
+    {
+      "task": "Structured record lookup",
+      "history_tokens": 131072,
+      "total": 16,
+      "native": 16,
+      "compact": 16,
+      "lost": 0,
+      "gained": 0
+    },
+    {
+      "task": "Two-hop document lookup",
+      "history_tokens": 65536,
+      "total": 16,
+      "native": 16,
+      "compact": 16,
+      "lost": 0,
+      "gained": 0
+    },
+    {
+      "task": "Two-hop document lookup",
+      "history_tokens": 131072,
+      "total": 16,
+      "native": 15,
+      "compact": 16,
+      "lost": 0,
+      "gained": 1
+    }
+  ],
+  "metric": "Canonical greedy answer tokens followed by either pinned generation stop token."
+}
