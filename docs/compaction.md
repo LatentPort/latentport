@@ -28,6 +28,11 @@ Each selector reads the attention values produced by its own frozen base.
 The runtime verifies the selected checkpoint's SHA-256 before scoring.
 The default model is Qwen3.8-27B.
 
+For Qwen3.5-4B and Qwen3.5-9B, the release evaluation compares exact answers
+with full memory and 8× compaction on 128 paired questions per model. It covers
+repository lookup, latest decisions, structured records and two-hop document
+lookup at 64K and 128K. [Per-task scores and backend qualification](lpcompact-qwen35-validation.json)
+
 Compaction produces an ordinary immutable `State`. The original state and its
 forks remain valid. Reassigning `state` releases discarded KV tensors when their
 last owner is released. The compacted state supports the same `fork()`, `save()`

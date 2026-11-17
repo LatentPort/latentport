@@ -2,7 +2,7 @@
   "name": "LPCompact-Qwen3.5-9B",
   "version": "0.1",
   "repo_id": "latentport/LPCompact-Qwen3.5-9B",
-  "revision": "f705400d47f8d4f1f5f7791fa14671a9720302e9",
+  "revision": "dae5691996e1810f62466a355f3b23cec9c39dad",
   "filename": "model.safetensors",
   "sha256": "0edabb5e8053ed322ff68278e192841231a3c46516692e1194c871f85b62b3e6",
   "source_sha256": "546279a2d1440a09a078066c70f690e46de7c43fdf74821e8cd0bf8ba979c9dd",

@@ -1,0 +1,191 @@
+{
+  "runtime": "0.4.0",
+  "ratio": 8,
+  "tasks_per_length": 4,
+  "histories_per_task_per_length": 2,
+  "questions_per_history": 8,
+  "lengths": [
+    65536,
+    131072
+  ],
+  "scoring": "greedy BF16 exact answer, stripped outer whitespace",
+  "base_model_frozen": true,
+  "models": {
+    "4B": {
+      "selector_sha256": "074e8822236c2d1b78f2ae0aef566a65a31af8ef69121501d66acbee8fd7f4d6",
+      "base_revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+      "by_task": [
+        {
+          "task": "Repository function lookup",
+          "total": 32,
+          "native": 32,
+          "compact": 32,
+          "lost": 0,
+          "gained": 0
+        },
+        {
+          "task": "Latest decision",
+          "total": 32,
+          "native": 31,
+          "compact": 31,
+          "lost": 0,
+          "gained": 0
+        },
+        {
+          "task": "Structured record lookup",
+          "total": 32,
+          "native": 32,
+          "compact": 32,
+          "lost": 0,
+          "gained": 0
+        },
+        {
+          "task": "Two-hop document lookup",
+          "total": 32,
+          "native": 1,
+          "compact": 5,
+          "lost": 0,
+          "gained": 4
+        }
+      ],
+      "by_length": [
+        {
+          "length": 65536,
+          "questions": 64,
+          "native": 49,
+          "compact": 51,
+          "both": 49
+        },
+        {
+          "length": 131072,
+          "questions": 64,
+          "native": 47,
+          "compact": 49,
+          "both": 47
+        }
+      ],
+      "runtime_checks": [
+        {
+          "backend": "bf16",
+          "lengths": [
+            65536,
+            131072
+          ],
+          "status": "PASS"
+        },
+        {
+          "backend": "nf4",
+          "lengths": [
+            65536,
+            131072
+          ],
+          "status": "PASS"
+        },
+        {
+          "backend": "Q4_K_M",
+          "lengths": [
+            65536,
+            131072
+          ],
+          "status": "PASS"
+        },
+        {
+          "backend": "Q8_0",
+          "lengths": [
+            65536,
+            131072
+          ],
+          "status": "PASS"
+        }
+      ]
+    },
+    "9B": {
+      "selector_sha256": "0edabb5e8053ed322ff68278e192841231a3c46516692e1194c871f85b62b3e6",
+      "base_revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
+      "by_task": [
+        {
+          "task": "Repository function lookup",
+          "total": 32,
+          "native": 32,
+          "compact": 32,
+          "lost": 0,
+          "gained": 0
+        },
+        {
+          "task": "Latest decision",
+          "total": 32,
+          "native": 32,
+          "compact": 30,
+          "lost": 2,
+          "gained": 0
+        },
+        {
+          "task": "Structured record lookup",
+          "total": 32,
+          "native": 32,
+          "compact": 32,
+          "lost": 0,
+          "gained": 0
+        },
+        {
+          "task": "Two-hop document lookup",
+          "total": 32,
+          "native": 1,
+          "compact": 4,
+          "lost": 0,
+          "gained": 3
+        }
+      ],
+      "by_length": [
+        {
+          "length": 65536,
+          "questions": 64,
+          "native": 49,
+          "compact": 50,
+          "both": 47
+        },
+        {
+          "length": 131072,
+          "questions": 64,
+          "native": 48,
+          "compact": 48,
+          "both": 48
+        }
+      ],
+      "runtime_checks": [
+        {
+          "backend": "bf16",
+          "lengths": [
+            65536,
+            131072
+          ],
+          "status": "PASS"
+        },
+        {
+          "backend": "nf4",
+          "lengths": [
+            65536,
+            131072
+          ],
+          "status": "PASS"
+        },
+        {
+          "backend": "Q4_K_M",
+          "lengths": [
+            65536,
+            131072
+          ],
+          "status": "PASS"
+        },
+        {
+          "backend": "Q8_0",
+          "lengths": [
+            65536,
+            131072
+          ],
+          "status": "PASS"
+        }
+      ]
+    }
+  }
+}

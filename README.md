@@ -170,6 +170,7 @@ share immutable storage; execution uses the selected backend's scheduling.
 
 | Transformation | Measurement | Validation |
 | --- | --- | --- |
+| LPCompact Qwen3.5-4B and 9B, 128K history at 8× | Attention KV tensors fell from **4 GiB to 512 MiB** on each model. | BF16, NF4, GGUF Q4_K_M and GGUF Q8_0 passed continuation, fork, save/load and repeated compaction at 64K and 128K. [Results by task and model](docs/lpcompact-qwen35-validation.json) |
 | LPCompact Qwen3.8-27B, 128K history at 8x | Attention KV tensors reduced from **8 GiB to 1 GiB**. | BF16, Q4_K_M and Q8_0 tested at 64K and 128K on RTX PRO 6000; continued generation, save/load, forks and repeated compaction passed. |
 | Historical E119 transfer, approximately 16K prompts | **2.19x paired time-to-first-token speedup**; native median 24.663 s, composite median 11.087 s. | E120 resident NF4/BF16 research runtime on RTX 5090; paired 95% interval 2.15-2.23x. |
 
