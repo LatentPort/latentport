@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 from ..errors import CompatibilityError
-from .._models import DEFAULT_MODEL, MODEL_REVISIONS
+from .._models import DEFAULT_MODEL, MODEL_REVISIONS, feature_layers
 
 @lru_cache(maxsize=8)
 def _model(device, repo, override):
@@ -35,13 +35,15 @@ def _model(device, repo, override):
 
 def score(values, repo=DEFAULT_MODEL):
     import torch
-    device = values["V.3"].device
+    layers = feature_layers(repo)
+    reference = values[f"V.{layers[0]}"]
+    device = reference.device
     model = _model(str(device), repo, os.environ.get("LATENTPORT_COMPACTOR"))
     chunks = []
     # Bounded scratch space at 128K and beyond; math matches the frozen selector.
-    for start in range(0, values["V.3"].shape[2], 8192):
+    for start in range(0, reference.shape[2], 8192):
         x = torch.cat([values[f"V.{i}"][0, :, start:start + 8192].transpose(0, 1).flatten(1).to(device)
-                       for i in (3, 15, 31)], dim=-1).float()
+                       for i in layers], dim=-1).float()
         x = x / (x.square().mean(-1, keepdim=True) + 1e-6).sqrt()
         chunks.append(model(x).squeeze(-1))
     return torch.cat(chunks).cpu().tolist()

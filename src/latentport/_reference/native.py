@@ -29,7 +29,9 @@ def validate_components(values: Mapping[str, Any], clock: int, side: str, *, fin
     if "P" in values:
         expected.add("P")
     for index, kind in enumerate(geo["types"]):
-        expected.update(f"{field}.{index}" for field in (("K", "V") if kind == "full_attention" else ("C", "R")))
+        fields = {"full_attention": ("K", "V"), "sliding_attention": ("SK", "SV"),
+                  "linear_attention": ("C", "R")}[kind]
+        expected.update(f"{field}.{index}" for field in fields)
     indexed = "index_width" in geo
     if indexed:
         expected.update(f"I.{i}" for i, kind in enumerate(geo["types"]) if kind == "full_attention")
@@ -38,9 +40,13 @@ def validate_components(values: Mapping[str, Any], clock: int, side: str, *, fin
         raise StateError(f"{side} state needs exactly {len(expected)} complete fields and a positive clock")
     shapes = {"H": (1, 1, geo["hidden"]),
               "K": (1, geo["kv_heads"], physical, geo["head_dim"]),
-              "V": (1, geo["kv_heads"], physical, geo["head_dim"]),
-              "C": (1, geo["conv_channels"], geo["conv_width"]),
-              "R": (1, geo["recurrent_heads"], geo["recurrent_k"], geo["recurrent_v"])}
+              "V": (1, geo["kv_heads"], physical, geo["head_dim"])}
+    if "sliding_window" in geo and "sliding_heads" in geo:
+        sliding = (1, geo["sliding_heads"], min(clock, geo["sliding_window"] - 1), geo["sliding_dim"])
+        shapes.update(SK=sliding, SV=sliding)
+    else:
+        shapes.update(C=(1, geo["conv_channels"], geo["conv_width"]),
+                      R=(1, geo["recurrent_heads"], geo["recurrent_k"], geo["recurrent_v"]))
     if indexed:
         shapes.update(I=(1, physical, geo["index_width"]), PLE=(1, geo["ple_channels"], geo["ple_width"]),
                       NGRAM=(1, geo["ngram_width"]))

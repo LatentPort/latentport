@@ -653,6 +653,21 @@
       "gguf_sha256": {
         "03b74727a860a56338e042c4420bb3f04b2fec5734175f4cb9fa853daf52b7e8": "latentport/LPBridge-Qwen3.5-4b-Qwen3.5-9b@664f3f506e7dea5764446c657cfc34c9b4cb6f39"
       }
+    },
+    "google/gemma-4-31B-it": {
+      "revision": "842da3794eaa0b77d5f08bae87a17459d91ff475",
+      "safetensors_fingerprint": "ede8131e89475ac88b597f02c9bf6284a3dc2e1fd17d49914e43ac9ff9b6c2de",
+      "weight_files": {
+        "model-00001-of-00002.safetensors": {
+          "sha256": "eeef8791537bc04f110967c513149e037d2a9ae97d49add7291ebfa62806bbfa",
+          "bytes": 49784788364
+        },
+        "model-00002-of-00002.safetensors": {
+          "sha256": "018912220f559f7025d60333e0996183cd538aa77ad6f4988a89ce47be681f10",
+          "bytes": 12761549884
+        }
+      },
+      "gguf_sha256": {}
     }
   }
 }

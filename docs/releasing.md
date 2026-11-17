@@ -35,7 +35,7 @@ archives, and rejected by CI if tracked.
   and state save/load/fork tests. Exercise first download, restart after interruption,
   cache reuse, and offline operation. BF16 requires a separate real inference check.
 - Run Publish release with `destination=testpypi`. Install that artifact with
-  `pip install --index-url https://test.pypi.org/simple/ --no-deps latentport==0.4.5`
+  `pip install --index-url https://test.pypi.org/simple/ --no-deps latentport==0.4.6`
   in a fresh environment and run `scripts/check_distribution.py`.
 - Dispatch from the same reviewed commit with `destination=pypi`. The build job
   checks and uploads artifacts; the publishing job downloads those artifacts

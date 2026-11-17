@@ -1,5 +1,6 @@
 """Offline base-weight qualification for learned compaction."""
 from functools import lru_cache
+import hashlib
 import json
 from pathlib import Path
 
@@ -12,6 +13,15 @@ def catalog():
                        "compaction-compatibility.json").read_text(encoding="utf-8"))["models"]
 
 
+@lru_cache(maxsize=None)
+def _standalone_fingerprint(repo):
+    # Standalone ModelIdentity binds the raw SHA-256 bytes of each shard.
+    digest = hashlib.sha256()
+    for name, receipt in sorted(catalog()[repo]["weight_files"].items()):
+        digest.update(name.encode() + b"\0" + bytes.fromhex(receipt["sha256"]))
+    return digest.hexdigest()
+
+
 def require_weights(identity, *, allow_unqualified=False):
     if type(allow_unqualified) is not bool:
         raise TypeError("allow_unqualified must be a bool")
@@ -22,7 +32,8 @@ def require_weights(identity, *, allow_unqualified=False):
     if identity.backend in ("bf16", "nf4", "reference"):
         # Pair loaders verify every shard against their pinned bridge manifest.
         qualified = base in (identity.backend + ":" + spec["revision"],
-                            identity.backend + "-sha256:" + spec["safetensors_fingerprint"])
+                            identity.backend + "-sha256:" + spec["safetensors_fingerprint"],
+                            identity.backend + "-sha256:" + _standalone_fingerprint(identity.repo_id))
     elif identity.backend == "gguf":
         qualified = base.startswith("gguf-sha256:") and base[12:] in spec["gguf_sha256"]
     else:

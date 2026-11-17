@@ -7,7 +7,7 @@ from .errors import CompatibilityError
 from .identity import ModelIdentity
 from .model import Model
 from .context import ContextOptions, PINNED_REVISION, execution_weights
-from ._models import DEFAULT_MODEL, FLASH_NEXT, MODEL_REVISIONS, model_geometry
+from ._models import DEFAULT_MODEL, GEMMA, FLASH_NEXT, MODEL_REVISIONS, model_geometry
 
 MODEL = DEFAULT_MODEL
 REVISION = PINNED_REVISION
@@ -34,7 +34,7 @@ def _weight_fingerprint(path):
 def load_model(repo: str = MODEL, *, revision: str | None = None, backend: str = "bf16",
                model_path: str | Path | None = None, native_options=None,
                position_policy: str | None = None, max_kv_positions: int | None = None) -> Model:
-    """Load a standalone Qwen checkpoint using its pinned revision by default.
+    """Load a standalone checkpoint using its pinned revision by default.
 
     ``max_kv_positions`` bounds physical attention memory. ``yarn4`` extends
     logical positions to 1,048,576 without increasing that physical capacity.
@@ -54,14 +54,17 @@ def load_model(repo: str = MODEL, *, revision: str | None = None, backend: str =
                              getattr(native_options, "physical_limit", 262144))
     if repo not in MODEL_REVISIONS:
         raise CompatibilityError(f"Unsupported standalone model: {repo}")
-    if repo == FLASH_NEXT and (backend != "bf16" or context.position_policy != "default"):
-        raise CompatibilityError("Flash-Next supports BF16 with its default position policy")
+    if repo in (GEMMA, FLASH_NEXT) and (backend != "bf16" or context.position_policy != "default"):
+        raise CompatibilityError(f"{repo} supports BF16 with its default position policy")
     if revision is None:
         revision = MODEL_REVISIONS[repo]
     if (repo != MODEL or backend == "nf4" or context.position_policy != "default") and revision != MODEL_REVISIONS[repo]:
         raise CompatibilityError("NF4 and extended positions require the exact pinned model revision")
     from ._dependencies import require_backend
-    require_backend(backend)
+    if repo == GEMMA:
+        require_backend(backend, transformer_only=True)
+    else:
+        require_backend(backend)
     from .hub import model_snapshot
     geometry = model_geometry(repo)
     spec = {"repo_id": repo, "revision": revision, "metadata_files": {}, "geometry": geometry,
@@ -79,6 +82,9 @@ def load_model(repo: str = MODEL, *, revision: str | None = None, backend: str =
     if backend in ("bf16", "nf4"):
         from ._reference.bf16 import BF16Backend
         runtime_type = BF16Backend
+        if repo == GEMMA:
+            from ._reference.gemma import GemmaBackend
+            runtime_type = GemmaBackend
         if repo == FLASH_NEXT:
             from ._reference.flash_next import FlashNextBackend
             runtime_type = FlashNextBackend
