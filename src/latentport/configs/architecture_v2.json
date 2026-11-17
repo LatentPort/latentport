@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "name": "E089_cross_position_GCST",
+  "name": "cross_position_GCST",
   "base_architecture": {
     "kv_width": 2560,
     "kv_ffn": 3072,
@@ -27,6 +27,6 @@
   "target_token_ids_embeddings_or_text_features": false,
   "source_and_target_KV_projections": "once_per_path_then_sparse_gathers",
   "new_parameters": "measured_in_reports/v2/parameter_count.json",
-  "exact_unchanged_E087_architecture": false,
+  "exact_unchanged_parent_architecture": false,
   "parameter_growth_limit_fraction": 0.02
 }

@@ -5,7 +5,7 @@ dependencies, GPU images, and pinned model assets. Model weights never enter a
 wheel or Docker layer. LPCompact is a compaction feature of the shared library;
 feature updates do not create separate GitHub product releases.
 
-Python distributions are published on PyPI. Native binaries are distributed as versioned GitHub release assets with SHA-256 checksums. The bridge Hub contains inference parameters, bridge constants, and metadata.
+Python distributions are published on PyPI. Native binaries are distributed from immutable Hugging Face repository revisions with SHA-256 checksums. The bridge Hub contains inference parameters, bridge constants, and metadata.
 
 Keep validation environments, downloaded SDKs, native builds and release archives
 outside the source checkout, using a separate bulk directory such as
@@ -60,4 +60,4 @@ The runtime's Python API accepts `lp.load(repo, revision=commit, backend="nf4")`
 
 ## Native runtime maintenance
 
-Pin the patched llama.cpp revision, platform, CUDA version, compute capability, archive size and SHA-256 in `configs/native-release.json`. Publish native binaries as GitHub release assets and verify anonymous downloads. Windows CUDA redistributables have independent pins in `configs/cuda-windows.json`. Retain the supplied license notices.
+Pin the patched llama.cpp revision, platform, CUDA version, compute capability, archive size and SHA-256 in `configs/native-release.json`. Publish native binaries to `latentport/native-runtime`, pin the immutable Hub revision in each URL, and verify anonymous downloads. Windows CUDA redistributables have independent pins in `configs/cuda-windows.json`. Retain the supplied license notices.

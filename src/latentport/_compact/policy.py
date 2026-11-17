@@ -1,4 +1,4 @@
-"""The frozen E129 span policy, independent of the inference backend."""
+"""The frozen compaction span policy, independent of the inference backend."""
 import math
 
 MIN_CONTEXT = 65536
@@ -13,7 +13,7 @@ def budget(physical, ratio):
 
 
 def choose(scores, target):
-    """Match E129 including mean-score ordering and high-index tie breaks."""
+    """Match the frozen policy including mean-score ordering and high-index tie breaks."""
     raw = [float(value) for value in scores]
     n = len(raw)
     if not 0 <= target <= n or (target < n and target < 1024):

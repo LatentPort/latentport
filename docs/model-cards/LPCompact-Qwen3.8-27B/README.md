@@ -13,73 +13,49 @@ tags:
 
 # LPCompact-Qwen3.8-27B
 
-**LPCompact** is a learned state compaction model for **Qwen3.8-27B**,
-available through LatentPort's `state.compact()` operation.
+**Created by [Simon P. Villani](https://au.linkedin.com/in/simon-villani).**
 
-It selects useful attention-memory entries directly from a running model's
-state. Recurrent state, convolution state and the logical continuation clock
-are preserved. The operation uses no text summary or historical token replay.
+[GitHub](https://github.com/LatentPort/latentport) | [PyPI](https://pypi.org/project/latentport/) | [Installation](https://github.com/LatentPort/latentport/blob/main/docs/installation.md) | [API](https://github.com/LatentPort/latentport/blob/main/docs/api.md)
 
-## Model and runtime
+## Overview
 
-This repository contains the trained compaction selector for Qwen3.8-27B:
-one `model.safetensors` file, its configuration, model card and license.
-Qwen base-model weights, including GGUF files, are obtained separately.
+A learned attention-memory compaction selector for **Qwen/Qwen3.8-27B**, exposed through `state.compact()`. It scores attention values at layers 3, 15 and 31. LatentPort retains selected keys and values while preserving recurrent state, convolution history and the logical continuation clock. It does not summarize text or replay historical tokens.
 
-The shared Python runtime is maintained in
-[LatentPort on GitHub](https://github.com/LatentPort/latentport).
-Each trained state operation has its own Hugging Face repository, named by
-operation and model compatibility. This model supplies compaction for
-Qwen3.8-27B through that common runtime.
+## Compatibility
 
-## One checkpoint across BF16 and GGUF
+Use LatentPort 0.4.2 or later with Python 3.11+, CUDA PyTorch and the chosen backend dependencies. The selector serves BF16, NF4 and supported GGUF weights of the compatible base checkpoint. Backend availability does not imply identical quality qualification; see Evaluation. For GGUF, supply `model_path` and a compatible native library. Exact model and selector pins are recorded in the runtime configuration.
 
-The same 393,473-parameter selector is used with Qwen3.8-27B BF16 and GGUF
-weight quantizations. Base-model weight precision does not change the selector's
-architecture or weights. LatentPort adapters supply the common BF16
-attention-state layout.
+## Usage
 
-Runtime qualification passed at 64K and 128K with BF16, Q4_K_M and Q8_0,
-including continued generation, save/load, forks and repeated compaction.
-See the [runtime validation record](https://github.com/LatentPort/latentport/blob/main/docs/compaction-validation.json).
-
-## Use with LatentPort
-
-Install [LatentPort from PyPI](https://pypi.org/project/latentport/) (0.2.1 or later)
-and follow the [BF16 or GGUF setup instructions](https://github.com/LatentPort/latentport/blob/main/docs/compaction.md).
+Install the runtime and backend dependencies using the installation guide above. Set `history` to the context you want to retain.
 
 ```python
 import latentport as lp
 
-with lp.load_model(backend="bf16") as model:
+history = "The project codename is Juniper."  # Replace with your long context.
+with lp.load_model("Qwen/Qwen3.8-27B", backend="bf16") as model:
     state = model.prefill(history)
-    state = state.compact()
-    answer = model.session(state).ask("Continue the task.")
+    compacted = state.compact()
+    answer = model.session(compacted).ask("What is the project codename?")
+    print(answer.text)
 ```
 
-For GGUF, use `backend="gguf"` and supply `model_path` with the chosen
-Qwen3.8-27B GGUF. Both formats automatically load the same selector.
+Short histories are unchanged by default. Normal activation starts at 65,536 physical positions. The default ratio is 8; pass `ratio=4` to retain more memory. The policy preserves the first and last 512 positions, with a 1,024-position floor. Use session-level capacity controls when reserving room for more input. The result supports append, save/load and fork.
 
-The returned value is an ordinary immutable LatentPort State, supporting fork,
-save/load, append and continued generation. The original snapshot remains valid.
+## Evaluation
 
-## Compaction policy
+Runtime qualification passed at 64K and 128K with BF16, Q4_K_M and Q8_0, including continued generation, save/load, forks and repeated compaction. At 128K, 8x selection reduces BF16 attention tensor storage from 8 GiB to 1 GiB. See the [validation record](https://github.com/LatentPort/latentport/blob/main/docs/compaction-validation.json). These structural and continuation checks are not a broad answer-quality benchmark.
 
-The default policy retains one eighth of attention KV positions, with a
-1,024-position floor. A 4x setting is also available. Normal activation starts
-at 65,536 physical KV positions. At 128K, 8x selection reduces BF16 attention
-tensor storage from 8 GiB to 1 GiB. Base weights and fixed recurrent state retain
-their existing representation.
+## Limitations
 
-The selector reads three attention value layers and assigns a utility score to
-each retained position. Its span policy preserves the first and last 512
-positions and selects the remaining memory within the requested budget.
+Compaction is lossy and task dependent. It reduces attention KV storage, not base-model weights or all peak working memory. A compacted source cannot currently be passed to a bridge. Quality measured on one model, backend or task panel must not be assumed for another. Repeated-operation quality and broader workloads need separate evaluation.
 
-## Artifact and version
+## Artifacts and provenance
 
-The compaction selector uses FP32 weights, a 3,072-feature input, a 128-unit hidden
-layer with GELU, and one output score. `config.json` records its architecture,
-policy and hashes. The `v0.1` tag identifies the original model checkpoint.
-The model weights are unchanged by the repository rename.
+`model.safetensors` contains the selector, and `config.json` records architecture, policy and checkpoint fingerprints. Base-model weights are separate.
 
-Canonical repository: [latentport/LPCompact-Qwen3.8-27B](https://huggingface.co/latentport/LPCompact-Qwen3.8-27B).
+The selector has 393,473 FP32 parameters: 3,072 input features, a 128-unit hidden layer with GELU and one output score. The `v0.1` tag identifies the original checkpoint.
+
+## License
+
+The selector and LatentPort code are licensed under Apache-2.0; see [LICENSE](LICENSE). Qwen base models and runtime dependencies retain their upstream licenses.

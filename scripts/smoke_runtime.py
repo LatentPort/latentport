@@ -1,4 +1,4 @@
-"""Post-E120 GPU smoke test. Run only when the GPU is free.
+"""Post-evaluation GPU smoke test. Run only when the GPU is free.
 
 This validates package plumbing and target token ownership. It is not a
 model-quality evaluation or an efficiency benchmark.

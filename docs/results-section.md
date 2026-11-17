@@ -1,6 +1,6 @@
 ## Composite results
 
-The frozen LatentPort-4+27B bridge was evaluated against both native models in E120.
+The frozen LatentPort-4+27B bridge was evaluated against both native models in the published composite evaluation.
 The 4B reads the **entire prompt, including the question**; the 27B processes **zero prompt tokens**.
 
 | Completed tasks | Native 4B | LatentPort-4+27B | Native 27B |

@@ -2,7 +2,7 @@
 
 ## Composite results
 
-The frozen LatentPort-4+27B bridge was evaluated against both native models in E120.
+The frozen LatentPort-4+27B bridge was evaluated against both native models in the published composite evaluation.
 The 4B reads the **entire prompt, including the question**; the 27B processes **zero prompt tokens**.
 
 | Completed tasks | Native 4B | LatentPort-4+27B | Native 27B |
@@ -34,7 +34,7 @@ useful answer text. These results do not establish faster full answers or decode
 Quality scores have not been re-established for the GGUF runtime. Prose grading was
 identity-blinded AI grading; template differences and ambiguous judgments limit generalization.
 
-## GGUF runtime checks (separate from E120)
+## GGUF runtime checks (separate from the composite evaluation)
 
 Q4_K_M base models, FP32 bridge container, BF16 native KV, Windows RTX 5090:
 

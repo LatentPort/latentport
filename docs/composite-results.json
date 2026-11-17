@@ -1,6 +1,6 @@
 {
   "release": "LatentPort-4+27B research preview",
-  "checkpoint": "e119-final16-b960c37364bc",
+  "checkpoint": "bridge-4b-27b-b960c37364bc",
   "configuration": "Pinned NF4 weights / BF16 compute research stack, RTX 5090; not GGUF quality qualification",
   "composite_quality": {
     "A": {
@@ -26,7 +26,7 @@
       "groups": 8,
       "ratio": {
         "independent_groups": 8,
-        "paired_ratio_native27_over_E119": 1.0620464647848318,
+        "paired_ratio_native27_over_composite": 1.0620464647848318,
         "ci95": [
           0.8732304076002703,
           1.2916896658027117
@@ -36,14 +36,14 @@
       },
       "median_seconds": {
         "native27": 0.6027084999950603,
-        "E119_composite": 0.5129465500358492
+        "bridge_composite": 0.5129465500358492
       }
     },
     "2K": {
       "groups": 8,
       "ratio": {
         "independent_groups": 8,
-        "paired_ratio_native27_over_E119": 1.6532306775609404,
+        "paired_ratio_native27_over_composite": 1.6532306775609404,
         "ci95": [
           1.61308744636195,
           1.6943729116439532
@@ -53,14 +53,14 @@
       },
       "median_seconds": {
         "native27": 2.147742750006728,
-        "E119_composite": 1.295161599991843
+        "bridge_composite": 1.295161599991843
       }
     },
     "8K": {
       "groups": 8,
       "ratio": {
         "independent_groups": 8,
-        "paired_ratio_native27_over_E119": 2.005612387496334,
+        "paired_ratio_native27_over_composite": 2.005612387496334,
         "ci95": [
           1.9575869763942657,
           2.0548160042870047
@@ -70,14 +70,14 @@
       },
       "median_seconds": {
         "native27": 8.87050294992514,
-        "E119_composite": 4.458856399985962
+        "bridge_composite": 4.458856399985962
       }
     },
     "16K": {
       "groups": 8,
       "ratio": {
         "independent_groups": 8,
-        "paired_ratio_native27_over_E119": 2.1880221333982903,
+        "paired_ratio_native27_over_composite": 2.1880221333982903,
         "ci95": [
           2.1464469720003287,
           2.2304025762999715
@@ -87,13 +87,13 @@
       },
       "median_seconds": {
         "native27": 24.66347509995103,
-        "E119_composite": 11.086686099995859
+        "bridge_composite": 11.086686099995859
       }
     }
   },
   "all_32_ttft": {
     "independent_groups": 32,
-    "paired_ratio_native27_over_E119": 1.6660725990353,
+    "paired_ratio_native27_over_composite": 1.6660725990353,
     "ci95": [
       1.4923659649473995,
       1.8599981307896392
