@@ -28,6 +28,28 @@ The project now includes a shared Python runtime, learned model-to-model transfe
 ![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)
 [![PyPI](https://img.shields.io/pypi/v/latentport)](https://pypi.org/project/latentport/)
 
+### Transfer a query to Qwen3.5-9B
+
+Install CUDA PyTorch and `latentport[reference]==0.4.1` for NF4 bridge inference.
+Select the 9B writer by its model repository:
+
+```python
+import latentport as lp
+
+with lp.load("latentport/LPBridge-Qwen3.5-4b-Qwen3.5-9b", backend="nf4", thinking=False) as port:
+    prefix = port.source.prefill([("user", "The ticket is red.")])
+    request = port.target.codec.render(
+        [("user", "The ticket is red."), ("user", "What color is the ticket?")],
+        generation_prompt=True,
+    )
+    assert request.token_ids[:prefix.clock] == prefix.rendered_token_ids
+    ready = port.handoff(prefix, target_suffix_ids=request.token_ids[prefix.clock:])
+    print(port.target.session(ready).generate(max_new_tokens=16).text)
+```
+
+The checkpoint supports text-only, thinking-off handoff before the final question.
+See [the runnable example](https://github.com/LatentPort/latentport/blob/main/examples/bridge_9b.py).
+
 ## A library of state operations
 
 A model's internal state carries what it has already processed. LatentPort exposes
@@ -37,7 +59,7 @@ from the transformed state.
 
 | Operation | Purpose | Available today |
 | --- | --- | --- |
-| **Transfer** | Move working context into another model's state space. | Learned Qwen3.5-4B to Qwen3.8-27B bridge via `bridge.translate(state)`. |
+| **Transfer** | Move working context into another model's state space. | Qwen3.5-4B to Qwen3.8-27B via `bridge.translate(state)`, and Qwen3.5-4B to Qwen3.5-9B via `port.handoff()`. |
 | **Compact** | Reduce attention memory while retaining the model's recurrent and convolutional state. | LPCompact for Qwen3.5-4B, Qwen3.5-9B and Qwen3.8-27B via `state.compact()`. |
 | **Optimise** | Improve a state for the task or inference objective ahead. | Part of the roadmap. |
 | **Combine** | Bring information from multiple states into a shared working state. | Part of the roadmap. |

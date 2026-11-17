@@ -111,6 +111,9 @@ def load(repo: str | Path = DEFAULT_REPO, *, revision: str | None = None,
     manifest = json.loads((root / "latentport.json").read_text(encoding="utf-8"))
     if backend not in manifest["runtime"]["backends"]:
         raise CapabilityError(f"This bridge does not declare {backend} execution")
+    mode = "thinking_on" if thinking else "thinking_off"
+    if mode not in manifest["runtime"].get("thinking_modes", ("thinking_off", "thinking_on")):
+        raise CapabilityError(f"This bridge does not support {mode}")
     geo = json.loads((root / "configs/geometry.json").read_text())
     for side in ("source", "target"):
         manifest["runtime"]["template_kwargs"][side]["enable_thinking"] = thinking

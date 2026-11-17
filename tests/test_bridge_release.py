@@ -78,3 +78,26 @@ def test_local_base_model_cannot_shadow_or_omit_a_pinned_shard(tmp_path):
     (tmp_path / "model.safetensors").touch()
     with pytest.raises(ValueError, match="shadows"):
         verify_model_weights(tmp_path,spec)
+
+
+def test_layer_aligned_nf4_bundle_without_gguf(tmp_path):
+    from latentport.errors import CapabilityError
+    from latentport.hub import LAYER_ALIGNED
+
+    root = make_bundle(tmp_path / "layer-aligned", "fixtures/layer-aligned", 4096)
+    manifest_path = root / "latentport.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["architecture"] = LAYER_ALIGNED
+    del manifest["gguf_bridge"]
+    for name in ("bridge.gguf", "configs/architecture_v2.json", "configs/calibration.json"):
+        del manifest["artifacts"][name]
+        (root / name).unlink()
+    config = root / "bridge_config.json"
+    config.write_text(json.dumps({"architecture": LAYER_ALIGNED, "weights": {"writer": "bridge.safetensors"}}))
+    manifest["artifacts"][config.name] = {
+        "bytes": config.stat().st_size, "sha256": hashlib.sha256(config.read_bytes()).hexdigest()}
+    manifest_path.write_text(json.dumps(manifest))
+    assert bundle_root(root, full=True, backend="nf4") == root
+    for backend in ("bf16", "gguf"):
+        with pytest.raises(CapabilityError, match="NF4"):
+            bundle_root(root, full=True, backend=backend)

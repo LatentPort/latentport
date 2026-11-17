@@ -11,6 +11,13 @@ DEFAULT_REPO = "latentport/LPBridge-Qwen3.5-4b-Qwen3.8-27b"
 DEFAULT_REVISION = "e37ef2d5e4d5581406ea30037b37271544ae2fff"
 
 
+LAYER_ALIGNED = "qwen-hybrid-layer-aligned-v1"
+BRIDGE_REVISIONS = {
+    DEFAULT_REPO: DEFAULT_REVISION,
+    "latentport/LPBridge-Qwen3.5-4b-Qwen3.5-9b": "5a98186cc8251fe3b139318bad2efea401496745",
+}
+
+
 def verified(path, spec):
     path = Path(path)
     if not path.is_file() or path.stat().st_size != spec["bytes"]:
@@ -90,8 +97,8 @@ def bundle_root(value: str | Path = DEFAULT_REPO, *, revision=None, full=False, 
     import json
     from pathlib import PurePosixPath
     local = Path(value).expanduser().is_dir()
-    if not local and revision is None and str(value) == DEFAULT_REPO:
-        revision = DEFAULT_REVISION
+    if not local and revision is None:
+        revision = BRIDGE_REVISIONS.get(str(value))
     root = Path(value).resolve() if local else _snapshot(str(value), revision, patterns=["latentport.json"])
     manifest = json.loads((root / "latentport.json").read_text(encoding="utf-8"))
     if manifest.get("schema") != "latentport.bridge-bundle.v2":
@@ -99,8 +106,14 @@ def bundle_root(value: str | Path = DEFAULT_REPO, *, revision=None, full=False, 
     if not local and manifest["repo_id"] != str(value):
         raise ValueError("Bridge repository identity mismatch")
     files = manifest["artifacts"]
-    if not {"bridge_config.json", "configs/geometry.json", "configs/calibration.json",
-            "configs/architecture_v2.json"}.issubset(files):
+    aligned = manifest["architecture"] == LAYER_ALIGNED
+    if aligned and backend not in (None, "nf4", "reference"):
+        from .errors import CapabilityError
+        raise CapabilityError("The layer-aligned bridge supports the NF4 backend")
+    required = {"bridge_config.json", "configs/geometry.json"}
+    if not aligned:
+        required.update(("configs/calibration.json", "configs/architecture_v2.json"))
+    if not required.issubset(files):
         raise ValueError("Bridge configuration is missing a checksum")
     for name in files:
         parts = PurePosixPath(name)
@@ -115,8 +128,8 @@ def bundle_root(value: str | Path = DEFAULT_REPO, *, revision=None, full=False, 
         if any(Path(name).name != name or "/" in name or "\\" in name or ":" in name or name in ("", ".", "..")
                for name in (*endpoint["metadata_files"], *endpoint["weight_files"])):
             raise ValueError("Invalid base model filename")
-    gguf = manifest["gguf_bridge"]
-    if gguf not in files:
+    gguf = manifest.get("gguf_bridge")
+    if (gguf is not None or not aligned) and gguf not in files:
         raise ValueError("Missing GGUF receipt")
     names = [name for name in files if name.endswith(".json") or
              (full and (name == gguf if backend == "gguf" else name.endswith(".safetensors")))]

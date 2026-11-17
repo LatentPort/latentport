@@ -8,6 +8,7 @@ from time import perf_counter
 
 from .codec import numeric_alignment, require_equivalent_content
 from .errors import CompatibilityError, HandoffError, StateError
+from .hub import LAYER_ALIGNED
 from .identity import ModelIdentity
 from .state import State
 
@@ -17,7 +18,7 @@ class Bridge:
         self.bundle_root = Path(bundle_root).resolve()
         self.source, self.target = source, target
         manifest = json.loads((self.bundle_root / "latentport.json").read_text(encoding="utf-8"))
-        if manifest.get("schema") != "latentport.bridge-bundle.v2" or manifest.get("architecture") != "qwen-hybrid-mixed-v1":
+        if manifest.get("schema") != "latentport.bridge-bundle.v2" or manifest.get("architecture") not in ("qwen-hybrid-mixed-v1", LAYER_ALIGNED):
             raise CompatibilityError("Unsupported bridge bundle")
         for side, model in (("source", source), ("target", target)):
             ref = manifest["models"][side]
@@ -34,7 +35,10 @@ class Bridge:
         self.source._check_open()
         self.target._check_open()
         if self._translator is None:
-            if self.source.identity.backend in ("nf4", "bf16", "reference"):
+            if self.manifest["architecture"] == LAYER_ALIGNED:
+                from ._reference.layer_aligned import LayerAlignedTranslator
+                self._translator = LayerAlignedTranslator(self.bundle_root)
+            elif self.source.identity.backend in ("nf4", "bf16", "reference"):
                 from ._reference.bridge import ReferenceTranslator
                 self._translator = ReferenceTranslator(self.bundle_root)
             elif self.source.identity.backend == "gguf":
@@ -92,7 +96,12 @@ class Bridge:
         check = getattr(destination.backend, "check_capacity", None)
         if check is not None:
             check(target_record.sequence_length, target_record.sequence_length)
-        metadata = numeric_alignment(source_record, target_record)
+        if self.manifest.get("architecture") == LAYER_ALIGNED:
+            if state.phase != "context_ready" or source_record.token_ids != target_record.token_ids:
+                raise CompatibilityError("This bridge requires a token-identical prefix before the final request")
+            metadata = {}
+        else:
+            metadata = numeric_alignment(source_record, target_record)
         metadata["thinking_mode"] = self.thinking_mode
         if self._translator is None:
             self.prepare()
