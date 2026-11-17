@@ -30,6 +30,11 @@ class Bridge:
         self.manifest = manifest
         self._translator = translator
 
+    @property
+    def requires_request_suffix(self) -> bool:
+        """Whether the target must read the question after prefix transfer."""
+        return self.manifest["architecture"] == LAYER_ALIGNED
+
     def prepare(self):
         """Load the selected bridge without translating a prompt."""
         self.source._check_open()
@@ -97,7 +102,7 @@ class Bridge:
         if check is not None:
             check(target_record.sequence_length, target_record.sequence_length)
         if self.manifest.get("architecture") == LAYER_ALIGNED:
-            if state.phase != "context_ready" or source_record.token_ids != target_record.token_ids:
+            if state.phase not in ("context_ready", "turn_ready") or source_record.token_ids != target_record.token_ids:
                 raise CompatibilityError("This bridge requires a token-identical prefix before the final request")
             metadata = {"target_length": target_record.sequence_length}
         else:

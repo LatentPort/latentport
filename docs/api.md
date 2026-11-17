@@ -35,6 +35,34 @@ append textual tool results explicitly.
 `port.composite.session()` defaults to `policy="cached_handoff"`. Use
 `policy="strict"` explicitly for reader synchronization and full translation each turn.
 
+All supported bridges expose the same transfer operation:
+
+```python
+with lp.load(bridge_repo, backend="nf4") as port:
+    state = port.source.capture(history)
+    transferred = port.bridge.translate(state)
+    answer = port.target.session(transferred).ask(question)
+```
+
+Capture context before the question for the common workflow. The returned state
+retains structured messages, so the target can append the question itself.
+Manual token rendering and `port.handoff()` are not required for any model pair.
+
+`port.composite.session(history).ask(question)` and `port.composite.run(messages)`
+also dispatch through the selected bridge's supported boundary. A prefix-only
+bridge transfers the history and lets the target ingest the final question;
+an answer-boundary bridge can transfer the question's prepared state. Stats
+include target question prefill when used, while historical target prefill
+remains zero. With no history, a prefix-only bridge runs the new question on
+the target directly; no source context exists to translate. `run()` accepts
+structured messages ending in a user question, or a single question string.
+
+For strict conversations, completed target answers are synchronized back to the
+source before the next transfer. The same retry, stream invalidation, continuation
+and fork contracts apply to both bridge types. This shared orchestration does not
+extend a checkpoint's learned capabilities: prefix-only bridges still reject
+answer-ready and mid-answer state passed directly to `translate()`.
+
 ## Conversation boundaries
 
 - `ask(question)` begins a **new** user turn; accepts context-ready/completed-turn state.

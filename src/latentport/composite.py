@@ -22,7 +22,27 @@ class Composite:
 
     def run(self, messages, *, max_new_tokens: int = 512, mtp: bool = False,
             on_token: Callable[[int], None] | None = None) -> Answer:
-        """One complete prompt: source reads every token, target reads none."""
+        """Answer a prompt using the selected bridge's supported boundary."""
+        if self.bridge.requires_request_suffix:
+            from .model import _messages
+            rows = _messages(messages)
+            if rows is not None and rows[-1][0] != "user":
+                raise ValueError("A query bridge requires a final user question")
+            context = (rows[:-1] or None) if rows is not None else None
+            question = rows[-1][1] if rows is not None else messages
+            started = perf_counter()
+            chat = self.session(context)
+            captured = perf_counter() - started if context is not None else 0.0
+            try:
+                answer = chat.ask(question, max_new_tokens=max_new_tokens, mtp=mtp, on_token=on_token)
+                return replace(answer, stats=replace(answer.stats,
+                    reader_prefill_s=answer.stats.reader_prefill_s + captured,
+                    request_ttft_s=answer.stats.request_ttft_s + captured,
+                    total_s=perf_counter() - started))
+            finally:
+                chat.reader.close()
+                if chat.target_session is not None:
+                    chat.target_session.close()
         started = perf_counter()
         state = self.source.capture(messages, generation_prompt=True)
         reader_s = perf_counter() - started
@@ -139,6 +159,10 @@ class CompositeSession:
                                            mtp=mtp, on_token=on_token)
         started = perf_counter()
         sync_s = self._sync()
+        if self.port.bridge.requires_request_suffix:
+            return self._ask_after_prefix(question, max_new_tokens=max_new_tokens,
+                                          mtp=mtp, on_token=on_token,
+                                          started=started, sync_s=sync_s)
         source_state = self.reader.prepare(question)
         reader_s = perf_counter() - started - sync_s
         translated = self.port.bridge.translate(source_state)
@@ -161,6 +185,43 @@ class CompositeSession:
                                              reader_sync_s=sync_s, translation_s=translation_s,
                                              request_ttft_s=sync_s+reader_s+translation_s+result.stats.first_token_s,
                                              total_s=perf_counter()-started))
+
+    def _ask_after_prefix(self, question, *, max_new_tokens, mtp, on_token, started, sync_s):
+        """Keep checkpoint-specific question ownership out of the public API."""
+        if not isinstance(question, str) or not question:
+            raise ValueError("ask needs a nonempty user question")
+        prefix = self.reader.state
+        translation_started = perf_counter()
+        translated = None
+        if prefix is not None:
+            if prefix.phase not in ("context_ready", "turn_ready"):
+                raise StateError("Query transfer requires a context or completed turn")
+            translated = self.port.bridge.translate(prefix)
+            if translated.target_prompt_tokens != 0:
+                raise StateError("Composite target processed historical prompt tokens")
+        translation_s = perf_counter() - translation_started if prefix is not None else 0.0
+        reader_s = 0.0
+        if self.policy == "strict":
+            # Keep the reader at the answer boundary for the existing exact
+            # answer synchronization path; this question is not translated.
+            reader_started = perf_counter()
+            self.reader.prepare(question)
+            reader_s = perf_counter() - reader_started
+        # With no context, there is no historical state to transfer. The target
+        # reads only the new question; no synthetic prompt or replay is invented.
+        candidate = self.port.target.session(translated)
+        try:
+            result = candidate.ask(question, max_new_tokens=max_new_tokens, mtp=mtp, on_token=on_token)
+        except BaseException:
+            candidate.close()
+            raise
+        self.target_session, self._synced = candidate, False
+        if self.policy == "cached_handoff":
+            self.reader.state = None
+        return replace(result, stats=replace(result.stats,
+            reader_prefill_s=reader_s, reader_sync_s=sync_s, translation_s=translation_s,
+            request_ttft_s=sync_s + reader_s + translation_s + result.stats.request_ttft_s,
+            total_s=perf_counter() - started))
 
     def generate(self, *, max_new_tokens: int = 512, mtp: bool = False,
                  on_token: Callable[[int], None] | None = None) -> Answer:

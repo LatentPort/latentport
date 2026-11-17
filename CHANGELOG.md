@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Use the same capture/translate/ask workflow and composite conversation API for
+  every supported bridge, with checkpoint-specific question boundaries handled
+  by the runtime. Add common repository, backend and context flags to the chat example.
+- Organize the README around state operations, with one transfer recipe, one
+  compaction recipe and a shared catalog of supported transformations.
+
 ## 0.4.1
 
 - Support the Qwen3.5-4B to Qwen3.5-9B step-64 bridge with BF16, NF4 and Q4_K_M GGUF query handoff.
