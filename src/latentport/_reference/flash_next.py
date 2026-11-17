@@ -63,8 +63,8 @@ def resident_experts(layer, config):
         return
     with torch.device("meta"):
         module = qwen.Qwen4ExpTextExperts(config)
-    module.gate_up_proj = nn.Parameter(original.gate.cuda(), requires_grad=False)
-    module.down_proj = nn.Parameter(original.down.cuda(), requires_grad=False)
+    module.gate_up_proj = nn.Parameter(original.gate.to(layer.mlp.gate.weight.device), requires_grad=False)
+    module.down_proj = nn.Parameter(original.down.to(layer.mlp.gate.weight.device), requires_grad=False)
     layer.mlp.experts = module
     try:
         yield
@@ -159,7 +159,7 @@ class FlashNextBackend(BF16Backend):
 
     def _model(self, identity):
         side = self._side(identity)
-        with KERNEL_LOCK:
+        with KERNEL_LOCK, torch.cuda.device(self.device):
             if side not in self._models:
                 model = load_weights(self._path(side))
                 configure(model)
