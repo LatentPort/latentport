@@ -35,7 +35,7 @@ Install CUDA libraries and backend dependencies as described in the installation
 
 ## Evaluation
 
-The archives are byte-identical to the previously qualified native builds. Their build metadata identifies the qualified platform and runtime; binary availability is not evidence of model answer quality.
+The archives listed in `package-native.json` are byte-identical to the native builds pinned by LatentPort 0.4.2. Their SHA-256 receipts verify identity, not model answer quality. The older archives listed in `native-runtime.json` remain available for existing pinned clients.
 
 ## Limitations
 
@@ -43,7 +43,7 @@ Prebuilt binaries support only the listed platforms and GPU architecture. Other 
 
 ## Artifacts and provenance
 
-`native-runtime.json` records platform, compiler/runtime compatibility, source revisions, byte counts and SHA-256 values. Each archive includes `native-build.json`; `SHA256SUMS.txt` verifies the ZIP files. [Source and build instructions](https://github.com/LatentPort/latentport/tree/main/native).
+`package-native.json` records the platform, CUDA version, ABI, byte counts and SHA-256 values of the currently selected archives. Older archives have a separate `native-runtime.json`, `SHA256SUMS.txt` and embedded `native-build.json`; the newer package archives do not contain that embedded build receipt. [Source and build instructions](https://github.com/LatentPort/latentport/tree/main/native).
 
 ## License
 
