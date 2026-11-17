@@ -232,3 +232,31 @@ and token stream remains authoritative. That flag survives generation, forks and
 save/load. Appending unstructured tokens to a structured conversation also marks
 its message metadata incomplete, preventing later turns from treating it as a
 complete reconstruction of the stream.
+
+
+### Exact weights for compaction
+
+`State.compact()` and `Session.compact()` check the exact base-weight identity
+against `configs/compaction-compatibility.json` before reading state tensors or
+loading the selector. The catalog records immutable upstream safetensors hashes
+and GGUF hashes tied to the trained base revision. It establishes checkpoint
+provenance; it does not establish answer quality for every execution profile.
+
+Unknown local weights or GGUF conversions require an explicit experimental opt-in:
+
+```python
+child = state.compact(allow_unqualified=True)
+# The same option is available on session.compact(...).
+```
+
+The opt-in does not bypass model revision, backend or state-layout checks.
+Existing GGUF validation reports without exact file hashes cannot populate the
+catalog: notably, the pinned 27B revision currently has no cataloged GGUF hash.
+Those files require the opt-in until an exact-file receipt is added. The legacy
+`compact_flash_next_cache` helper receives no model identity, so callers using
+raw Transformers caches must verify provenance themselves; prefer `State.compact()`.
+
+`Answer.text` is a text delta across successive `generate()` calls for the same
+answer, including after save/load or fork. Incomplete trailing UTF-8 characters
+are withheld until more tokens arrive or EOS is committed. `Answer.token_ids`
+continues to report every committed token in that call.

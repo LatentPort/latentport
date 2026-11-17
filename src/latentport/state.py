@@ -124,15 +124,18 @@ class State:
                        for _ in range(count))
         return copies[0] if count == 1 else copies
 
-    def compact(self, *, ratio: int = 8, force: bool = False) -> "State":
+    def compact(self, *, ratio: int = 8, force: bool = False,
+                allow_unqualified: bool = False) -> "State":
         """Return an LPCompact snapshot with the same logical clock and model.
 
         Recurrent, convolutional and endpoint state are preserved. Histories
         below 65,536 retained KV positions return this state unchanged unless
         force=True. The parent and its forks remain valid.
+        Unknown base-weight fingerprints require allow_unqualified=True;
+        this opts into experimental quality, not a different model or ABI.
         """
         from ._compact import compact
-        return compact(self, ratio=ratio, force=force)
+        return compact(self, ratio=ratio, force=force, allow_unqualified=allow_unqualified)
 
     def require_model(self, identity: ModelIdentity) -> None:
         self.identity.require_same(identity)

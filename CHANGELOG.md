@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.4.5
+
+- Preserve the authoritative native working cache when parking fails during snapshot allocation.
+- Cache GGUF tokenizers only after all compatibility probes pass, including retries.
+- Reject token IDs outside int32 and native vocabulary bounds before modifying caches.
+- Preserve Unicode text across bounded generation calls, forks and snapshot restoration.
+- Check compaction base-weight fingerprints against an offline pinned catalog; unknown weights require explicit `allow_unqualified=True` and still enforce revision and ABI checks.
 
 - Standardize public model cards and operation examples while preserving creator attribution and checkpoint-specific evaluation results.
 - Replace internal experiment labels with descriptive names in public documentation, metadata and private runtime attributes.

@@ -17,7 +17,7 @@ GEO = {"types": ["linear_attention", "full_attention"], "hidden": 8,
        "kv_heads": 2, "head_dim": 4, "conv_channels": 3, "conv_width": 4,
        "recurrent_heads": 2, "recurrent_k": 3, "recurrent_v": 3}
 IDENTITY = ModelIdentity("Qwen/Qwen3.8-27B", "37561816e66b5b9153b1b64c10968c18c1e6f4a0",
-                          "bf16", "bf16", "pinned", "template", "qwen3.5.complete-hybrid.v1")
+                          "bf16", "bf16:37561816e66b5b9153b1b64c10968c18c1e6f4a0", "pinned", "template", "qwen3.5.complete-hybrid.v1")
 
 
 @pytest.fixture
@@ -135,7 +135,7 @@ def test_invalid_sparse_metadata_fails_before_backend_mutation(positions):
 def test_qwen35_compacts_matching_geometry_and_dispatches_its_selector(size, hidden):
     from latentport._models import MODEL_REVISIONS, model_geometry
     repo = f"Qwen/Qwen3.5-{size}"
-    identity = replace(IDENTITY, repo_id=repo, revision=MODEL_REVISIONS[repo])
+    identity = replace(IDENTITY, repo_id=repo, revision=MODEL_REVISIONS[repo], weights="bf16:" + MODEL_REVISIONS[repo])
     geometry = model_geometry(repo)
     n = 1040
     dtype = torch.bfloat16
@@ -158,7 +158,7 @@ def test_qwen35_compacts_matching_geometry_and_dispatches_its_selector(size, hid
     assert child._read_tensors()["H"] is values["H"]
     wrong = "Qwen/Qwen3.5-9B" if size == "4B" else "Qwen/Qwen3.5-4B"
     with pytest.raises(StateError, match="Wrong H shape"):
-        replace(parent, identity=replace(identity, repo_id=wrong, revision=MODEL_REVISIONS[wrong])).compact(force=True)
+        replace(parent, identity=replace(identity, repo_id=wrong, revision=MODEL_REVISIONS[wrong], weights="bf16:" + MODEL_REVISIONS[wrong])).compact(force=True)
 
 
 def test_dense_shape_cannot_be_mistaken_for_sparse_shape(geometry):

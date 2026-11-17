@@ -14,7 +14,7 @@ def _device(values):
     return values["V.3"].device
 
 
-def compact(state, *, ratio=8, force=False):
+def compact(state, *, ratio=8, force=False, allow_unqualified=False):
     # Validate before loading the selector or materializing a disk snapshot.
     budget(0, ratio)
     if type(force) is not bool:
@@ -24,6 +24,8 @@ def compact(state, *, ratio=8, force=False):
         raise CapabilityError("LPCompact requires a supported Qwen model and state backend")
     if state.identity.revision != MODEL_REVISIONS[repo]:
         raise CapabilityError("LPCompact requires the trained base revision")
+    from .compatibility import require_weights
+    require_weights(state.identity, allow_unqualified=allow_unqualified)
     is_flash = repo == FLASH_NEXT
     if is_flash and (state.identity.state_abi != FLASH_ABI or state.identity.backend != "bf16"):
         raise CapabilityError("Flash-Next requires its complete BF16 indexed state")

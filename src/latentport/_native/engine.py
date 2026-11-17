@@ -17,6 +17,7 @@ from ..errors import CapabilityError, CompatibilityError, StateError
 from .._reference.native import _geometry, validate_components
 from .._positions import physical_length
 from ..context import ContextOptions
+from .._tokens import token_ids
 
 
 @dataclass(frozen=True)
@@ -204,10 +205,13 @@ class Engine:
         return self._models[side]
 
     def _park(self, side):
-        active=self._active.pop(side,None)
+        active=self._active.get(side)
         if active is not None and active.dirty:
             active.values=self._snapshot(side)
             active.dirty=False
+        # Allocation/export can fail. Until it succeeds the native working
+        # cache is still the only authoritative copy and must stay active.
+        self._active.pop(side,None)
 
     @staticmethod
     def _fields(values):
@@ -349,10 +353,13 @@ class Engine:
             return tuple(out[:n])
 
     def capture(self,side,ids):
+        ids=token_ids(ids)
         if not ids:
             raise StateError("Prefill requires one or more tokens")
         self.options.context_options.check(0,0,len(ids))
         with self._lock:
+            _,info=self._model(side)
+            ids=token_ids(ids,vocabulary_size=info.vocabulary)
             self._park(side)
             handle,_=self._model(side)
             _,info=self._model(side)
@@ -366,7 +373,10 @@ class Engine:
             return self._snapshot(side)
 
     def advance(self,side,values,clock,ids):
+        ids=token_ids(ids)
         with self._lock:
+            _,info=self._model(side)
+            ids=token_ids(ids,vocabulary_size=info.vocabulary)
             self._park(side);self._install(side,values,clock)
             self._ensure_room(side,len(ids))
             handle,_=self._model(side)
@@ -486,7 +496,10 @@ class DecodeHandle:
         self.mtp = True
 
     def commit(self,token):
+        token=token_ids((token,))[0]
         with self.engine._lock:
+            _,info=self.engine._model(self.side)
+            token_ids((token,),vocabulary_size=info.vocabulary)
             self._activate()
             e=self.engine;native,_=e._model(self.side)
             e._ensure_room(self.side,1)
@@ -557,9 +570,12 @@ class AppendHandle(DecodeHandle):
             return n or self.clock
 
     def append(self,ids):
+        ids=token_ids(ids)
         if not ids:
             raise StateError("append requires one or more tokens")
         with self.engine._lock:
+            _,info=self.engine._model(self.side)
+            ids=token_ids(ids,vocabulary_size=info.vocabulary)
             self._activate()
             e=self.engine
             e._ensure_room(self.side,len(ids))

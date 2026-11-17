@@ -35,7 +35,9 @@ def compact_flash_next_cache(cache, *, ratio=8):
     """Fork a batch-one native Flash-Next text cache with 4× or 8× compaction.
 
     Compatibility entry point for callers with an existing Transformers cache.
-    For LatentPort states use State.compact().
+    For LatentPort states use State.compact(). A raw Transformers cache carries
+    no checkpoint identity: callers must verify its exact base weights against
+    configs/compaction-compatibility.json themselves.
 
     The pinned selector supports Qwen/Qwen3.8-Flash-Next at revision
     812d96e10a0dd82b69d749e68693698cf6c36daa. Continue the child with
