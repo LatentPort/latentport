@@ -221,26 +221,6 @@ promise unlimited context or native-window accuracy across a million tokens.
 
 ## Qwen3.8-Flash-Next
 
-For a batch-one, unpadded BF16 text history from the pinned
-`Qwen/Qwen3.8-Flash-Next` checkpoint at
-`812d96e10a0dd82b69d749e68693698cf6c36daa`, pass its Transformers 5.17.0
-DynamicCache to the runtime. The helper downloads the model-specific selector
-on the first compaction at or above 65,536 physical positions. It retains
-whole four-token sparse-attention blocks, the unfinished tail block and the
-first and last 512 positions. The child owns its recurrent and convolution
-states, including the n-gram context.
+Select `Qwen/Qwen3.8-Flash-Next` with `lp.load_model(model_id, backend="bf16")` and use the same prefill, compaction and session calls shown above. Flash-Next retains whole sparse-attention blocks, their indexer keys and original positions, and all recurrent, convolution and n-gram states. The BF16 loader can stream experts and n-gram embeddings from the pinned safetensors snapshot.
 
-```python
-import torch
-import latentport as lp
-
-child = lp.compact_flash_next_cache(history_cache, ratio=8)
-start = int(history_cache.position_ids[0, 0, -1]) + 1
-positions = torch.arange(start, start + suffix_ids.shape[1], device=suffix_ids.device)[None]
-outputs = model(input_ids=suffix_ids, position_ids=positions,
-                past_key_values=child, use_cache=True)
-```
-
-Use the original logical position for every subsequent append. Both 4× and 8×
-budgets are available. The paired task results cover 64K and 128K histories. [Evaluation data](lpcompact-flash-next-evaluation.json)
-[LPCompact-Qwen3.8-Flash-Next](https://huggingface.co/latentport/LPCompact-Qwen3.8-Flash-Next)
+[Evaluation data](lpcompact-flash-next-evaluation.json)

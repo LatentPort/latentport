@@ -177,7 +177,7 @@ support catalog, not a separate API for each checkpoint.
 | Compact | Qwen3.5-4B | `Qwen/Qwen3.5-4B` as `model_id`; [selector](https://huggingface.co/latentport/LPCompact-Qwen3.5-4B) |
 | Compact | Qwen3.5-9B | `Qwen/Qwen3.5-9B` as `model_id`; [selector](https://huggingface.co/latentport/LPCompact-Qwen3.5-9B) |
 | Compact | Qwen3.8-27B | `Qwen/Qwen3.8-27B` as `model_id`; [selector](https://huggingface.co/latentport/LPCompact-Qwen3.8-27B) |
-| Compact | Qwen3.8-Flash-Next | `lp.compact_flash_next_cache(cache)` for batch-one BF16 Transformers text caches. [Selector](https://huggingface.co/latentport/LPCompact-Qwen3.8-Flash-Next) |
+| Compact | Qwen3.8-Flash-Next | `Qwen/Qwen3.8-Flash-Next` as `model_id`; [selector](https://huggingface.co/latentport/LPCompact-Qwen3.8-Flash-Next) |
 
 Each bridge is directional and tied to exact checkpoints. Current bridges require
 dense source state with complete alignment metadata; compacted and suffix-only

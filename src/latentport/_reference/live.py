@@ -25,7 +25,7 @@ class LiveCache:
         self.terminal = None
         self.parent_id = None
         self.failed = False
-        self.cache = cache_abi.new_cache(self.model.config)
+        self.cache = self.new_cache(self.model.config)
         if state is not None:
             values = state._read_tensors(device=backend.device) if _owned else state._tensors(device=backend.device)
             validate_components(values, state.clock, "target", geometry=self.geometry, finite=True)
@@ -34,6 +34,8 @@ class LiveCache:
             self.cache = backend._cache(self.model, values, state.clock)
             self.clock, self.terminal = state.clock, values["H"]
             self.positions, self.parent_id = values.get("P"), state.state_id
+
+    new_cache = staticmethod(cache_abi.new_cache)
 
     @property
     def physical(self):

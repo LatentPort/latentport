@@ -1,10 +1,14 @@
 # Changelog
 
-## 0.4.4
+## Unreleased
 
 - Standardize public model cards and operation examples while preserving creator attribution and checkpoint-specific evaluation results.
 - Replace internal experiment labels with descriptive names in public documentation, metadata and private runtime attributes.
 - Repair native installation after removal of the GitHub release by hosting the exact checksum-verified archives on Hugging Face.
+
+## 0.4.4
+
+- Use the standard standalone model, state and session APIs for Qwen3.8-Flash-Next BF16 compaction.
 
 ## 0.4.3
 

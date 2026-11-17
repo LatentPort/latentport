@@ -20,30 +20,30 @@ This 196,865-parameter selector compacts a single unpadded text history from Qwe
 
 ## Compatibility
 
-Use LatentPort 0.4.3 or later with Transformers 5.17.0 and the pinned BF16 Qwen/Qwen3.8-Flash-Next checkpoint. This integration accepts one unpadded text history in a populated DynamicCache. It currently uses `compact_flash_next_cache`, not the State-based `state.compact()` interface. It is not available through `load_model` or the GGUF/NF4 State adapters.
+Use LatentPort 0.4.4 or later with Transformers 5.17.0 and the pinned BF16 Qwen/Qwen3.8-Flash-Next checkpoint. The standard model/state/session API supports a single unpadded text history. The BF16 loader can stream experts and n-gram embeddings from the pinned safetensors snapshot. GGUF and NF4 execution are not qualified for this integration.
 
 ## Usage
 
-Install the runtime and dependencies using the installation guide above. With your populated `history_cache`, base `model` and new `suffix_ids`:
+Install the runtime and backend dependencies using the installation guide above. Select the base model; compaction uses the same operation sequence as other supported models.
 
 ```python
-import torch
 import latentport as lp
 
-child = lp.compact_flash_next_cache(history_cache, ratio=8)
-start = int(history_cache.position_ids[0, 0, -1]) + 1
-positions = torch.arange(start, start + suffix_ids.shape[1], device=suffix_ids.device)[None]
-outputs = model(input_ids=suffix_ids, past_key_values=child,
-                position_ids=positions, use_cache=True)
+history = "The project codename is Juniper."  # Replace with your long context.
+with lp.load_model("Qwen/Qwen3.8-Flash-Next", backend="bf16") as model:
+    state = model.prefill(history)
+    compacted = state.compact()
+    answer = model.session(compacted).ask("What is the project codename?")
+    print(answer.text)
 ```
 
-The runtime resolves the pinned selector automatically. Use original logical positions for every subsequent append. Ratios 4 and 8 are supported, starting at 65,536 physical positions; shorter histories return an independent cache copy.
+The runtime resolves the pinned selector automatically and preserves logical continuation positions. Ratios 4 and 8 are supported, starting at 65,536 physical positions; short histories are unchanged by default. Flash-Next retains whole sparse-attention blocks, indexer keys, original positions and recurrent, convolution and n-gram states.
 
 ## Evaluation
 
 Both conditions used identical histories and questions. A success requires every canonical answer token and a valid generation stop token to be the greedy predictions given the correct preceding tokens. There are two held-out histories per task and length, with eight questions per history. Lost and gained count paired changes after compaction.
 
-| Task | History tokens | Full memory | 8× compact | Lost | Gained |
+| Task | History tokens | Full memory | 8Ã— compact | Lost | Gained |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Repository function lookup | 65,536 | 16/16 | 16/16 | 0 | 0 |
 | Repository function lookup | 131,072 | 16/16 | 16/16 | 0 | 0 |
