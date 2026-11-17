@@ -2,6 +2,7 @@
 from dataclasses import replace
 
 from .errors import CapabilityError, StateError
+from ._tokens import token_ids
 
 TAIL_TOKENS = 32
 
@@ -37,10 +38,11 @@ class ResidentCache:
     def _check_open(self):
         if self.closed:
             raise StateError("Live session is closed or failed; restore an immutable snapshot")
+        self.model._check_open()
 
     def append(self, text):
         self._check_open()
-        ids = self.model.codec.encode(text) if isinstance(text, str) else tuple(int(x) for x in text)
+        ids = self.model.codec.encode(text) if isinstance(text, str) else token_ids(text)
         if not ids:
             raise ValueError("append requires one or more tokens")
         check = getattr(self.model.backend, "check_capacity", None)
@@ -59,6 +61,7 @@ class ResidentCache:
 
     def _decorate(self, state):
         return replace(state, stream_tail_ids=self._tail, phase=self._phase,
+                       messages=(), messages_complete=False,
                        target_prompt_tokens=self._prompt_tokens, generated_token_ids=self._generated)
 
     def snapshot(self, *, release=False):

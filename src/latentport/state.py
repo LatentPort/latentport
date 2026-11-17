@@ -15,7 +15,7 @@ from .errors import CompatibilityError, StateError
 from .identity import CompactionInfo, ModelIdentity, StateInfo
 
 
-STATE_FORMAT = "latentport.state.v1"
+STATE_FORMAT = "latentport.state.v2"
 PHASES = frozenset({"context_ready", "answer_ready", "in_answer", "turn_ready"})
 
 
@@ -58,8 +58,12 @@ class State:
     compaction: CompactionInfo | None = None
     # Bounded original token suffix for stream boundaries, never replay memory.
     stream_tail_ids: tuple[int, ...] = ()
+    # False means messages cannot be used to reconstruct the committed stream.
+    messages_complete: bool = True
 
     def __post_init__(self):
+        if type(self.messages_complete) is not bool:
+            raise StateError("messages_complete must be a bool")
         if self.clock <= 0 or self.phase not in PHASES or self.target_prompt_tokens < 0:
             raise StateError("Invalid state clock, phase or target prompt count")
         if (self._components is None) == (self._snapshot is None):
@@ -145,7 +149,11 @@ class State:
         return load_file(str(self._snapshot / "tensors.safetensors"), device=device or "cpu")
 
     def _read_tensors(self, *, device: str | None = None) -> dict[str, Any]:
-        """Private read-only view for translation; translators must not mutate it."""
+        """Borrow tensors for internal readers; callers must not mutate them.
+
+        This is not an enforced read-only tensor view. Unsafe boundaries must
+        use _tensors() to acquire private storage instead.
+        """
         if self._components is None:
             return self._tensors(device=device)
         if device is None:
@@ -184,6 +192,7 @@ class State:
                       "target_prompt_tokens": self.target_prompt_tokens,
                       "rendered_text": self.rendered_text,
                       "rendered_token_ids": self.rendered_token_ids, "messages": self.messages,
+                      "messages_complete": self.messages_complete,
                       "generated_token_ids": self.generated_token_ids, "state_id": self.state_id,
                       "parent_id": self.parent_id, "shares_storage": False, "tensor_index": index,
                       "compaction": asdict(self.compaction) if self.compaction else None,
@@ -191,6 +200,7 @@ class State:
                       "tensor_sha256": _digest(staging / "tensors.safetensors"),
                       "tensor_file_bytes": (staging / "tensors.safetensors").stat().st_size}
             (staging / "manifest.json").write_text(json.dumps(record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+            (staging / "manifest.sha256").write_text(_digest(staging / "manifest.json") + "\n", encoding="ascii")
             staging.replace(root)
             return root
         except BaseException:
@@ -199,12 +209,22 @@ class State:
             raise
 
     @classmethod
-    def load(cls, path: str | Path) -> "State":
+    def load(cls, path: str | Path, *, allow_legacy: bool = False) -> "State":
         """Inspect and fork a snapshot before loading model weights or using GPU."""
         root = Path(path).expanduser().resolve()
-        record = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
-        if record.get("format") != STATE_FORMAT:
+        manifest = (root / "manifest.json").read_bytes()
+        receipt = root / "manifest.sha256"
+        if receipt.is_file():
+            if hashlib.sha256(manifest).hexdigest() != receipt.read_text(encoding="ascii").strip():
+                raise StateError("Snapshot manifest checksum mismatch")
+        record = json.loads(manifest)
+        legacy = record.get("format") == "latentport.state.v1"
+        if legacy and not allow_legacy:
+            raise StateError("Legacy snapshot lacks metadata integrity; use allow_legacy=True for a trusted snapshot")
+        if not legacy and record.get("format") != STATE_FORMAT:
             raise StateError("Unsupported snapshot format")
+        if not legacy and not receipt.is_file():
+            raise StateError("Snapshot manifest checksum is missing")
         tensor_path = root / "tensors.safetensors"
         if tensor_path.stat().st_size != record["tensor_file_bytes"] or _digest(tensor_path) != record["tensor_sha256"]:
             raise StateError("Snapshot tensor checksum mismatch")
@@ -223,6 +243,7 @@ class State:
                    rendered_text=record.get("rendered_text"),
                    rendered_token_ids=tuple(record["rendered_token_ids"]) if record.get("rendered_token_ids") is not None else None,
                    messages=tuple(tuple(m) for m in record.get("messages", ())),
+                   messages_complete=record.get("messages_complete", False),
                    generated_token_ids=tuple(record.get("generated_token_ids", ())),
                    state_id=record["state_id"], parent_id=record.get("parent_id"),
                    shares_storage=False,

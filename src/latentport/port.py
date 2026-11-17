@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 
 from .bridge import Bridge
@@ -10,25 +11,36 @@ from .errors import CapabilityError
 from .hub import DEFAULT_REPO, bundle_root, model_snapshot
 from .identity import ModelIdentity
 from .model import Model
+from ._tokens import token_ids
 
 
 class Port:
     def __init__(self, source: Model, target: Model, bridge: Bridge):
+        if source.backend is not target.backend:
+            raise ValueError("A Port requires one shared backend")
+        if source._owner is not None or target._owner is not None:
+            raise ValueError("Model views already belong to a Port")
         self.source, self.target, self.bridge = source, target, bridge
+        self.closed = False
+        source._owner = target._owner = self
 
     def handoff(self, prefix, *, target_suffix_ids):
         """Translate a saved prefix and consume the caller's exact target-side question tokens."""
         from .errors import StateError
         if prefix.phase != "context_ready":
             raise StateError("Query handoff requires a snapshot taken before the final request")
-        ids = tuple(target_suffix_ids)
-        if not ids or any(type(token) is not int or token < 0 for token in ids):
-            raise ValueError("Supply a nonempty sequence of target token IDs")
+        ids = token_ids(target_suffix_ids)
         translated = self.bridge.translate(prefix)
-        return self.target.append(translated, ids, phase="answer_ready")
+        # Arbitrary exact tokens do not identify a canonical user message.
+        # Keep the neural stream, but do not publish a misleading partial chat.
+        return replace(self.target.append(translated, ids, phase="answer_ready", messages=()),
+                       messages_complete=False, generated_token_ids=())
 
     def close(self):
         """Release resident model/bridge storage; independent States stay owned."""
+        if self.closed:
+            return
+        self.closed = True
         runtime = self.source.backend
         if hasattr(runtime, "close"):
             runtime.close()
@@ -37,6 +49,8 @@ class Port:
         self.bridge._translator = None
 
     def __enter__(self):
+        self.source._check_open()
+        self.target._check_open()
         return self
 
     def __exit__(self, *exc):
@@ -49,6 +63,8 @@ class Port:
 
     def warm(self, *, mtp: bool = False) -> dict:
         """Preload both models and bridge, and report measured residency."""
+        self.source._check_open()
+        self.target._check_open()
         runtime = self.source.backend
         if mtp and not runtime.supports_mtp:
             raise CapabilityError("MTP is unavailable in this runtime")

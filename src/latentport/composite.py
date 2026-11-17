@@ -5,7 +5,7 @@ from dataclasses import replace
 from time import perf_counter
 from typing import Callable
 
-from .errors import CapabilityError, StateError
+from .errors import CapabilityError, GenerationInterrupted, StateError
 from .identity import Answer
 
 
@@ -106,6 +106,31 @@ class CompositeSession:
     def ask(self, question: str, *, max_new_tokens: int = 512, mtp: bool = False,
             on_token: Callable[[int], None] | None = None) -> Answer:
         if self.policy == "cached_handoff" and self.target_session is not None:
+            return self._ask(question, max_new_tokens=max_new_tokens, mtp=mtp, on_token=on_token)
+        reader_state = self.reader._freeze()
+        previous_target, synced = self.target_session, self._synced
+        recovery_state = self.state
+        emitted = []
+        def emit(token):
+            emitted.append(token)
+            on_token(token)
+        try:
+            return self._ask(question, max_new_tokens=max_new_tokens, mtp=mtp,
+                             on_token=emit if on_token is not None else None)
+        except BaseException as exc:
+            self.reader._state = reader_state
+            if self.target_session is not previous_target and self.target_session is not None:
+                self.target_session.close()
+            self.target_session, self._synced = previous_target, synced
+            if isinstance(exc, GenerationInterrupted):
+                exc.recovery_state = recovery_state
+            elif emitted:
+                raise GenerationInterrupted(emitted, recovery_state) from exc
+            raise
+
+    def _ask(self, question: str, *, max_new_tokens: int, mtp: bool,
+             on_token: Callable[[int], None] | None) -> Answer:
+        if self.policy == "cached_handoff" and self.target_session is not None:
             state = self.target_session.state
             if (state.phase != "turn_ready" or not state.generated_token_ids or
                 state.generated_token_ids[-1] != self.port.target.codec.chat_eos_id):
@@ -122,7 +147,11 @@ class CompositeSession:
             raise StateError("Composite target processed prompt tokens")
         target_session = self.port.target.session(translated)
         del translated
-        result = target_session.generate(max_new_tokens=max_new_tokens, mtp=mtp, on_token=on_token)
+        try:
+            result = target_session.generate(max_new_tokens=max_new_tokens, mtp=mtp, on_token=on_token)
+        except BaseException:
+            target_session.close()
+            raise
         self.target_session, self._synced = target_session, False
         if self.policy == "cached_handoff":
             # Ownership moves to the target after successful generation. The

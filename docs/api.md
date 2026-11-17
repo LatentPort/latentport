@@ -47,6 +47,21 @@ append textual tool results explicitly.
 - The API is synchronous. There is no `aask()` method. Applications can schedule calls
   in worker threads, but the single-GPU engine serializes generation transactions.
 
+Failed `ask()` calls restore the preceding request boundary, including the reader
+and synchronization policy in a composite session. Retry with the same question.
+Failed `generate()` calls restore the preceding prepared/partial answer; retry
+with `generate()`. Explicit `prepare()` remains a separate committed operation.
+
+`on_token` runs only after the backend ingests a token (or verifies an MTP batch),
+including EOS. Public state commits at the end of the request. If a later step,
+callback, cancellation, snapshot or cleanup fails after any callback invocation,
+`GenerationInterrupted` reports `token_ids` and `recovery_state`; its `__cause__`
+holds the original failure. Discard all output from that failed call before
+retrying. `token_ids` includes a callback that raised, since it may have delivered
+output first. This is an explicit stream invalidation contract, not exactly-once
+delivery or a per-token durable checkpoint. Callbacks must not reenter or mutate
+the active session. Different sessions may be scheduled by the application.
+
 `State.info` reports phase, clock, representation, tensor bytes, lineage, storage-sharing
 status and cumulative target prompt count. A state must match the model revision,
 backend, weights, template and ABI. No compatibility error triggers silent prompt replay.
@@ -59,6 +74,23 @@ There is no paged prefix sharing across active native sequences. Release old ref
 when no longer needed. `port.close()` frees models and the bridge; independent states
 remain owned by the caller. Both models normally remain resident; releasing the reader
 snapshot in cached-handoff mode does not unload the reader's model weights.
+
+Models obtained from a `Port` are non-owning views. Closing one view invalidates
+that view and its sessions, while its sibling remains usable. Closing the `Port`
+invalidates both views and releases the shared runtime once. A standalone model
+owns its runtime. Close active sessions before closing their owner.
+
+Translation passes private tensor copies to the translator, protecting parents
+and forks even for inference-mode tensors or a translator that raises after an
+in-place write. This adds source-state copy bandwidth and peak memory; GPU
+measurement is required before claiming unchanged handoff performance.
+
+New saves use `latentport.state.v2` with a required `manifest.sha256` receipt over
+the complete manifest, which includes the tensor payload digest. These checks
+detect accidental corruption; they do not authenticate a snapshot against someone
+who can replace both files. Loading a trusted v1 snapshot requires
+`State.load(path, allow_legacy=True)`; saving it again writes v2. Snapshots still
+contain plaintext conversation data and need application-managed access controls.
 
 Native states use BF16 K/V and FP32 H/C/R with explicit bridge coordinate conversion.
 MTP draft caches are transient runtime state and are rebuilt from a newly generated
@@ -85,7 +117,7 @@ The shared session supports:
 
 - `append(text_or_token_ids)` processes only fresh input and returns the logical clock.
 - `clock` and `physical` expose logical and retained attention lengths separately.
-- `compact(ratio=8, force=False)` delegates to `State.compact()` and returns the immutable result.
+- `compact(ratio=8, force=False, reserve_tokens=0)` returns an immutable result and can reserve capacity for the next request.
 - `snapshot(release=False)` publishes an immutable `State`; `release=True` closes the live handle.
 - `ask()` / `prepare()` / `generate()` use the existing conversation and decoding rules.
 - `fork()` creates isolated sessions with the same residency preference.
@@ -99,6 +131,22 @@ for example `session.append("\n\n" + record)`. Otherwise an unfinished line can
 join the next record and change how the model interprets it. For chunks cut from
 one already tokenized stream, append the original token IDs so chunk boundaries
 do not change tokenization.
+
+Exact-token ingestion accepts nonnegative Python integers and rejects booleans,
+floats, strings and empty sequences before invoking the backend.
+
+Session compaction can trigger below 65,536 positions when the configured physical
+limit is reached or the reserved budget would fill it. Include new prompt,
+formatting and maximum generated tokens in `reserve_tokens`. Impossible physical
+or logical budgets fail before installation. There is no automatic compaction on
+append, and this token-capacity check is not a GPU allocation estimate.
+`State.compact()` retains its fixed threshold unless `force=True` is supplied.
+A no-op session transform preserves the resident handle and avoids reinstallation,
+although inspecting a resident snapshot still materializes tensors.
+
+All selectors require their trained base revision, including Qwen3.8-27B. A revision
+match alone does not qualify arbitrary local model weights or GGUF quantizations;
+exact weight-hash qualification remains separate from this compatibility check.
 
 Consecutive resident appends reuse the working cache. Conversation preparation
 and generation currently freeze that cache and use the existing decode path;
@@ -150,3 +198,9 @@ Capture the prefix before the final request, then call
 for the withheld question and assistant opening. The returned answer-ready state
 records the exact number of target prompt tokens processed. For a separate new
 chat turn use `port.target.session(port.bridge.translate(prefix_state)).ask(question)`.
+An arbitrary token suffix does not identify a canonical structured user message:
+`handoff()` clears `messages` and sets `messages_complete=False`. The exact neural
+and token stream remains authoritative. That flag survives generation, forks and
+save/load. Appending unstructured tokens to a structured conversation also marks
+its message metadata incomplete, preventing later turns from treating it as a
+complete reconstruction of the stream.

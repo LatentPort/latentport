@@ -5,7 +5,7 @@ from dataclasses import replace
 from time import perf_counter
 from typing import Callable
 
-from .errors import CapabilityError, CompatibilityError, HandoffError, StateError
+from .errors import CapabilityError, CompatibilityError, GenerationInterrupted, HandoffError, StateError
 from .identity import Answer, RunStats
 from .state import State
 
@@ -46,6 +46,7 @@ class Session:
     def _check_open(self):
         if self.closed:
             raise StateError("Session is closed")
+        self.model._check_open()
 
     def _freeze(self):
         self._check_open()
@@ -108,12 +109,22 @@ class Session:
         lazily from it, so recovery does not require a second allocation to work.
         """
         from ._transaction import transform_install
-        parent = self._freeze()
+        self._check_open()
+        parent = self.state
         if parent is None:
             raise StateError("Capture state before transforming")
         destination = target or self.model
+        destination._check_open()
         if self.resident and not hasattr(destination.backend, "live"):
             raise CapabilityError("Destination backend does not support resident execution")
+        child = operation(parent)
+        if not isinstance(child, State):
+            raise StateError("State transformation did not return a State")
+        child.require_model(destination.identity)
+        if child is parent and destination is self.model and not decode:
+            return parent
+        self._freeze()
+        self._state = parent
         def install(child):
             if self.resident:
                 from .stream import ResidentCache
@@ -123,7 +134,7 @@ class Session:
                           else child._tensors(device=getattr(destination.backend, "device", None)))
                 return destination.backend.begin_decode(destination.identity, values, child.clock)
             destination.backend.install(destination.identity, child._read_tensors(), child.clock)
-        child, handle = transform_install(parent, operation, destination.identity, install)
+        child, handle = transform_install(parent, lambda _: child, destination.identity, install)
         self.model, self._state = destination, child
         if self.resident:
             self._resident = handle
@@ -132,8 +143,36 @@ class Session:
             self._pending_decode = handle
         return child
 
-    def compact(self, *, ratio=8, force=False):
-        return self._transform(lambda state: state.compact(ratio=ratio, force=force))
+    def compact(self, *, ratio=8, force=False, reserve_tokens=0):
+        """Compact with room for an explicit upcoming prompt/decode budget.
+
+        Session policy can trigger below 65K when physical capacity requires it.
+        State.compact remains a model-independent, fixed-threshold operation.
+        """
+        from ._compact.policy import budget
+        if type(force) is not bool:
+            raise TypeError("force must be a bool")
+        if type(reserve_tokens) is not int or reserve_tokens < 0:
+            raise ValueError("reserve_tokens must be a nonnegative integer")
+        options = getattr(self.model.backend, "options", None)
+        limit = getattr(options, "physical_limit", None)
+        check = getattr(self.model.backend, "check_capacity", None)
+        if reserve_tokens and (limit is None or check is None):
+            raise CapabilityError("This backend cannot preflight a reserved token budget")
+        def operation(state):
+            physical = state.physical_kv_length
+            target = budget(physical, ratio)
+            capacity_trigger = limit is not None and physical + reserve_tokens >= limit
+            if capacity_trigger and target == physical:
+                raise StateError("Compaction cannot free capacity below its protected-token floor")
+            if reserve_tokens:
+                check(state.clock, target if force or capacity_trigger or physical >= 65536 else physical,
+                      reserve_tokens)
+            child = state.compact(ratio=ratio, force=force or capacity_trigger)
+            if reserve_tokens:
+                check(child.clock, child.physical_kv_length, reserve_tokens)
+            return child
+        return self._transform(operation)
 
     def close(self):
         if self._resident is not None:
@@ -171,7 +210,7 @@ class Session:
         state = self.state
         if state.phase not in ("context_ready", "turn_ready"):
             raise StateError("A new question requires a context or completed turn")
-        if not state.messages:
+        if not state.messages or not state.messages_complete:
             # A captured raw prefix can still feed different branch questions.
             # Keep it a literal stream; no whole-history template is invented.
             if state.rendered_text is None and not state.stream_tail_ids:
@@ -216,9 +255,16 @@ class Session:
     def ask(self, question: str, *, max_new_tokens: int = 512, mtp: bool = False,
             on_token: Callable[[int], None] | None = None) -> Answer:
         started = perf_counter()
-        self.prepare(question)
-        prefill = perf_counter() - started
-        result = self.generate(max_new_tokens=max_new_tokens, mtp=mtp, on_token=on_token)
+        parent = self._freeze()
+        try:
+            self.prepare(question)
+            prefill = perf_counter() - started
+            result = self.generate(max_new_tokens=max_new_tokens, mtp=mtp, on_token=on_token)
+        except BaseException as exc:
+            self._state = parent
+            if isinstance(exc, GenerationInterrupted):
+                exc.recovery_state = parent
+            raise
         field = "reader_prefill_s" if self.model.role == "source" else "target_prefill_s"
         return replace(result, stats=replace(result.stats, **{field: prefill,
                                      "request_ttft_s": prefill + result.stats.first_token_s,
@@ -233,13 +279,27 @@ class Session:
         started = perf_counter()
         guard = (self.model.backend.generation_guard() if hasattr(self.model.backend, "generation_guard")
                  else nullcontext())
-        with guard:
-            queue = perf_counter() - started
-            answer = self._generate(max_new_tokens=max_new_tokens, mtp=mtp, on_token=on_token)
-            cleanup_started = perf_counter()
-            if hasattr(self.model.backend, "finish_request"):
-                self.model.backend.finish_request()
-            cleanup_s = perf_counter() - cleanup_started
+        initial = self.state
+        emitted = []
+        def emit(token):
+            emitted.append(token)
+            on_token(token)
+        try:
+            with guard:
+                queue = perf_counter() - started
+                try:
+                    answer = self._generate(max_new_tokens=max_new_tokens, mtp=mtp,
+                                            on_token=emit if on_token is not None else None)
+                finally:
+                    cleanup_started = perf_counter()
+                    if hasattr(self.model.backend, "finish_request"):
+                        self.model.backend.finish_request()
+                    cleanup_s = perf_counter() - cleanup_started
+        except BaseException as exc:
+            self._state = initial
+            if emitted:
+                raise GenerationInterrupted(emitted, initial) from exc
+            raise
         return replace(answer, stats=replace(answer.stats, queue_s=queue,
                        first_token_s=answer.stats.first_token_s+queue,
                        request_ttft_s=answer.stats.request_ttft_s+queue,
@@ -258,14 +318,10 @@ class Session:
         model = self.model
         started = perf_counter()
         transferred = started
-        if self._pending_decode is not None:
+        prepared = self._pending_decode is not None
+        if prepared:
             handle = self._pending_decode
             self._pending_decode = None
-            if mtp and not getattr(handle, "mtp", False):
-                if hasattr(handle, "enable_mtp"):
-                    handle.enable_mtp()
-                else:
-                    raise CapabilityError("Prepared handoff did not initialize MTP")
         else:
             values = (initial._read_tensors() if getattr(model.backend, "copy_on_write", False)
                       else initial._tensors(device=getattr(model.backend, "device", None)))
@@ -274,14 +330,21 @@ class Session:
                 model.identity, values, initial.clock, mtp=mtp)
         installed = perf_counter()
         tokens = []
-        eos = model.backend.eos_ids(model.identity)
         first_token_at = None
         try:
+            if prepared and mtp and not getattr(handle, "mtp", False):
+                if hasattr(handle, "enable_mtp"):
+                    handle.enable_mtp()
+                else:
+                    raise CapabilityError("Prepared handoff did not initialize MTP")
+            eos = model.backend.eos_ids(model.identity)
             while len(tokens) < max_new_tokens:
                 if mtp and tokens and hasattr(handle, "greedy_batch"):
                     # The first token is emitted promptly from translated H.
                     # Later batches contain only target-verified committed tokens.
                     chunk = handle.greedy_batch(max_new_tokens-len(tokens), eos)
+                    if not chunk or len(chunk) > max_new_tokens-len(tokens):
+                        raise StateError("Decoder returned an invalid committed batch")
                     tokens.extend(chunk)
                     if on_token is not None:
                         for token in chunk:
@@ -291,17 +354,20 @@ class Session:
                     continue
                 logits = handle.logits
                 token = int(logits[0, -1].argmax()) if logits.ndim == 3 else int(logits[0].argmax())
+                # Callbacks observe only successfully ingested tokens. Public
+                # state commits once per request; failures invalidate its stream.
+                handle.step(token)
                 tokens.append(token)
                 if first_token_at is None:
                     first_token_at = perf_counter()
                 if on_token is not None:
                     on_token(token)
-                # Every committed token, including EOS and the cap token, is
-                # ingested before state is published for resume/fork.
-                handle.step(token)
                 if token in eos:
                     break
             snapshot = handle.snapshot()
+            committed_clock = handle.clock
+            if committed_clock != initial.clock + len(tokens):
+                raise StateError("Decoder clock differs from committed tokens")
             native_stats = handle.stats() if hasattr(handle, "stats") else {}
         finally:
             # Public session retains its original snapshot if native work,
@@ -310,15 +376,16 @@ class Session:
                 handle.close()
         finished = bool(tokens and tokens[-1] in eos)
         full_ids = (initial.rendered_token_ids or ()) + tuple(tokens) if initial.rendered_token_ids is not None else None
-        current = State(identity=model.identity, clock=handle.clock,
+        current = State(identity=model.identity, clock=committed_clock,
                         phase="turn_ready" if finished else "in_answer",
                         origin="native_generation", target_prompt_tokens=initial.target_prompt_tokens,
                         rendered_text=model.codec.decode(full_ids, special=True) if full_ids is not None else None,
                         rendered_token_ids=full_ids, messages=initial.messages,
+                        messages_complete=initial.messages_complete,
                         generated_token_ids=initial.generated_token_ids + tuple(tokens),
                          stream_tail_ids=((initial.stream_tail_ids or (initial.rendered_token_ids or ())[-32:]) + tuple(tokens))[-32:],
                         parent_id=initial.state_id, _components=snapshot)
-        if finished and current.messages and tokens[-1] == model.codec.chat_eos_id:
+        if finished and current.messages_complete and current.messages and tokens[-1] == model.codec.chat_eos_id:
             # The committed stream is authoritative. Re-rendering old turns
             # can strip thinking and cannot reconstruct a resumed live answer.
             assistant = model.codec.decode(current.generated_token_ids[:-1], special=True)

@@ -10,9 +10,11 @@ def main():
     parser.add_argument("--source-path")
     parser.add_argument("--target-path")
     parser.add_argument("--policy", choices=("strict", "cached_handoff"), default="cached_handoff")
-    parser.add_argument("--mtp", action="store_true")
+    parser.add_argument("--mtp", action="store_true",
+                        help="Enable MTP; requires the pinned GGUF profile with a qualified MTP head")
     args = parser.parse_args()
-    with lp.load(backend="gguf", source_path=args.source_path, target_path=args.target_path) as port:
+    with lp.load(backend="gguf", source_path=args.source_path, target_path=args.target_path,
+                 native_options=lp.NativeOptions(mtp_drafts=4 if args.mtp else 0)) as port:
         port.warm(mtp=args.mtp)
         chat = port.composite.session(policy=args.policy)
         for question in filter(None, (args.prompt, args.followup)):

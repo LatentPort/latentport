@@ -163,7 +163,9 @@ class RuntimeTests(unittest.TestCase):
             backend.fail_target = True
             with self.assertRaises(RuntimeError):chat.ask("First")
             self.assertIsNone(chat.target_session)
-            self.assertIsNotNone(chat.reader.state)
+            self.assertIsNone(chat.reader.state)
+            backend.fail_target = False
+            self.assertTrue(chat.ask("First").finished)
             with self.assertRaises(ValueError):Composite(source, target, bridge).session(policy="automatic")
 
     def test_cached_pinned_metadata_does_not_contact_hub(self):

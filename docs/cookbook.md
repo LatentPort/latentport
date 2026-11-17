@@ -93,8 +93,12 @@ bridge update.
 
 ## Stream tokens
 
-The callback receives committed token IDs, including reasoning/control tokens. To
-avoid splitting UTF-8 text across individual tokens, decode the accumulated IDs:
+The callback receives backend-committed token IDs, including reasoning/control
+tokens. Public session state commits when the request succeeds. A later failure
+raises `lp.GenerationInterrupted`: discard this call's streamed output before
+retrying from its restored request boundary. A UI should make streamed output
+replaceable until success. A terminal cannot retract already printed text.
+To avoid splitting UTF-8 text across individual tokens, decode the accumulated IDs:
 
 ```python
 ids = []
@@ -108,7 +112,13 @@ def stream(token_id):
         print(text[len(shown):], end="", flush=True)
         shown = text
 
-answer = chat.ask("Explain the tradeoffs.", on_token=stream)
+try:
+    answer = chat.ask("Explain the tradeoffs.", on_token=stream)
+except lp.GenerationInterrupted:
+    ids.clear()
+    shown = ""
+    print("\n[Interrupted: discard the preceding partial answer before retrying.]")
+    raise
 # Pass the same callback to generate() when continuing a capped answer.
 ```
 
