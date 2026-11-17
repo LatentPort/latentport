@@ -2,6 +2,8 @@
 
 **LatentPort makes LLM internal states programmable.**
 
+**Created by [Simon P. Villani](https://au.linkedin.com/in/simon-villani).**
+
 Capture a model's working context, transfer it to another model, compact its
 attention memory, or save and branch it for later use. Learned transformations
 operate on inference state so supported models can continue without replaying
