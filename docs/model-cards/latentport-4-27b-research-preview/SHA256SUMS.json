@@ -5,12 +5,12 @@
       "sha256": "d5171cfb50c72e082f29ae666007551eeb457222b0fe8abf8076d4c3c3b1934c"
     },
     "LICENSE_STATUS.md": {
-      "bytes": 278,
-      "sha256": "c1c9f67c9a355104ff2b8bf45f91df1d3e76d2186ff32a7d1a4e0f3e5c08b822"
+      "bytes": 279,
+      "sha256": "078d091ac1f7c57ff2912834a0d30e2d28b559db4ef563a048b4f0ee818cf879"
     },
     "README.md": {
-      "bytes": 6354,
-      "sha256": "7f30d20ae7cae3d28150c6c8bac5ad289188e61c0a10e2bb66cf33dcbc065cbc"
+      "bytes": 4970,
+      "sha256": "3fda60d1ffac7c080bb1032fe65d74a7192dd709d552b439115000c625e817d3"
     },
     "REFERENCE.md": {
       "bytes": 2405,
@@ -33,52 +33,52 @@
       "sha256": "5eb46a69b75318164b2fde95d9c9279fc802dff7a5e37fff819839cfc6ed7a57"
     },
     "bundle.py": {
-      "bytes": 5112,
-      "sha256": "d23a3f32a5731da5a5488db4ba6c234769012af91e23a9fd58ca412a418e65a5"
+      "bytes": 5233,
+      "sha256": "851585c598ec19a4a5e7badc419b6102a4f152cbabe7a5c835f61ad09e666d8c"
     },
     "configs/architecture_v2.json": {
-      "bytes": 1147,
-      "sha256": "85e4bb6a63facaae453663a287b28c8ca49d72b4f084c76cfcbc272a49a0d5ce"
+      "bytes": 1176,
+      "sha256": "3091253d4988b928f06e2709ad9563407e691b9b9534f0ec37945aa476b472af"
     },
     "configs/calibration.json": {
       "bytes": 34645,
       "sha256": "641dc364078370a422004d0e40687b9d569bf7320c50807b5756b5050ab1be4d"
     },
     "configs/geometry.json": {
-      "bytes": 3334,
-      "sha256": "32d0374d8b8d3c1e9d25d351379635218ce5f9713a7c9b771f86ef086462a405"
+      "bytes": 3478,
+      "sha256": "2e29bac4647ee57dd16eb72bff2a306f02b89558b00a725a3a4738b4f3001c5c"
     },
     "constants/population_means.safetensors": {
       "bytes": 159020936,
       "sha256": "364b7d729e225cd2b08cc64afbbdb204d44cd4f2b431c938158db333da7366af"
     },
     "latentport.json": {
-      "bytes": 3782,
-      "sha256": "3db8871748479bc8efeb854cbd92026ba4d4d10fcb84024b376cabd445777a14"
+      "bytes": 3786,
+      "sha256": "2d170c8b386a72822ec0f0691cb18d903e342de9827ce717ca52d217a30ff58d"
     },
     "provenance.json": {
-      "bytes": 11030,
-      "sha256": "7ac86dd1cef563cab1d6e0a67977ec03f701f1afe59dc779f2285794342edc6e"
+      "bytes": 10754,
+      "sha256": "d4857d76ab2cc7d365a2da4203be7c54e66a7f332c9516de7292e8ee2a2dbfba"
     },
     "reference/__init__.py": {
       "bytes": 60,
       "sha256": "065e981e49caccef120f0d859f1d4c4c8cfe81e917a98b5d3ecd3d592fa5391b"
     },
     "reference/architecture.py": {
-      "bytes": 43734,
-      "sha256": "8874e3637af97028472302dc690d022b9cc4dabcb9748be4d61e606e647f40c8"
+      "bytes": 43778,
+      "sha256": "d34115ea85b493cb27e2929ca7ea9afacd52914ab8e8a73d973914d602a7210a"
     },
     "reference/loader.py": {
-      "bytes": 3262,
-      "sha256": "cbaa8bb7c7664ce6ec12e1b57cd31ab39ba8a27abcd19a664f89af00d20f15c8"
+      "bytes": 3327,
+      "sha256": "41d43fba22c3cb6116ce8de383d189d0c0aa8094a6fedc654be01b890b049abc"
     },
     "tensor_index.json": {
       "bytes": 57213,
       "sha256": "bbb1e2c54085d26e4d472b54fa5f094ffa2d851163ffad4067ca9c7da58c44e6"
     },
     "COMPOSITE_RESULTS.json": {
-      "bytes": 3407,
-      "sha256": "bcb913f5484e29ed138ff53cd4d152aeb9a0bf2b9073a49cdc076af1e0daf7d3"
+      "bytes": 3441,
+      "sha256": "fdcb6d90abb9d79e8fb5663fb5d2f11426be581891a6284f6305b28bd12cadc2"
     },
     "LICENSE": {
       "bytes": 11558,

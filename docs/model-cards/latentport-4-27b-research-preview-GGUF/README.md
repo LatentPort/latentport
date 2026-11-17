@@ -12,76 +12,41 @@ tags:
 - state-transfer
 - research-preview
 ---
-# LatentPort-4+27B
 
-**Small-model prefill. Large-model generation.**
+# latentport-4-27b-research-preview-GGUF
 
-[Website](https://latentport.com) · [Python runtime](https://github.com/LatentPort/latentport) · [Installation](https://github.com/LatentPort/latentport/blob/main/docs/installation.md) · [Cookbook](https://github.com/LatentPort/latentport/blob/main/docs/cookbook.md)
+**Created by [Simon P. Villani](https://au.linkedin.com/in/simon-villani).**
 
-LatentPort-4+27B is a hybrid composite of **Qwen3.5-4B** and **Qwen3.8-27B**.
-The 4B reads the entire prompt, including the question. A learned bridge translates
-its complete working state into the 27B's state space, so the 27B can generate without
-processing the prompt itself. The transfer includes attention K/V, recurrent state,
-convolution history and the terminal hidden state.
+[GitHub](https://github.com/LatentPort/latentport) | [PyPI](https://pypi.org/project/latentport/) | [Installation](https://github.com/LatentPort/latentport/blob/main/docs/installation.md) | [API](https://github.com/LatentPort/latentport/blob/main/docs/api.md)
 
-The runtime can retain the translated context for cached conversations, save it for
-later, or fork it into independent sessions with different questions. In cached-handoff
-mode, later questions are processed by the 27B; the original history is not replayed.
-The initial supported direction is 4B → 27B.
+## Overview
 
-## Artifacts
+An earlier research-preview bridge from **Qwen3.5-4B** to **Qwen3.8-27B**, retained with its original evaluation evidence. It transfers attention, recurrent, convolution and terminal hidden state. For current package use, select the [canonical LPBridge repository](https://huggingface.co/latentport/LPBridge-Qwen3.5-4b-Qwen3.8-27b).
 
-This is the GGUF distribution of the [canonical bridge](https://huggingface.co/latentport/latentport-4-27b-research-preview).
+## Compatibility
 
-| Files | Contents |
-| --- | --- |
-| `latentport-4-27b-bridge.F32.gguf` | Complete bridge tensors in FP32; approximately 2.58 GB |
-| `models/Qwen3.5-4B-Q4_K_M.gguf` | Tested reader quantization of the pinned upstream model |
-| `models/Qwen3.8-27B-MTP-Q4_K_M.gguf` | Tested target quantization, including its trained MTP head |
-| `models/*-LICENSE` | Upstream Qwen Apache-2.0 licenses |
-| `runtime/` | Pinned Windows/CUDA native runtime, corresponding sources and dependency licenses |
-| `tensor_map.json`, `FORMAT_VERIFICATION.json` | Tensor mapping and canonical-to-GGUF conversion verification |
-| `latentport.json`, `SHA256SUMS.json` | Model identities, bridge metadata and file integrity |
+The preview is tied to the exact pair and runtime recorded in its manifest. It is not the current package default. Its original GGUF preview targeted Windows x64, Python 3.11, CUDA 13.0 and NVIDIA RTX 5090. Do not infer compatibility with arbitrary checkpoints or stock GGUF loaders.
 
-**GGUF is the bridge container, not its quantization.** The bridge remains FP32; only
-the language models use Q4_K_M. The custom `latentport_bridge_v1` architecture cannot
-generate on its own. Use the LatentPort-enabled llama.cpp backend through the Python package.
+## Usage
 
-The GGUF bridge embeds the integrity hash of the original canonical artifact revision,
-which remains pinned in `latentport.json`. Later card/license updates do not change its
-neural weights or require re-encoding the bridge.
-
-## Run the composite
-
-[Download the Python preview wheel](https://huggingface.co/latentport/latentport-4-27b-research-preview-GGUF/resolve/1415eb9591dfaf15355d8bba5ed38f64792026e0/runtime/latentport-0.1.0.dev1-py3-none-any.whl). Install CUDA-enabled Torch 2.11.0 first,
-then `pip install` the wheel. Full prerequisites are in the installation guide below.
-
-Install the [LatentPort runtime](https://github.com/LatentPort/latentport/blob/main/docs/installation.md),
-then install its pinned native backend with `python -m latentport install-native`.
-The GGUF preview targets Windows x64, Python 3.11 and an RTX 5090 (32 GB), with CUDA 13.0
-runtime libraries. Model files download automatically and are cached in `LATENTPORT_HOME`.
+For new applications, use the current package and canonical bridge with the standard API:
 
 ```python
 import latentport as lp
 
-with lp.load(backend="gguf") as port:
-    port.warm()
-    chat = port.composite.session()
-    answer = chat.ask("Analyze this document: ...")
-    print(answer.text, end="")
-    while not answer.finished:
-        answer = chat.generate(max_new_tokens=512)
-        print(answer.text, end="")
+with lp.load("latentport/LPBridge-Qwen3.5-4b-Qwen3.8-27b", backend="nf4", thinking=False) as port:
+    state = port.source.capture([("user", "The project codename is Juniper.")])
+    transferred = port.bridge.translate(state)
+    session = port.target.session(transferred)
+    answer = session.ask("What is the project codename?")
+    print(answer.text)
 ```
 
-Cached handoff is the default. Use `policy="strict"` to keep every new user input on the 4B. Strict multi-turn execution
-synchronizes the completed answer back to the reader and retranslates its updated state.
-A compatible runtime is required: neither Transformers nor a stock GGUF loader can
-execute the bridge as a standalone language model.
+This example loads the current bridge, not the archived preview evaluated below. Reproducing preview measurements requires its original pinned runtime and artifacts.
 
-## Composite results
+## Evaluation
 
-The frozen LatentPort-4+27B bridge was evaluated against both native models in E120.
+The frozen LatentPort-4+27B bridge was evaluated against both native models in the published composite evaluation.
 The 4B reads the **entire prompt, including the question**; the 27B processes **zero prompt tokens**.
 
 | Completed tasks | Native 4B | LatentPort-4+27B | Native 27B |
@@ -118,10 +83,14 @@ The evaluation above uses the NF4/BF16 research configuration; it must not be pr
 as a GGUF quality benchmark. Runtime correctness checks and research task evaluation
 serve different purposes.
 
-## License and model identity
+## Limitations
 
-The LatentPort bridge weights are released under **Apache-2.0**, including the unchanged
-artifacts from release `e119-final16-b960c37364bc`. See [LICENSE](LICENSE).
-Qwen base models retain their upstream Apache-2.0 licenses; native runtime dependencies
-retain their respective licenses. This is a research preview for the pinned model pair,
-not a promise of native-27B equivalence or compatibility with arbitrary models.
+Preview results apply only to the evaluated checkpoint and configuration. NF4/BF16 task scores are not GGUF quality scores and do not describe the current canonical bridge. Warm TTFT excludes cold loading and does not establish full-answer speedups.
+
+## Artifacts and provenance
+
+The repository retains its preview manifests, bridge artifacts and `COMPOSITE_RESULTS.json`. Exact revisions and SHA-256 receipts identify the weights independently of descriptive release labels. The GGUF companion contains native-format artifacts; neither repository is a standalone language model.
+
+## License
+
+The bridge weights are licensed under Apache-2.0, including the unchanged preview artifacts and earlier published revisions; see [LICENSE](LICENSE). Upstream base models and native dependencies retain their respective licenses.

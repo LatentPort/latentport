@@ -676,7 +676,7 @@ def base_forward(self, state, slots, chunk=None, diagnostics=False):
         del items, flat, k, v
     content = torch.cat(encoded, 1)
     del encoded
-    if getattr(self, '_e096_consume_source', False):
+    if getattr(self, '_latentport_consume_source', False):
         state.layers.clear()
         state.terminal = None
     if self.position_router is None:
@@ -716,10 +716,10 @@ def base_forward(self, state, slots, chunk=None, diagnostics=False):
     return (result, details) if diagnostics else result
 
 def install(translator, *, consume_source=False):
-    if not hasattr(translator.base, '_e096_original_forward'):
-        translator.base._e096_original_forward = translator.base.forward
+    if not hasattr(translator.base, '_latentport_original_forward'):
+        translator.base._latentport_original_forward = translator.base.forward
     translator.base.forward = types.MethodType(base_forward, translator.base)
-    translator.base._e096_consume_source = consume_source
+    translator.base._latentport_consume_source = consume_source
     return translator
 
 class Head(torch.nn.Module):
@@ -757,7 +757,7 @@ def routed_features(model, source, metadata):
     """Original encoder/router equations. No H/C/R output call or native content.
 
     Restore R as FP32; the frozen historical translator ingress then casts it
-    to BF16, exactly as in E096. Only existing K/V modules receive gradients.
+    to BF16, as in the reference training procedure. Only existing K/V modules receive gradients.
     """
     import torch
     from torch.utils.checkpoint import checkpoint

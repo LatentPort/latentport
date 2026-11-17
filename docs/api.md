@@ -22,7 +22,7 @@
 | Append | `port.source.append(state, text)` | Process only an appended token suffix. |
 | Escalate | `session.escalate(target=port.target, bridge=port.bridge)` | Experimental one-way live handoff; source session changes only after successful initialization. |
 
-The composite release and published E120 results do not qualify live escalation as
+The composite release and published composite results do not qualify live escalation as
 product functionality. The primitive remains available for runtime experimentation.
 Additional model pairs need separately trained and qualified bridges. There is no
 reverse bridge, arbitrary state merge, automatic eviction, vLLM integration or distributed
@@ -199,7 +199,7 @@ state identity. See [compaction.md](compaction.md) for examples and native build
 
 ### Bridge alignment compatibility
 
-The L127 mixed-state bridge requires the complete source token stream and its exact
+The mixed-state bridge requires the complete source token stream and its exact
 rendered bytes. Its numeric alignment maps each target token to a source
 coordinate using byte spans and produces dense target positions. The bridge
 explicitly rejects suffix-only streamed states and sparse/compacted states

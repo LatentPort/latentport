@@ -19,7 +19,7 @@
     }
   },
   "base_weights_included": false,
-  "candidate": "E119_joint_step0016",
+  "candidate": "bridge-4b-27b-step0016",
   "intended_visibility": "public",
   "license_status": "apache-2.0",
   "models": {
@@ -70,7 +70,7 @@
       "revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0"
     }
   },
-  "release_id": "e119-final16-b960c37364bc",
+  "release_id": "bridge-4b-27b-b960c37364bc",
   "repo_id": "latentport/latentport-4-27b-research-preview",
   "runtime": {
     "generation": {
