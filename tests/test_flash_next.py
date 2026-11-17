@@ -42,3 +42,31 @@ def test_flash_next_cache_keeps_aligned_blocks_and_independent_state(monkeypatch
     cache.layers[1].conv_states[2] = None
     with pytest.raises(CompatibilityError, match="recurrent layer 1"):
         compact_flash_next_cache(cache)
+
+def test_standard_model_registry_and_state_compaction(monkeypatch):
+    from latentport import ModelIdentity, State
+    from latentport._models import FLASH_ABI, FLASH_NEXT, MODEL_REVISIONS
+
+    n = 8195
+    geom = dict(types=["full_attention", "linear_attention"], hidden=4, kv_heads=1,
+                head_dim=2, recurrent_heads=1, recurrent_k=2, recurrent_v=2,
+                conv_channels=3, conv_width=4, index_width=1, ple_channels=2, ple_width=3, ngram_width=2)
+    values = {"H": torch.zeros(1,1,4,dtype=torch.bfloat16),
+              "K.0": torch.zeros(1,1,n,2,dtype=torch.bfloat16),
+              "V.0": torch.zeros(1,1,n,2,dtype=torch.bfloat16),
+              "I.0": (torch.arange(n)%127).to(torch.bfloat16).view(1,n,1),
+              "C.1": torch.zeros(1,3,4,dtype=torch.bfloat16), "R.1": torch.zeros(1,1,2,2),
+              "PLE": torch.ones(1,2,3,dtype=torch.bfloat16),"NGRAM": torch.tensor([[4,5]])}
+    from latentport import _compact
+    monkeypatch.setattr(_compact, "model_geometry", lambda repo: geom)
+    monkeypatch.setattr(_compact, "_device", lambda data: data["I.0"].device)
+    monkeypatch.setattr(weights, "score", lambda data, repo: list(range(n)))
+    ident = ModelIdentity(FLASH_NEXT, MODEL_REVISIONS[FLASH_NEXT], "bf16", "weights", "tok", "template", FLASH_ABI)
+    parent = State(ident,n,"context_ready","test",_components=values)
+    assert parent.compact() is parent
+    child = parent.compact(ratio=4,force=True)
+    kept = child._read_tensors()
+    assert child.clock==n and child.physical_kv_length==2047
+    assert torch.equal(kept["I.0"], values["I.0"].index_select(1,kept["P"]))
+    assert kept["NGRAM"] is values["NGRAM"] and kept["PLE"] is values["PLE"]
+    assert (kept["P"][:-3].reshape(-1,4).diff()==1).all()

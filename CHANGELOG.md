@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.4
+
+- Use the standard standalone model, state and session APIs for Qwen3.8-Flash-Next BF16 compaction.
+
 ## 0.4.3
 
 - Add `compact_flash_next_cache` for the pinned Qwen3.8-Flash-Next BF16

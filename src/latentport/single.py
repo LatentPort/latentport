@@ -7,7 +7,7 @@ from .errors import CompatibilityError
 from .identity import ModelIdentity
 from .model import Model
 from .context import ContextOptions, PINNED_REVISION, execution_weights
-from ._models import DEFAULT_MODEL, MODEL_REVISIONS, model_geometry
+from ._models import DEFAULT_MODEL, FLASH_NEXT, MODEL_REVISIONS, model_geometry
 
 MODEL = DEFAULT_MODEL
 REVISION = PINNED_REVISION
@@ -54,6 +54,8 @@ def load_model(repo: str = MODEL, *, revision: str | None = None, backend: str =
                              getattr(native_options, "physical_limit", 262144))
     if repo not in MODEL_REVISIONS:
         raise CompatibilityError(f"Unsupported standalone model: {repo}")
+    if repo == FLASH_NEXT and (backend != "bf16" or context.position_policy != "default"):
+        raise CompatibilityError("Flash-Next supports BF16 with its default position policy")
     if revision is None:
         revision = MODEL_REVISIONS[repo]
     if (repo != MODEL or backend == "nf4" or context.position_policy != "default") and revision != MODEL_REVISIONS[repo]:
@@ -77,6 +79,9 @@ def load_model(repo: str = MODEL, *, revision: str | None = None, backend: str =
     if backend in ("bf16", "nf4"):
         from ._reference.bf16 import BF16Backend
         runtime_type = BF16Backend
+        if repo == FLASH_NEXT:
+            from ._reference.flash_next import FlashNextBackend
+            runtime_type = FlashNextBackend
         quantization = None
         if backend == "nf4":
             from ._reference.nf4 import NF4Backend, NF4_CONFIG

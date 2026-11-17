@@ -12,8 +12,7 @@ from .._models import DEFAULT_MODEL, MODEL_REVISIONS
 def _model(device, repo, override):
     import torch
     from safetensors.torch import load_file
-    from ..flash_next import BASE_MODEL as FLASH_NEXT
-    if repo not in MODEL_REVISIONS and repo != FLASH_NEXT:
+    if repo not in MODEL_REVISIONS:
         raise CompatibilityError(f"Unsupported LPCompact base: {repo}")
     name = "lpcompact" if repo == DEFAULT_MODEL else "lpcompact-" + repo.split("/")[-1].lower()
     spec = json.loads((Path(__file__).parent.parent / "configs" / (name + ".json")).read_text())
