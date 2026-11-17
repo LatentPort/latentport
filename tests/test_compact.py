@@ -129,6 +129,36 @@ def test_invalid_sparse_metadata_fails_before_backend_mutation(positions):
         physical_length({"P": torch.tensor(positions)}, 10)
 
 
+@pytest.mark.parametrize(("size", "hidden"), [("4B", 2560), ("9B", 4096)])
+def test_qwen35_compacts_matching_geometry_and_dispatches_its_selector(size, hidden):
+    from latentport._models import MODEL_REVISIONS, model_geometry
+    repo = f"Qwen/Qwen3.5-{size}"
+    identity = replace(IDENTITY, repo_id=repo, revision=MODEL_REVISIONS[repo])
+    geometry = model_geometry(repo)
+    n = 1040
+    dtype = torch.bfloat16
+    def field(*dims, dtype=dtype):
+        return torch.zeros((), dtype=dtype).expand(dims)
+
+    values = {"H": field(1, 1, hidden)}
+    for i, kind in enumerate(geometry["types"]):
+        if kind == "full_attention":
+            values[f"K.{i}"] = values[f"V.{i}"] = field(1, 4, n, 256)
+        else:
+            values[f"C.{i}"] = field(1, 8192, 4)
+            values[f"R.{i}"] = field(1, 32, 128, 128, dtype=torch.float32)
+    parent = State(identity, n, "answer_ready", "native_capture", _components=values)
+    with patch("latentport._compact.weights.score", return_value=[0.0]*n) as scorer:
+        child = parent.compact(force=True)
+    assert scorer.call_args.args[1] == repo
+    assert child.identity == identity and child.clock == n
+    assert child.physical_kv_length == 1024
+    assert child._read_tensors()["H"] is values["H"]
+    wrong = "Qwen/Qwen3.5-9B" if size == "4B" else "Qwen/Qwen3.5-4B"
+    with pytest.raises(StateError, match="Wrong H shape"):
+        replace(parent, identity=replace(identity, repo_id=wrong, revision=MODEL_REVISIONS[wrong])).compact(force=True)
+
+
 def test_dense_shape_cannot_be_mistaken_for_sparse_shape(geometry):
     values = state(2048)._read_tensors()
     values["P"] = torch.arange(1024)

@@ -13,6 +13,26 @@ with lp.load_model(backend="bf16") as model:
     answer = model.session(state).ask("Continue the task.")
 ```
 
+LatentPort 0.4.0 adds model-specific selectors for Qwen3.5-4B and Qwen3.5-9B.
+Pass the base model ID to select its pinned revision and matching selector.
+
+```python
+with lp.load_model("Qwen/Qwen3.5-4B", backend="bf16") as model:
+    compacted = model.prefill(history).compact()
+
+with lp.load_model("Qwen/Qwen3.5-9B", backend="gguf", model_path=gguf_path) as model:
+    compacted = model.prefill(history).compact()
+```
+
+Each selector reads the attention values produced by its own frozen base.
+The runtime verifies the selected checkpoint's SHA-256 before scoring.
+The default model is Qwen3.8-27B.
+
+For Qwen3.5-4B and Qwen3.5-9B, the release evaluation compares exact answers
+with full memory and 8× compaction on 128 paired questions per model. It covers
+repository lookup, latest decisions, structured records and two-hop document
+lookup at 64K and 128K. [Per-task scores and backend qualification](lpcompact-qwen35-validation.json)
+
 Compaction produces an ordinary immutable `State`. The original state and its
 forks remain valid. Reassigning `state` releases discarded KV tensors when their
 last owner is released. The compacted state supports the same `fork()`, `save()`

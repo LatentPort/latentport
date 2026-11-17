@@ -7,9 +7,10 @@ from .errors import CompatibilityError
 from .identity import ModelIdentity
 from .model import Model
 from .context import ContextOptions, PINNED_REVISION, execution_weights
+from ._models import DEFAULT_MODEL, MODEL_REVISIONS, model_geometry
 
-MODEL = "Qwen/Qwen3.8-27B"
-REVISION = "37561816e66b5b9153b1b64c10968c18c1e6f4a0"
+MODEL = DEFAULT_MODEL
+REVISION = PINNED_REVISION
 
 
 def _weight_fingerprint(path):
@@ -30,10 +31,10 @@ def _weight_fingerprint(path):
     return combined.hexdigest()
 
 
-def load_model(repo: str = MODEL, *, revision: str = REVISION, backend: str = "bf16",
+def load_model(repo: str = MODEL, *, revision: str | None = None, backend: str = "bf16",
                model_path: str | Path | None = None, native_options=None,
                position_policy: str | None = None, max_kv_positions: int | None = None) -> Model:
-    """Load standalone Qwen3.8-27B with static default or YaRN4 positions.
+    """Load a standalone Qwen checkpoint using its pinned revision by default.
 
     ``max_kv_positions`` bounds physical attention memory. ``yarn4`` extends
     logical positions to 1,048,576 without increasing that physical capacity.
@@ -51,14 +52,17 @@ def load_model(repo: str = MODEL, *, revision: str = REVISION, backend: str = "b
                              getattr(native_options, "position_policy", "default"),
                              max_kv_positions if max_kv_positions is not None else
                              getattr(native_options, "physical_limit", 262144))
-    if (backend == "nf4" or context.position_policy != "default") and revision != PINNED_REVISION:
+    if repo not in MODEL_REVISIONS:
+        raise CompatibilityError(f"Unsupported standalone model: {repo}")
+    if revision is None:
+        revision = MODEL_REVISIONS[repo]
+    if (repo != MODEL or backend == "nf4" or context.position_policy != "default") and revision != MODEL_REVISIONS[repo]:
         raise CompatibilityError("NF4 and extended positions require the exact pinned model revision")
     from ._dependencies import require_backend
     require_backend(backend)
     from .hub import model_snapshot
-    if repo != MODEL:
-        raise CompatibilityError("Standalone execution currently supports Qwen3.8-27B")
-    spec = {"repo_id": repo, "revision": revision, "metadata_files": {},
+    geometry = model_geometry(repo)
+    spec = {"repo_id": repo, "revision": revision, "metadata_files": {}, "geometry": geometry,
             "template_kwargs": {"enable_thinking": False}}
     # Resolve pinned tokenizer metadata even when the weights are a local GGUF.
     metadata = model_snapshot(spec, metadata_only=True)
@@ -96,9 +100,11 @@ def load_model(repo: str = MODEL, *, revision: str = REVISION, backend: str = "b
             def _get_native(self):
                 if self._engine is None:
                     self._engine = Engine(None, self.paths["target"], None, None, self.options)
+                    self._engine.geometry["target"] = geometry
                 return self._engine
         manifest = {"models": {"target": spec}, "runtime": {"template_kwargs": {"target": spec["template_kwargs"]}}}
         runtime = SingleGGUFBackend(model_path, model_path, metadata, manifest, options=options)
+        runtime.geometry["target"] = geometry
         weights = runtime.weights("target")
     identity = ModelIdentity(repo, revision, runtime.name, weights, revision,
                              spec["metadata_files"]["chat_template.jinja"]["sha256"], runtime.state_abi)

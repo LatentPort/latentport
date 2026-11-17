@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0
+
+- Load standalone Qwen3.5-4B and Qwen3.5-9B by model ID and compact their
+  immutable states with dedicated learned selectors. Model identity selects
+  the pinned base revision, complete-state geometry and selector checksum.
+
 ## 0.2.1
 
 - Move native-runtime downloads to a dedicated Hugging Face repository with

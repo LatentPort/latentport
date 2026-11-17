@@ -65,11 +65,11 @@ def execution_weights(weights, options, *, quantization=None):
     return weights + ":execution:" + digest
 
 
-def configure_text(config, options):
+def configure_text(config, options, expected=None):
     """Check exact base geometry, then apply the explicitly selected RoPE rules."""
     from ._reference.architecture import geometry
     from ._reference.native import _geometry
-    expected = _geometry("target")
+    expected = expected or _geometry("target")
     if geometry(config) != expected or config.max_position_embeddings != NATIVE_POSITIONS:
         raise CompatibilityError("Standalone base geometry or native position range changed")
     config = deepcopy(config)

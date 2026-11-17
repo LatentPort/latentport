@@ -1,6 +1,7 @@
 """Standalone NF4 weights with BF16 attention/conv and FP32 recurrent state."""
 from .bf16 import BF16Backend
-from ..context import PINNED_REVISION, configure_text
+from ..context import configure_text
+from .._models import MODEL_REVISIONS, model_geometry
 from ..errors import CapabilityError, CompatibilityError
 
 NF4_CONFIG = {"load_in_4bit": True, "bnb_4bit_quant_type": "nf4",
@@ -14,15 +15,16 @@ class NF4Backend(BF16Backend):
     def _model(self, identity):
         import torch
         side = self._side(identity)
-        if side != "target" or identity.revision != PINNED_REVISION:
-            raise CompatibilityError("Standalone NF4 requires the pinned Qwen3.8-27B revision")
+        if side != "target" or identity.revision != MODEL_REVISIONS.get(identity.repo_id):
+            raise CompatibilityError("Standalone NF4 requires the pinned base revision")
         if side in self._models:
             return self._models[side]
         if not torch.cuda.is_available() or torch.cuda.device_count() != 1:
             raise CapabilityError("Standalone NF4 requires exactly one visible CUDA GPU")
         from transformers import AutoConfig, BitsAndBytesConfig, Qwen3_5ForCausalLM
         path = self._path(side)
-        config = configure_text(AutoConfig.from_pretrained(path, local_files_only=True).text_config, self.options)
+        config = configure_text(AutoConfig.from_pretrained(path, local_files_only=True).text_config,
+                                self.options, model_geometry(identity.repo_id))
         quant = BitsAndBytesConfig(**{**NF4_CONFIG, "bnb_4bit_compute_dtype": torch.bfloat16,
                                       "bnb_4bit_quant_storage": torch.uint8})
         model, info = Qwen3_5ForCausalLM.from_pretrained(
