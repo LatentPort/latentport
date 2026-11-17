@@ -1,10 +1,16 @@
 # Changelog
 
-## 0.4.3
+## 0.4.4
 
 - Standardize public model cards and operation examples while preserving creator attribution and checkpoint-specific evaluation results.
 - Replace internal experiment labels with descriptive names in public documentation, metadata and private runtime attributes.
 - Repair native installation after removal of the GitHub release by hosting the exact checksum-verified archives on Hugging Face.
+
+## 0.4.3
+
+- Add `compact_flash_next_cache` for the pinned Qwen3.8-Flash-Next BF16
+  Transformers text cache. The child retains original logical positions,
+  sparse indexer keys and independent recurrent, convolution and n-gram state.
 
 ## 0.4.2
 

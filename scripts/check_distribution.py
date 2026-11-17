@@ -15,6 +15,8 @@ import latentport
 assert files('latentport').joinpath('_demo/web/index.html').is_file()
 assert files('latentport').joinpath('_demo/web/app.js').is_file()
 assert files('latentport').joinpath('configs/native-release.json').is_file()
+assert callable(latentport.compact_flash_next_cache)
+assert files('latentport').joinpath('configs/lpcompact-qwen3.8-flash-next.json').is_file()
 for size in ('4b', '9b'):
     assert files('latentport').joinpath(f'configs/lpcompact-qwen3.5-{size}.json').is_file()
 '''
