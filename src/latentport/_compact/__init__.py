@@ -4,7 +4,7 @@ from time import perf_counter
 from uuid import uuid4
 
 from ..errors import CapabilityError
-from .._models import MODEL_REVISIONS, FLASH_NEXT, FLASH_ABI, GEMMA, GEMMA_ABI, model_geometry
+from .._models import MODEL_REVISIONS, FLASH_NEXT, FLASH_ABI, GEMMA, GEMMA_ABI, QWEN3, QWEN3_ABI, model_geometry
 from ..identity import CompactionInfo
 from .._positions import physical_length
 from .policy import budget, choose, MIN_CONTEXT
@@ -29,9 +29,11 @@ def compact(state, *, ratio=8, force=False, allow_unqualified=False):
     is_flash = repo == FLASH_NEXT
     if is_flash and (state.identity.state_abi != FLASH_ABI or state.identity.backend != "bf16"):
         raise CapabilityError("Flash-Next requires its complete BF16 indexed state")
+    if repo == QWEN3 and (state.identity.state_abi != QWEN3_ABI or state.identity.backend != "bf16"):
+        raise CapabilityError("Qwen3 requires its complete BF16 attention state")
     if repo == GEMMA and (state.identity.state_abi != GEMMA_ABI or state.identity.backend != "bf16"):
         raise CapabilityError("Gemma 4 requires its complete BF16 sliding and global attention state")
-    if repo not in (GEMMA, FLASH_NEXT) and state.identity.state_abi not in ("qwen3.5.complete-hybrid.v1",
+    if repo not in (QWEN3, GEMMA, FLASH_NEXT) and state.identity.state_abi not in ("qwen3.5.complete-hybrid.v1",
                                         "llama.cpp.b19cbe9.qwen3.5.complete-hybrid.bf16.v2"):
         raise CapabilityError("LPCompact requires a supported complete hybrid-state layout")
     from .._reference.native import validate_components
@@ -41,7 +43,7 @@ def compact(state, *, ratio=8, force=False, allow_unqualified=False):
     validate_components(values, state.clock, "target", geometry=geometry, native_precision=state.identity.backend == "gguf")
     physical = physical_length(values, state.clock)
     target = budget(physical, ratio)
-    if (not force and physical < MIN_CONTEXT) or target == physical:
+    if (not force and physical < geometry.get("minimum_context", MIN_CONTEXT)) or target == physical:
         return state
     device = _device(values)
     def sync():

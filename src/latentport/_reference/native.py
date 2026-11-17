@@ -44,7 +44,7 @@ def validate_components(values: Mapping[str, Any], clock: int, side: str, *, fin
     if "sliding_window" in geo and "sliding_heads" in geo:
         sliding = (1, geo["sliding_heads"], min(clock, geo["sliding_window"] - 1), geo["sliding_dim"])
         shapes.update(SK=sliding, SV=sliding)
-    else:
+    elif "linear_attention" in geo["types"]:
         shapes.update(C=(1, geo["conv_channels"], geo["conv_width"]),
                       R=(1, geo["recurrent_heads"], geo["recurrent_k"], geo["recurrent_v"]))
     if indexed:
