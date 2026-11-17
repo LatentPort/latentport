@@ -21,9 +21,9 @@ def _geometry(side: str):
     return json.loads((Path(__file__).resolve().parent.parent / "configs/geometry.json").read_text())[side]
 
 
-def validate_components(values: Mapping[str, Any], clock: int, side: str, *, finite: bool = False, native_precision: bool = False) -> None:
+def validate_components(values: Mapping[str, Any], clock: int, side: str, *, finite: bool = False, native_precision: bool = False, geometry=None) -> None:
     import torch
-    geo = _geometry(side)
+    geo = geometry or _geometry(side)
     expected = {"H"}
     physical = physical_length(values, clock)
     if "P" in values:
@@ -100,9 +100,11 @@ class ReferenceBackend:
     kernels = staticmethod(reference_kernels)
 
     def __init__(self, locations: Mapping[str, str | Path | None], specs: Mapping[str, Mapping[str, Any]],
-                 *, device: str = "cuda:0", resolver=None):
+                 *, device: str = "cuda:0", resolver=None, precision=None):
         self.locations = {side: Path(path) if path is not None else None for side, path in locations.items()}
         self.specs = specs
+        if precision is not None:
+            self.name = precision
         if device != "cuda:0":
             raise CapabilityError("The selected translator is pinned to cuda:0")
         self.device = device
@@ -111,6 +113,9 @@ class ReferenceBackend:
         self._models = {}
         self._codecs = {}
         self._verified = set()
+
+    def validate(self, values, clock, side, **kwargs):
+        validate_components(values, clock, side, geometry=self.specs[side].get("geometry"), **kwargs)
 
     def _path(self, side, *, metadata_only=False):
         path = self.locations[side]
@@ -155,7 +160,7 @@ class ReferenceBackend:
         path = self._path(side)
         config = AutoConfig.from_pretrained(path, local_files_only=True).text_config
         config.use_cache = True
-        quant = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4",
+        quant = None if self.name == "bf16" else BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4",
                                   bnb_4bit_use_double_quant=True,
                                   bnb_4bit_compute_dtype=torch.bfloat16,
                                   bnb_4bit_quant_storage=torch.uint8,
@@ -165,10 +170,10 @@ class ReferenceBackend:
             quantization_config=quant, device_map={"": 0},
             attn_implementation="sdpa", low_cpu_mem_usage=True,
             key_mapping={r"^model\.language_model\.": "model."}, output_loading_info=True)
-        if info["missing_keys"] or info["unexpected_keys"]:
+        if any(info.get(k) for k in ("missing_keys", "unexpected_keys", "mismatched_keys", "error_msgs")):
             raise CompatibilityError(f"{side} checkpoint key mismatch")
         from .architecture import geometry
-        if geometry(config) != _geometry(side):
+        if geometry(config) != self.specs[side].get("geometry", _geometry(side)):
             raise CompatibilityError(f"{side} model geometry changed")
         # The source checkpoint has no generation_config.json. The selected
         # bridge's native policy terminates at either end-of-text or chat EOS.
@@ -210,7 +215,7 @@ class ReferenceBackend:
         if len(terminal) != 1:
             raise StateError("Ambiguous terminal H capture")
         values = self._extract(model, output.past_key_values, terminal[0])
-        validate_components(values, len(token_ids), self._side(identity), finite=True)
+        self.validate(values, len(token_ids), self._side(identity), finite=True)
         return values
 
     def advance(self, identity, components, clock: int, token_ids: Sequence[int]):
@@ -218,7 +223,7 @@ class ReferenceBackend:
         if not token_ids:
             raise ValueError("Cannot advance by zero tokens")
         side = self._side(identity)
-        validate_components(components, clock, side)
+        self.validate(components, clock, side)
         model = self._model(identity)
         cache = self._cache(model, components, clock)
         terminal = []
@@ -236,18 +241,18 @@ class ReferenceBackend:
         values = self._extract(model, output.past_key_values, terminal[0])
         if "P" in components:
             values["P"] = extend_positions(components, clock, len(token_ids))
-        validate_components(values, clock + len(token_ids), side, finite=True)
+        self.validate(values, clock + len(token_ids), side, finite=True)
         return values
 
     def first_logits(self, identity, components, clock):
         import torch
-        validate_components(components, clock, self._side(identity))
+        self.validate(components, clock, self._side(identity))
         model = self._model(identity)
         with torch.inference_mode():
             return model.lm_head(model.model.norm(components["H"]))[:, -1]
 
     def install(self, identity, components, clock):
-        validate_components(components, clock, self._side(identity))
+        self.validate(components, clock, self._side(identity))
         self._cache(self._model(identity), components, clock)
 
     def eos_ids(self, identity):
@@ -261,7 +266,7 @@ class ReferenceBackend:
     def begin_decode(self, identity, components, clock, *, mtp=False):
         if mtp:
             raise CapabilityError("Reference backend has no MTP draft runner")
-        validate_components(components, clock, self._side(identity))
+        self.validate(components, clock, self._side(identity))
         model = self._model(identity)
         cache = self._cache(model, components, clock)
         return _ReferenceDecodeHandle(model, cache, components["H"], clock, self.device,

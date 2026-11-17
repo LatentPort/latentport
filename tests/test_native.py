@@ -20,7 +20,7 @@ def gguf_bytes(*, kind=0, offset=0, truncate=0):
     def string(value):
         data=value.encode();return struct.pack("<Q",len(data))+data
     data=b"GGUF"+struct.pack("<IQQ",3,1,1)
-    data+=string("general.architecture")+struct.pack("<I",8)+string("latentport_bridge_v1")
+    data+=string("general.architecture")+struct.pack("<I",8)+string("latentport_bridge_v2")
     data+=string("parent.matrix")+struct.pack("<IQQIQ",2,3,2,kind,offset)
     data+=bytes((-len(data))%32)
     data+=np.arange(6,dtype="<f4").tobytes()

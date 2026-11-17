@@ -20,8 +20,6 @@ def read(path):
 def require(condition, message):
     if not condition:
         raise ValueError(message)
-GEO = read(HERE / "configs/geometry.json")
-CAL = read(HERE / "configs/calibration.json")
 CONFIG = read(HERE / "configs/architecture_v2.json")["base_architecture"]
 CHUNK = 512
 EPS = 1e-6
@@ -511,18 +509,14 @@ class CrossPositionGCST(GCST):
         output = State(layers, terminal, slots.target_length)
         return (output, details) if diagnostics else output
 
-def fresh(calibration, mode='cross_position', seed=890019):
+def fresh(calibration, mode='cross_position', seed=890019, *, geo, arch):
     torch.manual_seed(seed)
-    geo = read(HERE / 'configs/geometry.json')
-    arch = read(HERE / 'configs/architecture_v2.json')
     with torch.device('cuda'):
         model = CrossPositionGCST(geo['source'], geo['target'], arch['base_architecture'], arch['position_router'], position_mode=mode)
     model.parameter_dtype(torch.float32)
     with torch.no_grad():
         for name, value in calibration['buffers'].items():
             getattr(model, name).copy_(torch.tensor(value, device='cuda', dtype=torch.float32))
-    expected = 303623040 if mode == 'position_isolated' else 305756547
-    assert model.parameter_summary()['trainable_parameters'] == expected
     return model
 
 class MatrixFactors(torch.nn.Module):
@@ -543,9 +537,9 @@ class MatrixFactors(torch.nn.Module):
 
 class Model(torch.nn.Module):
 
-    def __init__(self, seed, kind, rank, means):
+    def __init__(self, seed, kind, rank, means, geo, arch, calibration):
         super().__init__()
-        self.base = fresh(CAL, 'cross_position', seed)
+        self.base = fresh(calibration, 'cross_position', seed, geo=geo, arch=arch)
         self.kind = kind
         self.means = means
         self.rank = rank
@@ -585,24 +579,28 @@ OriginalF = Model
 
 class HeadBasis(torch.nn.Module):
 
-    def __init__(self, seed):
+    def __init__(self, seed, target, calibration):
         super().__init__()
+        layers = [i for i, kind in enumerate(target['types']) if kind == 'linear_attention']
+        heads, k, v = target['recurrent_heads'], target['recurrent_k'], target['recurrent_v']
+        if k != v or k != 128:
+            raise ValueError('Head-basis graph requires square 128-channel recurrent heads')
+        self.latent_shape = (len(layers), heads, k)
         with torch.random.fork_rng(devices=[0]):
             torch.manual_seed(seed)
             torch.cuda.manual_seed_all(seed)
-            self.U = torch.nn.Parameter(torch.empty(48, 48, 128, 128, device='cuda', dtype=torch.float32))
+            self.U = torch.nn.Parameter(torch.empty(len(layers), heads, k, v, device='cuda', dtype=torch.float32))
             self.V = torch.nn.Parameter(torch.empty_like(self.U))
             torch.nn.init.normal_(self.U, 0.0, 0.1 / math.sqrt(128))
             torch.nn.init.normal_(self.V, 0.0, 0.1 / math.sqrt(128))
             self.g = PreciseLinear(128, 128, bias=True).to(device='cuda', dtype=torch.float32)
-        layers = [i for i, t in enumerate(GEO['target']['types']) if t == 'linear_attention']
-        scales = [math.sqrt(128 * max(CAL['statistics']['R'][str(i)]['variance'], CAL['statistics']['R'][str(i)]['floor'])) for i in layers]
+        scales = [math.sqrt(128 * max(calibration['statistics']['R'][str(i)]['variance'], calibration['statistics']['R'][str(i)]['floor'])) for i in layers]
         self.register_buffer('scale', torch.tensor(scales, device='cuda', dtype=torch.float32))
         self.enabled = True
         self.latest = {}
 
     def forward(self, z):
-        assert z.ndim == 4 and tuple(z.shape[1:]) == (48, 48, 128)
+        assert z.ndim == 4 and tuple(z.shape[1:]) == self.latent_shape
         assert z.device.type == 'cuda' and z.dtype == torch.float32
         coefficients = 1 + 0.1 * torch.tanh(self.g(z))
         self.latest_coefficients = coefficients.detach()
@@ -615,9 +613,9 @@ class HeadBasis(torch.nn.Module):
 
 class HeadBasisModel(OriginalF):
 
-    def __init__(self, seed, means, new_seed):
-        super().__init__(seed, 'F', 96, means)
-        self.head_basis = HeadBasis(new_seed)
+    def __init__(self, seed, means, new_seed, geo, arch, calibration):
+        super().__init__(seed, 'F', 96, means, geo, arch, calibration)
+        self.head_basis = HeadBasis(new_seed, geo['target'], calibration)
         self._connected_latents = None
         self._capture = self.base.rec_output_basis.register_forward_pre_hook(self._latent_hook)
 
@@ -630,7 +628,7 @@ class HeadBasisModel(OriginalF):
         self._connected_latents = []
         try:
             pred = super().forward(source, slots, chunk)
-            assert len(self._connected_latents) == 48
+            assert len(self._connected_latents) == len(self.base.tlin)
             z = torch.stack(self._connected_latents, dim=1)
             delta = self.head_basis(z)
         finally:

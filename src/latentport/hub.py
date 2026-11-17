@@ -7,12 +7,18 @@ import shutil
 from pathlib import Path
 
 
-DEFAULT_REPO = "latentport/latentport-4-27b-research-preview"
-DEFAULT_REVISION = "cf50f0c61c55454cbfce4b2ef334632ae461bb54"
-GGUF_REPO = "latentport/latentport-4-27b-research-preview-GGUF"
-GGUF_REVISION = "880c3f9aeb30b929346ba3f68b719d8bf21756a9"
-GGUF_NAME = "latentport-4-27b-bridge.F32.gguf"
-GGUF_BYTES = 2578356288
+DEFAULT_REPO = "latentport/LPBridge-Qwen3.5-4b-Qwen3.8-27b"
+DEFAULT_REVISION = "c8607cfac644eddb8ebdb8a9dc6079873c2015a4"
+
+
+def verified(path, spec):
+    path = Path(path)
+    if not path.is_file() or path.stat().st_size != spec["bytes"]:
+        raise ValueError(f"Missing file or size mismatch: {path}")
+    with path.open("rb") as stream:
+        if hashlib.file_digest(stream, "sha256").hexdigest() != spec["sha256"]:
+            raise ValueError(f"SHA-256 mismatch: {path}")
+    return path
 
 
 def cached_file(repo_id, filename, revision):
@@ -37,15 +43,6 @@ def check_download_space(required):
                            f"{(required + 1024**3)/1e9:.2f} GB free; have {free/1e9:.2f} GB.")
 
 
-def transfer_download_bytes(manifest_path=None):
-    specs = gguf_model_specs(manifest_path)
-    required = sum(spec["bytes"] for spec in (specs['source'], specs['target'])
-                   if cached_file(spec["repo_id"], spec["filename"], spec["revision"]) is None)
-    if cached_file(GGUF_REPO, GGUF_NAME, GGUF_REVISION) is None:
-        required += GGUF_BYTES
-    return required
-
-
 def bulk_home() -> Path:
     override = os.environ.get("LATENTPORT_HOME")
     if override:
@@ -68,13 +65,48 @@ def _snapshot(repo_id: str, revision: str, *, patterns=None) -> Path:
                                   local_files_only=constants.HF_HUB_OFFLINE)).resolve()
 
 
-def bundle_root(value: str | Path = DEFAULT_REPO, *, revision: str = DEFAULT_REVISION,
-                full: bool = False) -> Path:
-    path = Path(value).expanduser()
-    if path.is_dir():
-        return path.resolve()
-    patterns = None if full else ["latentport.json", "bridge_config.json"]
-    return _snapshot(str(value), revision, patterns=patterns)
+def bundle_root(value: str | Path = DEFAULT_REPO, *, revision=None, full=False, backend=None) -> Path:
+    import json
+    from pathlib import PurePosixPath
+    local = Path(value).expanduser().is_dir()
+    if not local and revision is None and str(value) == DEFAULT_REPO:
+        revision = DEFAULT_REVISION
+    root = Path(value).resolve() if local else _snapshot(str(value), revision, patterns=["latentport.json"])
+    manifest = json.loads((root / "latentport.json").read_text(encoding="utf-8"))
+    if manifest.get("schema") != "latentport.bridge-bundle.v2":
+        raise ValueError("This runtime requires an LPBridge v2 bundle")
+    if not local and manifest["repo_id"] != str(value):
+        raise ValueError("Bridge repository identity mismatch")
+    files = manifest["artifacts"]
+    if not {"bridge_config.json", "configs/geometry.json", "configs/calibration.json",
+            "configs/architecture_v2.json"}.issubset(files):
+        raise ValueError("Bridge configuration is missing a checksum")
+    for name in files:
+        parts = PurePosixPath(name)
+        if not parts.parts or parts.is_absolute() or ".." in parts.parts or "\\" in name or ":" in name or str(parts) != name:
+            raise ValueError("Invalid bridge artifact path")
+    for endpoint in manifest["models"].values():
+        from re import fullmatch
+        if not fullmatch("[0-9a-f]{40}", endpoint["revision"]):
+            raise ValueError("Each base model requires an immutable revision")
+        if any(Path(name).name != name or "/" in name or "\\" in name or ":" in name or name in ("", ".", "..")
+               for name in (*endpoint["metadata_files"], *endpoint["weight_files"])):
+            raise ValueError("Invalid base model filename")
+    gguf = manifest["gguf_bridge"]
+    if gguf not in files:
+        raise ValueError("Missing GGUF receipt")
+    names = [name for name in files if name.endswith(".json") or
+             (full and (name == gguf if backend == "gguf" else name.endswith(".safetensors")))]
+    if not local:
+        # HF snapshot directory names are immutable commit IDs, even for tags.
+        root = _snapshot(str(value), root.name, patterns=["latentport.json", *names])
+    for name in names:
+        verified(root / name, files[name])
+    config = json.loads((root / "bridge_config.json").read_text(encoding="utf-8"))
+    if config["architecture"] != manifest["architecture"] or any(
+            name not in files or not name.endswith(".safetensors") for name in config["weights"].values()):
+        raise ValueError("Bridge graph refers to an unverified weight file")
+    return root
 
 
 def model_snapshot(spec: dict, *, metadata_only: bool) -> Path:
@@ -95,28 +127,30 @@ def model_snapshot(spec: dict, *, metadata_only: bool) -> Path:
     patterns = (["config.json", "tokenizer.json", "tokenizer_config.json",
                  "chat_template.jinja", "special_tokens_map.json", "generation_config.json"]
                 if metadata_only else None)
-    return _snapshot(spec["repo_id"], spec["revision"], patterns=patterns)
+    if not metadata_only and spec.get("weight_files"):
+        patterns = [*spec["metadata_files"], *spec["weight_files"]]
+    root = _snapshot(spec["repo_id"], spec["revision"], patterns=patterns)
+    for name, record in spec.get("metadata_files", {}).items():
+        verified(root / name, record)
+    return root
 
 
-def gguf_bridge_file(value: str | Path | None = None) -> Path:
-    if value is not None:
-        return Path(value).expanduser().resolve()
-    cached = cached_file(GGUF_REPO, GGUF_NAME, GGUF_REVISION)
-    if cached is not None:
-        return cached
-    check_download_space(GGUF_BYTES)
-    root = _snapshot(GGUF_REPO, GGUF_REVISION, patterns=[GGUF_NAME, "latentport.json"])
-    return root / GGUF_NAME
+def gguf_bridge_file(value=None, *, root=None):
+    import json
+    root = Path(root) if root is not None else bundle_root(full=True, backend="gguf")
+    manifest = json.loads((root / "latentport.json").read_text())
+    name = manifest["gguf_bridge"]
+    return verified(value or root / name, manifest["artifacts"][name])
 
 
-def gguf_model_specs(manifest_path=None):
+def gguf_model_specs(manifest_path=None, *, root=None):
     """Resolve an explicit pinned profile; repositories need not be owned by us."""
     import json
     import re
-    path = Path(manifest_path) if manifest_path else Path(__file__).parent / "configs/gguf-models.json"
-    specs = json.loads(path.read_text())
     if not manifest_path:
-        return specs
+        root = Path(root) if root is not None else bundle_root()
+        return json.loads((root / "latentport.json").read_text())["gguf_models"]
+    specs = json.loads(Path(manifest_path).read_text())
     for side in ("source", "target"):
         spec = specs[side]
         if manifest_path:  # Existing release manifests remain backwards compatible.
@@ -131,22 +165,25 @@ def gguf_model_specs(manifest_path=None):
     return specs
 
 
-def gguf_model_file(side: str, *, manifest_path=None) -> Path:
+def gguf_model_file(side: str, *, manifest_path=None, root=None, local_path=None) -> Path:
     """Download the exact qualified GGUF, never substitute another quantization."""
     from huggingface_hub import hf_hub_download
-    spec = gguf_model_specs(manifest_path)[side]
+    expected = gguf_model_specs(root=root)[side]
+    spec = gguf_model_specs(manifest_path, root=root)[side] if manifest_path else expected
+    if (expected["bytes"], expected["sha256"]) != (spec["bytes"], spec["sha256"]):
+        raise ValueError(f"{side}: external model profile differs from bridge manifest")
+    if local_path is not None:
+        return verified(local_path, expected)
+    candidate = bulk_home() / "models" / Path(expected["filename"]).name
+    if candidate.is_file() and candidate.stat().st_size == expected["bytes"]:
+        return verified(candidate, expected)
+    if not spec.get("repo_id"):
+        raise FileNotFoundError(f"Supply the pinned {side} GGUF via {side}_path, "
+                                f"a verified external model manifest, or {candidate}")
     # Reuse an exact cached upstream file before populating our own cache.
     cached = cached_file(spec["repo_id"], spec["filename"], spec["revision"])
     if cached is None:
         check_download_space(spec["bytes"])
     path = Path(cached if cached is not None else hf_hub_download(
         spec["repo_id"], spec["filename"], revision=spec["revision"], cache_dir=bulk_home()/"huggingface"))
-    if path.stat().st_size != spec["bytes"]:
-        raise ValueError(f"Downloaded {side} GGUF has an unexpected size")
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for block in iter(lambda: stream.read(8 * 1024 * 1024), b""):
-            digest.update(block)
-    if digest.hexdigest() != spec["sha256"]:
-        raise ValueError(f"Downloaded {side} GGUF failed SHA-256 verification")
-    return path
+    return verified(path, spec)

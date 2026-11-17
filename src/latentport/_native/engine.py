@@ -12,7 +12,7 @@ from pathlib import Path
 from threading import RLock
 from time import perf_counter
 
-from ..errors import CapabilityError, StateError
+from ..errors import CapabilityError, CompatibilityError, StateError
 from .._reference.native import _geometry, validate_components
 from .._positions import physical_length
 from ..context import ContextOptions
@@ -153,12 +153,14 @@ class Engine:
         self.lib=self.binding.lib
         self._models={}; self._active={}; self._lock=RLock(); self._closed=False
         self._cache_reclaims=0
+        self.geometry = {side: _geometry(side) for side in self.paths}
         self.bridge=None
         if bridge is not None:
             if self.options.position_policy != "default":
                 raise CapabilityError("Extended positions apply to standalone models, not pretrained translator pairs")
             from .bridge import GGUFTranslator
             self.bridge=GGUFTranslator(bridge,bundle_root)
+            self.geometry = self.bridge.geo
 
     def capabilities(self):
         return {"abi":2,"full_hybrid_state_install":True,"device_resident_state":True,
@@ -186,6 +188,11 @@ class Engine:
                 raise CapabilityError(self.lib.lp_error().decode("utf-8",errors="replace"))
             info=Info()
             self.binding.check(self.lib.lp_get_info(handle,ct.byref(info)))
+            geometry = self.geometry[side]
+            fields = ("hidden", "kv_heads", "head_dim", "conv_channels", "recurrent_heads")
+            if info.layers != len(geometry["types"]) or any(getattr(info, key) != geometry[key] for key in fields):
+                self.lib.lp_close(handle)
+                raise CompatibilityError("Native model geometry differs from the selected bridge")
             self._models[side]=(handle,info)
         return self._models[side]
 
@@ -225,7 +232,7 @@ class Engine:
             self._cache_reclaims+=1
 
     def _install(self,side,values,clock):
-        validate_components(values,clock,side,native_precision=True)
+        validate_components(values,clock,side,native_precision=True,geometry=self.geometry[side])
         physical=physical_length(values,clock)
         self.options.context_options.check(clock,physical)
         if "P" in values:
@@ -298,10 +305,10 @@ class Engine:
         clock=self.binding.check(self.lib.lp_clock(handle))
         n=self.binding.check(self.lib.lp_kv_positions(handle,None,0)) if self.binding.sparse_state else 0
         physical=n or clock
-        g=_geometry(side)
+        g=self.geometry[side]
         shapes={"H":(1,1,g["hidden"]),"K":(1,g["kv_heads"],physical,g["head_dim"]),
-                "V":(1,g["kv_heads"],physical,g["head_dim"]),"C":(1,g["conv_channels"],4),
-                "R":(1,g["recurrent_heads"],128,128)}
+                "V":(1,g["kv_heads"],physical,g["head_dim"]),"C":(1,g["conv_channels"],g["conv_width"]),
+                "R":(1,g["recurrent_heads"],g["recurrent_k"],g["recurrent_v"])}
         names=["H"]
         for i,kind in enumerate(g["types"]):
             names.extend(f"{f}.{i}" for f in (("K","V") if kind=="full_attention" else ("C","R")))
@@ -370,7 +377,7 @@ class Engine:
             self._park(side)
             handle,_=self._model(side)
             h=h.to("cuda:0").contiguous()
-            if h.dtype not in (torch.bfloat16,torch.float32) or tuple(h.shape)!=(1,1,_geometry(side)["hidden"]):
+            if h.dtype not in (torch.bfloat16,torch.float32) or tuple(h.shape)!=(1,1,self.geometry[side]["hidden"]):
                 raise StateError("Invalid terminal H")
             torch.cuda.synchronize(0)
             self.binding.check(self.lib.lp_head(handle,h.data_ptr(),h.numel()*h.element_size()))

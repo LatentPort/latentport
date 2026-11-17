@@ -105,7 +105,7 @@ class FakeTranslator:
 
 
 def pair(root):
-    manifest = {"schema": "latentport.bridge-bundle.v1", "candidate": "E119_joint_step0016",
+    manifest = {"schema": "latentport.bridge-bundle.v2", "architecture": "qwen-hybrid-mixed-v1",
                 "release_id": "test", "models": {
                     "source": {"repo_id": "source", "revision": "one"},
                     "target": {"repo_id": "target", "revision": "two"}}}
