@@ -13,4 +13,4 @@ from ._native import NativeOptions
 
 __all__ = ["Answer", "Bridge", "CapabilityError", "CompatibilityError", "GenerationInterrupted", "HandoffError",
            "LatentPortError", "Model", "ModelIdentity", "Port", "ReplayError", "RunStats",
-           "Session", "State", "StateError", "StateInfo", "NativeOptions", "ContextOptions", "load", "load_model", "compact_flash_next_cache", "CompactionInfo"]
+           "Session", "State", "StateError", "StateInfo", "NativeOptions", "ContextOptions", "load", "load_model", "CompactionInfo"]

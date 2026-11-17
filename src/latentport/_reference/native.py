@@ -30,6 +30,10 @@ def validate_components(values: Mapping[str, Any], clock: int, side: str, *, fin
         expected.add("P")
     for index, kind in enumerate(geo["types"]):
         expected.update(f"{field}.{index}" for field in (("K", "V") if kind == "full_attention" else ("C", "R")))
+    indexed = "index_width" in geo
+    if indexed:
+        expected.update(f"I.{i}" for i, kind in enumerate(geo["types"]) if kind == "full_attention")
+        expected.update(("PLE", "NGRAM"))
     if set(values) != expected or clock < 1:
         raise StateError(f"{side} state needs exactly {len(expected)} complete fields and a positive clock")
     shapes = {"H": (1, 1, geo["hidden"]),
@@ -37,6 +41,9 @@ def validate_components(values: Mapping[str, Any], clock: int, side: str, *, fin
               "V": (1, geo["kv_heads"], physical, geo["head_dim"]),
               "C": (1, geo["conv_channels"], geo["conv_width"]),
               "R": (1, geo["recurrent_heads"], geo["recurrent_k"], geo["recurrent_v"])}
+    if indexed:
+        shapes.update(I=(1, physical, geo["index_width"]), PLE=(1, geo["ple_channels"], geo["ple_width"]),
+                      NGRAM=(1, geo["ngram_width"]))
     finite_checks = []
     for name, value in values.items():
         if name == "P":
@@ -45,6 +52,8 @@ def validate_components(values: Mapping[str, Any], clock: int, side: str, *, fin
         if tuple(value.shape) != shapes[field]:
             raise StateError(f"Wrong {name} shape: {tuple(value.shape)} != {shapes[field]}")
         allowed = {torch.float32 if field == "R" else torch.bfloat16}
+        if field == "NGRAM":
+            allowed = {torch.int64}
         if native_precision and field in ("H", "C"):
             allowed.add(torch.float32)
         if value.dtype not in allowed:

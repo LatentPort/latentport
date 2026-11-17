@@ -4,7 +4,7 @@ import copy
 from ._compact.policy import MIN_CONTEXT, budget
 from .errors import CompatibilityError
 
-BASE_MODEL = "Qwen/Qwen3.8-Flash-Next"
+from ._models import FLASH_NEXT as BASE_MODEL
 FEATURE_LAYERS = (3, 15, 31)
 
 
@@ -33,6 +33,9 @@ def _blocks(scores, target):
 
 def compact_flash_next_cache(cache, *, ratio=8):
     """Fork a batch-one native Flash-Next text cache with 4× or 8× compaction.
+
+    Compatibility entry point for callers with an existing Transformers cache.
+    For LatentPort states use State.compact().
 
     The pinned selector supports Qwen/Qwen3.8-Flash-Next at revision
     812d96e10a0dd82b69d749e68693698cf6c36daa. Continue the child with

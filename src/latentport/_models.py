@@ -2,7 +2,10 @@
 from .context import PINNED_REVISION
 
 DEFAULT_MODEL = "Qwen/Qwen3.8-27B"
+FLASH_NEXT = "Qwen/Qwen3.8-Flash-Next"
+FLASH_ABI = "qwen4-exp.complete-indexed-text.v1"
 MODEL_REVISIONS = {
+    FLASH_NEXT: "812d96e10a0dd82b69d749e68693698cf6c36daa",
     DEFAULT_MODEL: PINNED_REVISION,
     "Qwen/Qwen3.5-4B": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
     "Qwen/Qwen3.5-9B": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
@@ -11,6 +14,11 @@ MODEL_REVISIONS = {
 
 def model_geometry(repo):
     from ._reference.native import _geometry
+    if repo == FLASH_NEXT:
+        return dict(types=(["linear_attention"] * 3 + ["full_attention"]) * 12,
+                    hidden=2560, kv_heads=2, head_dim=256, recurrent_heads=48,
+                    recurrent_k=128, recurrent_v=128, conv_channels=10240, conv_width=4,
+                    index_width=128, ple_layer=1, ple_channels=10240, ple_width=9, ngram_width=2)
     if repo == DEFAULT_MODEL:
         return _geometry("target")
     if repo == "Qwen/Qwen3.5-4B":
