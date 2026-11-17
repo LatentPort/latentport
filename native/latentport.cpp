@@ -265,9 +265,10 @@ void * lp_open_extended(const char * path,int side,int context,int batch,int thr
             require(entry.second->buffer&&!ggml_backend_buffer_is_host(entry.second->buffer),"GGUF weight is not GPU resident");
         const auto & h=p->model->hparams;
         require(p->model->arch==LLM_ARCH_QWEN35,"GGUF is not the supported dense Qwen hybrid architecture");
-        require(h.n_layer()==(side?64:32)&&h.n_embd==(side?5120:2560)&&h.ssm_d_conv==4&&h.ssm_d_state==128,
-                "GGUF geometry differs from selected bridge");
-        require(h.n_head_kv()==4&&h.n_embd_head_k()==256&&h.ssm_dt_rank==(side?48:32)&&h.ssm_n_group==16,"GGUF head geometry mismatch");
+        require(h.n_layer() > 0 && h.n_embd > 0 && h.ssm_d_conv == 4 && h.ssm_d_state == 128,
+                "Unsupported hybrid state dimensions");
+        require(h.n_head_kv() > 0 && h.n_embd_head_k() == h.n_embd_head_v() &&
+                h.ssm_dt_rank > 0 && h.ssm_n_group > 0, "Unsupported hybrid head layout");
         for(int i=0;i<(int)h.n_layer();++i)require(h.is_recr(i)==((i+1)%4!=0),"GGUF layer pattern differs");
         if(position_policy==1){
             require(h.n_ctx_train==262144&&h.n_rot(3)==64&&h.rope_freq_base_train==10000000.0f&&
@@ -275,7 +276,7 @@ void * lp_open_extended(const char * path,int side,int context,int batch,int thr
                     "GGUF rotary geometry differs from the pinned static YaRN4 base");
         }
         if(drafts)require(h.n_layer_nextn>0,"MTP requested but GGUF contains no trained MTP weights");
-        p->info={2,(int)h.n_layer(),(int)h.n_embd,4,256,(int)(h.ssm_d_inner+2*h.ssm_n_group*h.ssm_d_state),
+        p->info={2,(int)h.n_layer(),(int)h.n_embd,(int)h.n_head_kv(),(int)h.n_embd_head_k(),(int)(h.ssm_d_inner+2*h.ssm_n_group*h.ssm_d_state),
                  (int)h.ssm_dt_rank,(int)h.n_layer_nextn,drafts,context,llama_vocab_n_tokens(llama_model_get_vocab(p->model)),0};
         p->batch=batch;p->tap_capacity=std::max(4,drafts+1);p->logits.resize(p->info.vocabulary);p->pending_h.resize(h.n_embd);
         p->init_aux();

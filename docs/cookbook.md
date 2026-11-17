@@ -114,13 +114,16 @@ answer = chat.ask("Explain the tradeoffs.", on_token=stream)
 
 ## Enable MTP
 
+Use this option with a separately qualified target profile containing trained MTP heads. Default bridge generation uses ordinary greedy decoding.
+
 ```python
+port = lp.load(bridge_repo, backend="gguf", native_options=lp.NativeOptions(mtp_drafts=4))
 port.warm(mtp=True)
 answer = port.composite.session().ask("Explain this code: ...", mtp=True)
 print(answer.stats.mtp_proposed_tokens, answer.stats.mtp_accepted_tokens)
 ```
 
-The supplied target GGUF includes one trained MTP head. The runtime can unroll multiple
+With a trained MTP head, the runtime can unroll multiple
 draft steps and verify them greedily. Accepted/rejected drafts preserve committed hybrid
 state. Speculation begins after the target has generated a native token; the bridge's
 terminal hidden state is not treated as an MTP embedding. MTP is optional and separate

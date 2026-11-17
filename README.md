@@ -65,13 +65,14 @@ dependencies are optional: see [installation](https://github.com/LatentPort/late
 On a qualified NVIDIA GPU host with Docker GPU access configured:
 
 ```shell
-docker run --rm --gpus all -p 127.0.0.1:8768:8768 -v latentport-cache:/cache ghcr.io/latentport/latentport:0.2.1-gguf-cu128-sm120
+docker build -f docker/Dockerfile --target gguf -t latentport:local .
+docker run --rm --gpus all -p 127.0.0.1:8768:8768 -v latentport-cache:/cache latentport:local
 ```
 
 Open **http://localhost:8768**. The demo prepares the models, transfers context,
 forks specialist sessions, and checks a generated repair with executable tests.
 The initial transfer profile requires an SM120 GPU with at least 32 GB VRAM and
-approximately 22.10 GB of model downloads; subsequent runs reuse the volume.
+space for the bridge and the two pinned GGUF bases. The runtime fetches each from its publisher.
 Windows Docker GPU execution requires the WSL 2 backend.
 
 **Release status:** the Python package is available on [PyPI](https://pypi.org/project/latentport/).
@@ -122,20 +123,22 @@ details and the `state.compaction` receipt.
 
 ## Transfer context between models
 
-The current transfer bridge lets Qwen3.5-4B read a context and Qwen3.8-27B continue
+The default L127 step-64 transfer bridge lets Qwen3.5-4B read a context and Qwen3.8-27B continue
 from the translated state. It transfers attention K/V, recurrent memory,
 convolution history and the terminal hidden state.
 
 ```python
 import latentport as lp
 
-with lp.load(backend="gguf") as port:
+with lp.load("latentport/LPBridge-Qwen3.5-4b-Qwen3.8-27b", backend="nf4") as port:
     port.warm()
     context = port.source.capture([("user", "Repository context: ...")])
     transferred = port.bridge.translate(context)
     answer = port.target.session(transferred).ask("Explain the repository.")
     print(answer.text)
 ```
+
+Select `backend="bf16"`, `"nf4"` or `"gguf"`. Set `thinking=True` to use the thinking-on templates and correction bank. GGUF downloads the two base models from the publishers pinned in the bridge manifest. The same API accepts a different bridge repository and revision, or a verified local bundle directory.
 
 For a complete conversation, `port.composite.session()` handles the initial
 handoff and retains the target's state across turns. The default `cached_handoff`
@@ -168,7 +171,7 @@ share immutable storage; execution uses the selected backend's scheduling.
 | Transformation | Measurement | Validation |
 | --- | --- | --- |
 | LPCompact, 128K history at 8x | Attention KV tensors reduced from **8 GiB to 1 GiB**. | BF16, Q4_K_M and Q8_0 tested at 64K and 128K on RTX PRO 6000; continued generation, save/load, forks and repeated compaction passed. |
-| 4B to 27B transfer, approximately 16K prompts | **2.19x paired time-to-first-token speedup**; native median 24.663 s, composite median 11.087 s. | E120 resident NF4/BF16 research runtime on RTX 5090; paired 95% interval 2.15-2.23x. |
+| Historical E119 transfer, approximately 16K prompts | **2.19x paired time-to-first-token speedup**; native median 24.663 s, composite median 11.087 s. | E120 resident NF4/BF16 research runtime on RTX 5090; paired 95% interval 2.15-2.23x. |
 
 These measurements describe their stated workloads and configurations. Compaction
 reduces attention-state storage; model weights and recurrent state retain their
@@ -198,7 +201,7 @@ transformation has its own Hugging Face repository, with model compatibility,
 weights, versions and a model card.
 
 - [LPCompact-Qwen3.8-27B](https://huggingface.co/latentport/LPCompact-Qwen3.8-27B): the compaction selector shared across BF16 and GGUF.
-- [4B to 27B transfer bridge](https://huggingface.co/latentport/latentport-4-27b-research-preview): the current directional translator; [GGUF artifacts](https://huggingface.co/latentport/latentport-4-27b-research-preview-GGUF) are also available.
+- The [directional 4B to 27B bridge](https://huggingface.co/latentport/LPBridge-Qwen3.5-4b-Qwen3.8-27b) contains the Safetensors and lossless GGUF bridge weights. Its manifest identifies the separate base checkpoints and supported model profiles.
 
 Transformation repositories contain their own learned artifacts. Base-model
 weights are obtained separately.

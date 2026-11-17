@@ -33,12 +33,12 @@ class InstallTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp)/"model.gguf"
             p.write_bytes(b"modified")
-            spec = {"source": {"repo_id": "test/model", "revision": "pinned", "filename": p.name,
-                                "bytes": 8, "sha256": hashlib.sha256(b"original").hexdigest()}}
-            with patch.object(Path, "read_text", return_value=json.dumps(spec)), \
-                 patch("huggingface_hub.hf_hub_download", return_value=str(p)):
-                with self.assertRaisesRegex(ValueError, "SHA-256"):
-                    gguf_model_file("source")
+            spec = {side: {"repo_id": "test/model", "revision": "a"*40, "filename": p.name,
+                           "bytes": 8, "sha256": hashlib.sha256(b"original").hexdigest()}
+                    for side in ("source", "target")}
+            (Path(tmp) / "latentport.json").write_text(json.dumps({"gguf_models": spec}))
+            with self.assertRaisesRegex(ValueError, "SHA-256"):
+                gguf_model_file("source", root=Path(tmp), local_path=p)
 
     def _native(self, member, bad_hash=False):
         with tempfile.TemporaryDirectory() as tmp:

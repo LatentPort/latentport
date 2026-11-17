@@ -14,14 +14,12 @@ class GGUFTranslator(ReferenceTranslator):
     def _weights(self):
         import torch
         reader = BridgeGGUF(self.path)
-        config = json.loads((self.root / "bridge_config.json").read_text(encoding="utf-8"))
-        groups = {"parent":{}, "kv":{}, "h":{}, "population_means":{}}
+        groups = {key: {} for key in self.config["weights"]}
         for name, array in reader.tensors.items():
             prefix, key = name.split(".", 1)
             if prefix not in groups:
                 raise CompatibilityError(f"Unknown bridge tensor namespace: {prefix}")
             groups[prefix][key] = torch.from_numpy(array)
-        if len(reader.tensors) != 262:
-            raise CompatibilityError("Selected bridge tensor count changed")
-        means = {k:v.to("cuda:0") for k,v in groups["population_means"].items()}
-        return config, means, groups["parent"], groups["kv"], groups["h"]
+        if len(reader.tensors) != self.config["tensor_count"]:
+            raise CompatibilityError("GGUF tensor count differs from bridge configuration")
+        return groups

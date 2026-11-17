@@ -17,7 +17,7 @@ class Bridge:
         self.bundle_root = Path(bundle_root).resolve()
         self.source, self.target = source, target
         manifest = json.loads((self.bundle_root / "latentport.json").read_text(encoding="utf-8"))
-        if manifest["schema"] != "latentport.bridge-bundle.v1" or manifest["candidate"] != "E119_joint_step0016":
+        if manifest.get("schema") != "latentport.bridge-bundle.v2" or manifest.get("architecture") != "qwen-hybrid-mixed-v1":
             raise CompatibilityError("Unsupported bridge bundle")
         for side, model in (("source", source), ("target", target)):
             ref = manifest["models"][side]
@@ -25,17 +25,15 @@ class Bridge:
                 raise CompatibilityError(f"{side} checkpoint differs from bridge bundle")
         if source.identity.backend != target.identity.backend:
             raise CompatibilityError("Cross-backend state conversion is not implemented")
+        self.thinking_mode = 'thinking_off'
         self.manifest = manifest
         self._translator = translator
 
     def prepare(self):
         """Load the selected bridge without translating a prompt."""
         if self._translator is None:
-            if self.source.identity.backend == "reference":
+            if self.source.identity.backend in ("nf4", "bf16", "reference"):
                 from ._reference.bridge import ReferenceTranslator
-                if not (self.bundle_root / "bridge/parent.safetensors").exists():
-                    from .hub import bundle_root
-                    self.bundle_root = bundle_root(self.manifest["repo_id"], full=True)
                 self._translator = ReferenceTranslator(self.bundle_root)
             elif self.source.identity.backend == "gguf":
                 self._translator = self.source.backend.translator()
@@ -92,6 +90,7 @@ class Bridge:
         if check is not None:
             check(target_record.sequence_length, target_record.sequence_length)
         metadata = numeric_alignment(source_record, target_record)
+        metadata["thinking_mode"] = self.thinking_mode
         if self._translator is None:
             self.prepare()
         started = perf_counter()
@@ -108,8 +107,9 @@ class Bridge:
             generated = self.target.codec.encode(committed)
             if target_record.token_ids[-len(generated):] != generated:
                 raise CompatibilityError("Translated assistant suffix has no exact token boundary")
+        provenance = (self.manifest.get("repo_id", "local"), self.manifest["release_id"], self.thinking_mode)
         return State(identity=destination.identity, clock=target_record.sequence_length,
-                     phase=state.phase, origin="translated:" + self.manifest["release_id"],
+                     phase=state.phase, origin="translated:" + ":".join(provenance),
                      target_prompt_tokens=0, rendered_text=target_record.decoded_text,
                      rendered_token_ids=target_record.token_ids, messages=state.messages,
                      generated_token_ids=generated, parent_id=state.state_id,

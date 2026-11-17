@@ -7,6 +7,7 @@ or if it does not report the complete-state and MTP capabilities explicitly.
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 from threading import RLock
 from typing import Mapping
@@ -40,6 +41,8 @@ class GGUFBackend:
         self.paths = {"source": Path(source_path).resolve(), "target": Path(target_path).resolve()}
         self.bundle_root = Path(bundle_root)
         self.manifest = manifest
+        geometry = self.bundle_root / "configs/geometry.json"
+        self.geometry = json.loads(geometry.read_text()) if geometry.is_file() else {}
         self.bridge_gguf_path = Path(bridge_gguf_path).resolve() if bridge_gguf_path is not None else None
         self._engine = engine
         self._engine_lock = RLock()
@@ -61,13 +64,10 @@ class GGUFBackend:
 
     def _bridge_file(self):
         from .hub import gguf_bridge_file
-        path = gguf_bridge_file(self.bridge_gguf_path)
-        if not path.is_file() or path.stat().st_size != 2578356288:
-            raise CompatibilityError("Selected GGUF bridge file missing or size changed")
-        if _hash_file(path) != "53cbd8104120b88dc2dcbc1d54f98133bde16c7f95ee33dc7c3d73b1c2292486":
-            raise CompatibilityError("Selected GGUF bridge hash changed")
-        self.bridge_gguf_path = path
-        return path
+        return gguf_bridge_file(self.bridge_gguf_path, root=self.bundle_root)
+
+    def validate(self, values, clock, side, **kwargs):
+        validate_components(values, clock, side, geometry=self.geometry.get(side), **kwargs)
 
     def weights(self, side):
         if side not in self._hashes:
@@ -129,14 +129,14 @@ class GGUFBackend:
     def capture(self, identity, token_ids):
         side = self._side(identity)
         values = self._native().capture(side, tuple(token_ids))
-        validate_components(values, len(token_ids), side, native_precision=True)
+        self.validate(values, len(token_ids), side, native_precision=True)
         return values
 
     def advance(self, identity, components, clock, token_ids):
         side = self._side(identity)
-        validate_components(components, clock, side, native_precision=True)
+        self.validate(components, clock, side, native_precision=True)
         values = self._native().advance(side, components, clock, tuple(token_ids))
-        validate_components(values, clock + len(token_ids), side, native_precision=True)
+        self.validate(values, clock + len(token_ids), side, native_precision=True)
         return values
 
     def live(self, identity, state=None):
@@ -144,7 +144,7 @@ class GGUFBackend:
 
     def first_logits(self, identity, components, clock):
         side = self._side(identity)
-        validate_components(components, clock, side, native_precision=True)
+        self.validate(components, clock, side, native_precision=True)
         return self._native().first_logits(side, components["H"])
 
     def eos_ids(self, identity):
@@ -152,16 +152,16 @@ class GGUFBackend:
 
     def install(self, identity, components, clock):
         side = self._side(identity)
-        validate_components(components, clock, side, native_precision=True)
+        self.validate(components, clock, side, native_precision=True)
         self._native().check_install(side, components, clock)
 
     def begin_decode(self, identity, components, clock, *, mtp=False):
         side = self._side(identity)
-        validate_components(components, clock, side, native_precision=True)
+        self.validate(components, clock, side, native_precision=True)
         if mtp and not self.supports_mtp:
             raise CapabilityError("Native extension cannot commit and roll back MTP draft state")
         handle = self._native().begin_decode(side, components, clock, mtp=mtp)
-        return _NativeDecodeHandle(handle, side, clock, mtp)
+        return _NativeDecodeHandle(handle, side, clock, mtp, self.validate)
 
     def translator(self):
         return _NativeTranslator(self)
@@ -190,9 +190,9 @@ class _NativeTranslator:
             engine.bridge.warm()
 
     def translate(self, components, source_clock, metadata):
-        validate_components(components, source_clock, "source", native_precision=True)
+        self.backend.validate(components, source_clock, "source", native_precision=True)
         values = self.backend._native().translate(components, metadata)
-        validate_components(values, metadata["target_length"], "target")
+        self.backend.validate(values, metadata["target_length"], "target")
         return values
 
 
@@ -225,7 +225,7 @@ class _NativeLive:
         if self.closed:
             raise StateError("Native live cache is closed")
         values=self.handle.snapshot()
-        validate_components(values,self.clock,self.side,finite=True,native_precision=True)
+        self.backend.validate(values,self.clock,self.side,finite=True,native_precision=True)
         state=State(self.identity,self.clock,"context_ready","gguf_live_boundary",target_prompt_tokens=self.clock,
                     parent_id=self.parent_id,_components=values)
         self.parent_id=state.state_id
@@ -251,7 +251,8 @@ class _NativeLive:
 
 
 class _NativeDecodeHandle:
-    def __init__(self, handle, side, clock, mtp):
+    def __init__(self, handle, side, clock, mtp, validate=validate_components):
+        self.validate = validate
         self._handle, self.side, self.clock, self.mtp = handle, side, clock, mtp
         self.logits = handle.logits()
 
@@ -266,7 +267,7 @@ class _NativeDecodeHandle:
 
     def snapshot(self):
         values = self._handle.snapshot()
-        validate_components(values, self.clock, self.side, native_precision=True)
+        self.validate(values, self.clock, self.side, native_precision=True)
         return values
 
     def greedy_batch(self, limit, eos):

@@ -119,6 +119,8 @@ def test_new_native_entrypoint_receives_logical_policy_and_physical_cap():
     engine=native_fixture();engine._closed=False;engine._models={};engine.paths={"target":"fixture.gguf"}
     engine.binding.extended_context=True;calls=[]
     engine.lib.lp_open_extended=lambda *args:calls.append(args) or 17
+    engine.geometry = {"target": {"types": [], "hidden": 0, "kv_heads": 0, "head_dim": 0,
+                                  "conv_channels": 0, "recurrent_heads": 0}}
     engine.lib.lp_get_info=lambda *args:0
     Engine._model(engine,"target")
     assert calls[0][-2:]==(1,262144)

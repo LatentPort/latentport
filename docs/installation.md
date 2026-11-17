@@ -1,33 +1,6 @@
-﻿# Installation
+# Installation
 
-LatentPort 0.2.1 is available on PyPI as a lightweight package with optional
-backend dependencies. The GHCR images are pending GPU qualification and
-publication; source and local Docker build instructions are below.
-
-## Try the demo with Docker
-
-Prerequisites: an SM120 NVIDIA GPU with at least 32 GB VRAM, a compatible driver,
-Docker with GPU access, and enough space for the image, 22.10 GB of model files,
-and download/extraction scratch space. Start with at least 40 GB free; long saved
-contexts and Docker build caches require additional space. Actual VRAM use depends
-on context and other workloads. Linux needs NVIDIA Container Toolkit configured;
-Windows needs Docker Desktop with its WSL 2 backend. No host CUDA toolkit is needed.
-
-```shell
-docker run --rm --gpus all -p 127.0.0.1:8768:8768 -v latentport-cache:/cache ghcr.io/latentport/latentport:0.2.1-gguf-cu128-sm120
-```
-
-Open http://localhost:8768. The UI reports setup stages before the interactive
-transfer/branch/repair demonstration. Downloads are cached in the named volume.
-Do not delete the volume to update the image. The first run downloads models;
-first-run setup is not included in the displayed inference TTFT measurement.
-
-For automated execution, append `demo --headless`. The exit code is nonzero on
-failure and the cache contains the evidence under `demos/`. This image supports
-Linux x86-64 / CUDA 12.8 / SM120; it does not enable CPU, Apple GPU, AMD, or other
-NVIDIA architectures. The BF16 image uses tag `0.2.1-bf16-cu128-sm120`; model size
-and context determine its larger VRAM requirement. Its default command is
-`doctor --backend bf16`, not the GGUF transfer demo.
+The runtime fetches the bridge and its pinned base models from their respective publishers. The Docker demo uses an NVIDIA SM120 GPU with at least 32 GB VRAM. Allow 40 GB of storage for downloads and extraction, plus Docker build storage. Build the image from this checkout using the commands below.
 
 ## Install the Python library
 
@@ -39,11 +12,7 @@ latentport --help
 latentport doctor
 ```
 
-Upgrading from 0.2.0: run `python -m pip install --upgrade latentport` before a
-fresh native-runtime installation. Version 0.2.1 downloads native archives from
-[latentport/native-runtime](https://huggingface.co/latentport/native-runtime)
-at a pinned commit; 0.2.0 points to the retired GitHub feature release.
-The native binaries and their checksums are unchanged, so cached copies are reused.
+To upgrade, run `python -m pip install --upgrade latentport`. Run `latentport install-native` when upgrading the GGUF backend.
 
 The base package does not install Torch, Transformers, CUDA or model weights.
 `doctor` emits JSON and exits with code 1 when inference prerequisites are missing;
@@ -108,12 +77,9 @@ Hugging Face cache are reused before downloading into LatentPort's cache. Set
 `HF_HUB_OFFLINE=1` after preparing the cache to run without Hub access. Native setup
 must already be complete for an offline run.
 
-A base model does not need to be hosted in the LatentPort repository. The model
-manifest records each file's repository, full commit revision, filename, byte size
-and SHA-256. The bridge remains in its own repository. Until external replacements
-pass qualification, the shipped defaults preserve the previously tested files.
+The default bridge is `latentport/LPBridge-Qwen3.5-4b-Qwen3.8-27b`. BF16 and NF4 use the pinned upstream Qwen revisions. GGUF uses pinned Q4_K_M source and UD-Q4_K_M target files from Unsloth. The runtime downloads each on first use and verifies its SHA-256. To reuse matching local files, pass `source_path` and `target_path`, or the CLI options `--source-path` and `--target-path`.
 
-To test an externally pinned model pair:
+An external Hub mirror of the exact model files can be configured with:
 
 ```shell
 latentport download --model-manifest models.json

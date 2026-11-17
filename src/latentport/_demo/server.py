@@ -62,17 +62,14 @@ class App:
         try:
             import latentport as lp
             from ..diagnostics import diagnose
-            from ..hub import gguf_model_file, gguf_bridge_file, gguf_model_specs
+            from ..hub import bundle_root, gguf_model_file, gguf_model_specs
             self.event('checking', 'Checking dependencies and GPU compatibility')
             report = diagnose('gguf', check_native=False)
             if report['errors']:
                 raise RuntimeError('; '.join(report['errors']))
             if report['gpu_total_bytes'] < 30 * 1024**3:
                 raise RuntimeError('The transfer demo requires a qualified GPU with at least 32 GB VRAM.')
-            from ..hub import transfer_download_bytes, check_download_space
-            required = transfer_download_bytes(self.args.model_manifest)
-            check_download_space(required)
-            self.report['download_bytes_missing'] = required
+            root = bundle_root(self.args.bridge_repo, revision=self.args.revision, full=True, backend="gguf")
             self.event('installing', 'Checking the native runtime and CUDA libraries')
             from .._native.engine import Library
             try:
@@ -83,13 +80,11 @@ class App:
                 from ..__main__ import install_native
                 install_native()
                 Library(None)
-            specs = gguf_model_specs(self.args.model_manifest)
+            specs = gguf_model_specs(self.args.model_manifest, root=root)
             paths = {}
             for side in ('source', 'target'):
                 self.event('downloading', f"Preparing {side} model ({specs[side]['bytes'] / 1e9:.2f} GB); cached files are reused")
-                paths[side] = gguf_model_file(side, manifest_path=self.args.model_manifest)
-            self.event('downloading', 'Preparing the bridge (2.58 GB); cached files are reused')
-            bridge_path = gguf_bridge_file()
+                paths[side] = gguf_model_file(side, root=root, manifest_path=self.args.model_manifest, local_path=getattr(self.args, side + '_path'))
             self.event('loading', 'Loading the models and bridge onto your GPU')
             self.repo=self.output/'original-checkout'
             bundle,files=build_fixture(self.repo)
@@ -99,8 +94,8 @@ class App:
             if incident['passed']:raise RuntimeError('Fixture failed to reproduce the checkout incident')
             self.report['original_tests']=incident
             self.set(files=[{'name':name,'text':text} for name,text in files.items()],original_tests=incident)
-            self.port=lp.load(backend='gguf', source_path=paths['source'], target_path=paths['target'],
-                              bridge_gguf_path=bridge_path, native_options=lp.NativeOptions(mtp_drafts=0))
+            self.port=lp.load(root, backend='gguf', source_path=paths['source'], target_path=paths['target'],
+                              native_options=lp.NativeOptions(mtp_drafts=0))
             self.report['residency']=self.port.warm()
             count=len(self.port.source.codec.render([('user',self.prompt)],generation_prompt=True).token_ids)
             if count>16000:raise RuntimeError(f'Repository exceeds the demo context budget: {count}')
@@ -269,6 +264,11 @@ def add_arguments(p):
     p.add_argument('--headless',action='store_true',help='Run the real GPU demo once and exit, saving evidence')
     p.add_argument('--ui-only',action='store_true',help='Preview layout without loading models; Run is disabled')
     p.add_argument('--host', default='127.0.0.1', help='Use 0.0.0.0 inside Docker')
+    from ..hub import DEFAULT_REPO
+    p.add_argument('--bridge-repo', default=DEFAULT_REPO)
+    p.add_argument('--revision')
+    p.add_argument('--source-path', type=Path)
+    p.add_argument('--target-path', type=Path)
     p.add_argument('--model-manifest', type=Path, help='Explicit pinned external GGUF profile')
 
 

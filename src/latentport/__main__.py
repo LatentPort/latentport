@@ -106,7 +106,13 @@ def main(argv=None):
     check = commands.add_parser("doctor", help="Report readiness without downloading models")
     check.add_argument("--backend", choices=("gguf", "bf16", "nf4", "reference"), default="gguf")
     fetch = commands.add_parser("download", help="Download the pinned transfer profile")
+    from .hub import DEFAULT_REPO
     fetch.add_argument("--model-manifest", type=Path)
+    fetch.add_argument("--repo", default=DEFAULT_REPO)
+    fetch.add_argument("--revision")
+    fetch.add_argument("--backend", choices=("gguf", "bf16", "nf4"), default="gguf")
+    fetch.add_argument("--source-path", type=Path)
+    fetch.add_argument("--target-path", type=Path)
     demo = commands.add_parser("demo", help="Launch the packaged browser demo")
     from ._demo.server import add_arguments
     add_arguments(demo)
@@ -123,15 +129,20 @@ def dispatch(args):
         install_native(with_cuda=not args.no_cuda)
         return 0
     if args.command == "download":
-        from ._dependencies import require_backend
-        require_backend("gguf")
-        from .hub import gguf_model_file, gguf_bridge_file, bundle_root, model_snapshot
-        root = bundle_root()
+        from .hub import gguf_model_file, bundle_root, model_snapshot, verify_model_weights
+        root = bundle_root(args.repo, revision=args.revision, full=True, backend=args.backend)
         manifest = json.loads((root / "latentport.json").read_text())
         for side in ("source", "target"):
-            print(f"{side}: {gguf_model_file(side, manifest_path=args.model_manifest)}", flush=True)
-            model_snapshot(manifest["models"][side], metadata_only=True)
-        print(f"bridge: {gguf_bridge_file()}")
+            spec = manifest["models"][side]
+            local = getattr(args, side + "_path")
+            if args.backend == "gguf":
+                path = gguf_model_file(side, root=root, manifest_path=args.model_manifest, local_path=local)
+                model_snapshot(spec, metadata_only=True)
+            else:
+                path = local or model_snapshot(spec, metadata_only=False)
+                verify_model_weights(path, spec)
+            print(f"{side}: {path}", flush=True)
+        print(f"bridge: {root}", flush=True)
         return 0
     if args.command == "demo":
         from ._demo.server import run

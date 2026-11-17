@@ -123,7 +123,7 @@ state identity. See [compaction.md](compaction.md) for examples and native build
 
 ### Bridge alignment compatibility
 
-The current E119 bridge requires the complete source token stream and its exact
+The L127 mixed-state bridge requires the complete source token stream and its exact
 rendered bytes. Its numeric alignment maps each target token to a source
 coordinate using byte spans and produces dense target positions. The bridge
 explicitly rejects suffix-only streamed states and sparse/compacted states
@@ -142,3 +142,11 @@ transfer contract. A bounded token suffix cannot supply that information.
 Reverse bridges and optimisers are not supplied by this API change. The internal
 snapshot-transform-install mechanism can install a different model identity,
 but each learned operation must declare and validate its supported inputs.
+
+### Explicit question-boundary transfer
+
+Capture the prefix before the final request, then call
+`port.handoff(prefix_state, target_suffix_ids=ids)`. Supply the target token IDs
+for the withheld question and assistant opening. The returned answer-ready state
+records the exact number of target prompt tokens processed. For a separate new
+chat turn use `port.target.session(port.bridge.translate(prefix_state)).ask(question)`.

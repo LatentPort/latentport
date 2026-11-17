@@ -42,7 +42,7 @@ class BridgeGGUF:
             if not isinstance(alignment, int) or alignment < 1 or alignment > 4096 or alignment & (alignment-1):
                 raise CompatibilityError("Invalid GGUF alignment")
             start = (f.tell() + alignment-1) // alignment * alignment
-        if self.metadata.get("general.architecture") != "latentport_bridge_v1":
+        if self.metadata.get("general.architecture") != "latentport_bridge_v2":
             raise CompatibilityError("Not a LatentPort bridge container")
         self.tensors = {}
         ranges = []

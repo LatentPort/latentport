@@ -5,12 +5,10 @@
   "abi": 2,
   "state_compact": true,
   "llama_cpp_revision": "b19cbe925be361d229f0fe03435affe4a2717f37",
-  "repo_id": "latentport/native-runtime",
-  "revision": "e92466aa5694c2f0dbcf589c10e13206ad31f6aa",
-  "filename": "latentport-native-win-amd64-cuda13-sm120-abi2.zip",
-  "sha256": "8d70364e295ca1de83dcb0d3043ac7aa21bfc15974c8b5ee5df3ef37da8fb910",
-  "bytes": 40498469,
-  "url": "https://huggingface.co/latentport/native-runtime/resolve/e92466aa5694c2f0dbcf589c10e13206ad31f6aa/latentport-native-win-amd64-cuda13-sm120-abi2.zip",
+  "filename": "latentport-native-win-amd64-cu130-sm120.zip",
+  "sha256": "635a98684ca9bf0b507b6650a4b1af915cc9937d530962a78d1fd03eabc3942f",
+  "bytes": 40497061,
+  "url": "https://github.com/LatentPort/latentport/releases/download/native-abi2-lpbridge-20261117/latentport-native-win-amd64-cu130-sm120.zip",
   "linux": {
     "platform": "Linux x64",
     "cuda": "12.8",
@@ -18,11 +16,9 @@
     "abi": 2,
     "state_compact": true,
     "llama_cpp_revision": "b19cbe925be361d229f0fe03435affe4a2717f37",
-    "repo_id": "latentport/native-runtime",
-    "revision": "e92466aa5694c2f0dbcf589c10e13206ad31f6aa",
-    "filename": "latentport-native-linux-x86_64-cuda12.8-sm120-abi2.zip",
-    "sha256": "ab06473b2c827649ac21e594d8984108beef960f8971a31874755763312137fd",
-    "bytes": 42766609,
-    "url": "https://huggingface.co/latentport/native-runtime/resolve/e92466aa5694c2f0dbcf589c10e13206ad31f6aa/latentport-native-linux-x86_64-cuda12.8-sm120-abi2.zip"
+    "filename": "latentport-native-linux-x86_64-cu128-sm120.zip",
+    "sha256": "a750120c8b488463b15927f22bb33714c928ea8d7ae607dc1fa13ce44b228836",
+    "bytes": 129568908,
+    "url": "https://github.com/LatentPort/latentport/releases/download/native-abi2-lpbridge-20261117/latentport-native-linux-x86_64-cu128-sm120.zip"
   }
 }

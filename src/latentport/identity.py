@@ -15,6 +15,7 @@ class ModelIdentity:
     tokenizer_revision: str
     template_sha256: str
     state_abi: str
+    template_options_sha256: str = ""
 
     def __post_init__(self):
         if not all((self.repo_id, self.revision, self.backend, self.weights,
