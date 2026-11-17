@@ -38,7 +38,7 @@ from the transformed state.
 | Operation | Purpose | Available today |
 | --- | --- | --- |
 | **Transfer** | Move working context into another model's state space. | Learned Qwen3.5-4B to Qwen3.8-27B bridge via `bridge.translate(state)`. |
-| **Compact** | Reduce attention memory while retaining the model's recurrent and convolutional state. | LPCompact for Qwen3.8-27B via `state.compact()`. |
+| **Compact** | Reduce attention memory while retaining the model's recurrent and convolutional state. | LPCompact for Qwen3.5-4B, Qwen3.5-9B and Qwen3.8-27B via `state.compact()`. |
 | **Optimise** | Improve a state for the task or inference objective ahead. | Part of the roadmap. |
 | **Combine** | Bring information from multiple states into a shared working state. | Part of the roadmap. |
 
@@ -91,8 +91,7 @@ and Linux x64 / CUDA 12.8 on Blackwell SM120.
 
 ## Compact a running model's state
 
-[LPCompact-Qwen3.8-27B](https://huggingface.co/latentport/LPCompact-Qwen3.8-27B)
-provides a learned selector through a single operation:
+Each supported base model has a dedicated learned selector. The runtime chooses it from the state’s model identity.
 
 ```python
 state = state.compact()
@@ -103,7 +102,7 @@ Given an agent's accumulated `history`, continue from its compacted state:
 ```python
 import latentport as lp
 
-with lp.load_model(backend="bf16") as model:
+with lp.load_model("Qwen/Qwen3.5-4B", backend="bf16") as model:
     state = model.prefill(history)
     state = state.compact()
     answer = model.session(state).ask("Continue the task.")
@@ -116,7 +115,8 @@ at least 65,536 retained positions. A 4x setting is available with
 logical positions are preserved. Compaction uses no text summary or historical
 token replay.
 
-One selector checkpoint serves Qwen3.8-27B BF16 and GGUF weight quantizations.
+Pass `"Qwen/Qwen3.5-9B"` to use the 9B selector. The default base model is Qwen3.8-27B.
+Each base model uses the same selector across its supported weight formats.
 For GGUF, use `backend="gguf"` and supply `model_path` with your chosen base-model
 file. See the [compaction guide](https://github.com/LatentPort/latentport/blob/main/docs/compaction.md) for context sizing, policy
 details and the `state.compaction` receipt.
@@ -170,7 +170,7 @@ share immutable storage; execution uses the selected backend's scheduling.
 
 | Transformation | Measurement | Validation |
 | --- | --- | --- |
-| LPCompact, 128K history at 8x | Attention KV tensors reduced from **8 GiB to 1 GiB**. | BF16, Q4_K_M and Q8_0 tested at 64K and 128K on RTX PRO 6000; continued generation, save/load, forks and repeated compaction passed. |
+| LPCompact Qwen3.8-27B, 128K history at 8x | Attention KV tensors reduced from **8 GiB to 1 GiB**. | BF16, Q4_K_M and Q8_0 tested at 64K and 128K on RTX PRO 6000; continued generation, save/load, forks and repeated compaction passed. |
 | Historical E119 transfer, approximately 16K prompts | **2.19x paired time-to-first-token speedup**; native median 24.663 s, composite median 11.087 s. | E120 resident NF4/BF16 research runtime on RTX 5090; paired 95% interval 2.15-2.23x. |
 
 These measurements describe their stated workloads and configurations. Compaction
@@ -200,7 +200,7 @@ The shared Python runtime lives in this GitHub repository. Each trained state
 transformation has its own Hugging Face repository, with model compatibility,
 weights, versions and a model card.
 
-- [LPCompact-Qwen3.8-27B](https://huggingface.co/latentport/LPCompact-Qwen3.8-27B): the compaction selector shared across BF16 and GGUF.
+- Compaction selectors for [Qwen3.5-4B](https://huggingface.co/latentport/LPCompact-Qwen3.5-4B), [Qwen3.5-9B](https://huggingface.co/latentport/LPCompact-Qwen3.5-9B) and [Qwen3.8-27B](https://huggingface.co/latentport/LPCompact-Qwen3.8-27B).
 - The [directional 4B to 27B bridge](https://huggingface.co/latentport/LPBridge-Qwen3.5-4b-Qwen3.8-27b) contains the Safetensors and lossless GGUF bridge weights. Its manifest identifies the separate base checkpoints and supported model profiles.
 
 Transformation repositories contain their own learned artifacts. Base-model

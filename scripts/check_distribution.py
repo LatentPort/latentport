@@ -15,6 +15,8 @@ import latentport
 assert files('latentport').joinpath('_demo/web/index.html').is_file()
 assert files('latentport').joinpath('_demo/web/app.js').is_file()
 assert files('latentport').joinpath('configs/native-release.json').is_file()
+for size in ('4b', '9b'):
+    assert files('latentport').joinpath(f'configs/lpcompact-qwen3.5-{size}.json').is_file()
 '''
     subprocess.run([sys.executable, "-c", code], env=env, cwd=directory, check=True)
     subprocess.run([sys.executable, "-m", "latentport", "demo", "--help"], env=env, cwd=directory, check=True)

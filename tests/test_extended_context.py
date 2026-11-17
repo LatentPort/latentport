@@ -215,7 +215,7 @@ def test_nf4_loader_uses_the_exact_quantization_and_static_position_settings(tmp
     loaded.eval=lambda:loaded;loaded.requires_grad_=lambda _:loaded
     backend=object.__new__(NF4Backend);backend.options=ContextOptions("yarn4");backend._models={}
     backend._side=lambda _:"target";backend._path=lambda _:tmp_path
-    identity=SimpleNamespace(revision=PINNED_REVISION)
+    identity=SimpleNamespace(repo_id="Qwen/Qwen3.8-27B",revision=PINNED_REVISION)
     with patch("torch.cuda.is_available",return_value=True),patch("torch.cuda.device_count",return_value=1), \
          patch("transformers.AutoConfig.from_pretrained",return_value=SimpleNamespace(text_config=cfg)), \
          patch("transformers.BitsAndBytesConfig") as quant, \

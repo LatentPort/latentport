@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from .native import ReferenceBackend, validate_components
 from ..errors import CapabilityError, CompatibilityError, StateError
 from ..context import ContextOptions, configure_text
+from .._models import model_geometry
 
 
 @contextmanager
@@ -50,7 +51,8 @@ class BF16Backend(ReferenceBackend):
             raise CapabilityError("BF16 execution requires CUDA")
         from transformers import AutoConfig, Qwen3_5ForCausalLM
         path = self._path(side)
-        config = configure_text(AutoConfig.from_pretrained(path, local_files_only=True).text_config, self.options)
+        config = configure_text(AutoConfig.from_pretrained(path, local_files_only=True).text_config,
+                                self.options, model_geometry(identity.repo_id))
         model, info = Qwen3_5ForCausalLM.from_pretrained(
             path, config=config, dtype=torch.bfloat16, device_map={"": 0},
             attn_implementation="sdpa", local_files_only=True,
@@ -96,7 +98,7 @@ class BF16Backend(ReferenceBackend):
         return self._run(identity, None, 0, list(token_ids))
 
     def advance(self, identity, components, clock, token_ids):
-        validate_components(components, clock, "target")
+        validate_components(components, clock, "target", geometry=model_geometry(identity.repo_id))
         return self._run(identity, components, clock, list(token_ids))
 
     def close(self):

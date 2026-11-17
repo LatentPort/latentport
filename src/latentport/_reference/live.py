@@ -2,6 +2,7 @@
 from ..errors import StateError
 from .._positions import physical_length, continuation_inputs, extend_positions
 from .native import validate_components
+from .._models import model_geometry
 from . import cache_abi
 
 
@@ -14,6 +15,7 @@ class LiveCache:
     """
     def __init__(self, backend, identity, state=None, *, _owned=False):
         self.backend, self.identity = backend, identity
+        self.geometry = model_geometry(identity.repo_id)
         if state is not None:
             state.require_model(identity)
             backend.options.check(state.clock, state.physical_kv_length)
@@ -26,7 +28,7 @@ class LiveCache:
         self.cache = cache_abi.new_cache(self.model.config)
         if state is not None:
             values = state._read_tensors(device=backend.device) if _owned else state._tensors(device=backend.device)
-            validate_components(values, state.clock, "target", finite=True)
+            validate_components(values, state.clock, "target", geometry=self.geometry, finite=True)
             if state.clock > backend.options.logical_limit or physical_length(values, state.clock) > backend.options.physical_limit:
                 raise StateError("Installed Torch state exceeds logical or physical limit")
             self.cache = backend._cache(self.model, values, state.clock)
@@ -77,7 +79,7 @@ class LiveCache:
                     self.positions = extend_positions({"P": self.positions}, self.clock, len(ids))
                 self.cache, self.terminal = output.past_key_values, terminal[0]
                 self.clock += len(ids)
-                validate_components(self._values(), self.clock, "target", finite=True)
+                validate_components(self._values(), self.clock, "target", geometry=self.geometry, finite=True)
                 return output.logits[:, -1].detach()
         except BaseException:
             self.failed = True
@@ -90,7 +92,7 @@ class LiveCache:
         if self.failed or self.terminal is None:
             raise StateError("No valid Torch live state to snapshot")
         values = self._values()
-        validate_components(values, self.clock, "target", finite=True)
+        validate_components(values, self.clock, "target", geometry=self.geometry, finite=True)
         # A released handle transfers exclusive ownership without a second KV
         # allocation. A continuing handle must copy to protect the snapshot.
         if not release:
