@@ -56,7 +56,7 @@ Publish one directional pair per Hub repository. Its `latentport.json` uses sche
 
 Pin each source and target tokenizer, template and model shard to its upstream repository and full commit. Use `scripts/pin_gguf_profile.py` to collect an external GGUF publisher's immutable file receipts. Populate `gguf_models` in the candidate bundle and test that local bundle before publishing. Compare both thinking modes, query-boundary handoff, native continuation and multi-turn chat on each backend. Each quantization requires qualification.
 
-The runtime's Python API accepts `lp.load(repo, revision=commit, backend="nf4")`. The CLI and demo accept `--repo` and `--revision`. After publishing, check the bridge file list and verify a fresh download. Change the default bridge and revision together when superseding an earlier release.
+The runtime's Python API accepts `lp.load(repo, revision=commit, backend="nf4")`. Use `download --repo` or `demo --bridge-repo` and supply `--revision` to pin either command. After publishing, check the bridge file list and verify a fresh download. Change the default bridge and revision together when superseding an earlier release.
 
 ## Native runtime maintenance
 

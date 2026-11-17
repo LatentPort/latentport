@@ -56,3 +56,25 @@ def test_query_handoff_consumes_exact_suffix_once(tmp_path):
     assert result.clock == prefix.clock + 2
     assert result.phase == "answer_ready"
     assert backend.calls[-1][-1] == (65, 66)
+
+
+def test_gguf_rejects_model_shards_in_tokenizer_metadata(tmp_path):
+    root = make_bundle(tmp_path / "pair", DEFAULT_REPO, 2560)
+    path = root / "latentport.json"
+    manifest = json.loads(path.read_text())
+    manifest["models"]["source"]["metadata_files"]["model-00001-of-00003.safetensors"] = {}
+    path.write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="tokenizer metadata"):
+        bundle_root(root, full=True, backend="gguf")
+
+
+def test_local_base_model_cannot_shadow_or_omit_a_pinned_shard(tmp_path):
+    from latentport.hub import verify_model_weights
+    index = tmp_path / "model.safetensors.index.json"
+    index.write_text(json.dumps({"weight_map":{"x":"part.safetensors"}}))
+    spec = {"weight_files":{index.name:{"bytes":index.stat().st_size,"sha256":hashlib.sha256(index.read_bytes()).hexdigest()}}}
+    with pytest.raises(ValueError, match="inventory"):
+        verify_model_weights(tmp_path,spec)
+    (tmp_path / "model.safetensors").touch()
+    with pytest.raises(ValueError, match="shadows"):
+        verify_model_weights(tmp_path,spec)

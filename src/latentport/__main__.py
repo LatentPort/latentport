@@ -129,7 +129,7 @@ def dispatch(args):
         install_native(with_cuda=not args.no_cuda)
         return 0
     if args.command == "download":
-        from .hub import gguf_model_file, bundle_root, model_snapshot, verified
+        from .hub import gguf_model_file, bundle_root, model_snapshot, verify_model_weights
         root = bundle_root(args.repo, revision=args.revision, full=True, backend=args.backend)
         manifest = json.loads((root / "latentport.json").read_text())
         for side in ("source", "target"):
@@ -140,8 +140,7 @@ def dispatch(args):
                 model_snapshot(spec, metadata_only=True)
             else:
                 path = local or model_snapshot(spec, metadata_only=False)
-                for name, record in spec["weight_files"].items():
-                    verified(path / name, record)
+                verify_model_weights(path, spec)
             print(f"{side}: {path}", flush=True)
         print(f"bridge: {root}", flush=True)
         return 0

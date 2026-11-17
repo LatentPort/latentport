@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 DEFAULT_REPO = "latentport/LPBridge-Qwen3.5-4b-Qwen3.8-27b"
-DEFAULT_REVISION = "c8607cfac644eddb8ebdb8a9dc6079873c2015a4"
+DEFAULT_REVISION = "e37ef2d5e4d5581406ea30037b37271544ae2fff"
 
 
 def verified(path, spec):
@@ -28,6 +28,27 @@ def cached_file(repo_id, filename, revision):
         if isinstance(cached, str) and Path(cached).is_file():
             return Path(cached)
     return None
+
+
+def verify_model_weights(path, spec):
+    """Bind the Transformers-selected safetensors file or shard index to its receipts."""
+    import json
+    path = Path(path)
+    weights = spec["weight_files"]
+    index = "model.safetensors.index.json"
+    if (path / "model.safetensors").is_file():
+        if set(weights) != {"model.safetensors"}:
+            raise ValueError("A single-file checkpoint shadows the pinned model shards")
+    elif index in weights:
+        index_file = verified(path / index, weights[index])
+        referenced = set(json.loads(index_file.read_text(encoding="utf-8"))["weight_map"].values())
+        if referenced != set(weights) - {index}:
+            raise ValueError("Model shard index and pinned weight inventory disagree")
+    else:
+        raise ValueError("Missing pinned safetensors checkpoint")
+    for name, record in weights.items():
+        if name != index:
+            verified(path / name, record)
 
 
 def check_download_space(required):
@@ -89,6 +110,8 @@ def bundle_root(value: str | Path = DEFAULT_REPO, *, revision=None, full=False, 
         from re import fullmatch
         if not fullmatch("[0-9a-f]{40}", endpoint["revision"]):
             raise ValueError("Each base model requires an immutable revision")
+        if any(name.endswith((".safetensors", ".safetensors.index.json")) for name in endpoint["metadata_files"]):
+            raise ValueError("Base weights cannot be declared as tokenizer metadata")
         if any(Path(name).name != name or "/" in name or "\\" in name or ":" in name or name in ("", ".", "..")
                for name in (*endpoint["metadata_files"], *endpoint["weight_files"])):
             raise ValueError("Invalid base model filename")
@@ -127,6 +150,8 @@ def model_snapshot(spec: dict, *, metadata_only: bool) -> Path:
     patterns = (["config.json", "tokenizer.json", "tokenizer_config.json",
                  "chat_template.jinja", "special_tokens_map.json", "generation_config.json"]
                 if metadata_only else None)
+    if metadata_only and spec.get("metadata_files"):
+        patterns = list(spec["metadata_files"])
     if not metadata_only and spec.get("weight_files"):
         patterns = [*spec["metadata_files"], *spec["weight_files"]]
     root = _snapshot(spec["repo_id"], spec["revision"], patterns=patterns)

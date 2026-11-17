@@ -86,7 +86,7 @@ def load(repo: str | Path = DEFAULT_REPO, *, revision: str | None = None,
     if backend not in ("nf4", "bf16", "gguf") or type(thinking) is not bool:
         raise ValueError("Use backend='nf4', 'bf16' or 'gguf' and a boolean thinking mode")
     from ._dependencies import require_backend
-    from .hub import verified
+    from .hub import verify_model_weights
     require_backend(backend, transfer=True)
     if backend == "gguf":
         from ._native.engine import library_path
@@ -115,8 +115,7 @@ def load(repo: str | Path = DEFAULT_REPO, *, revision: str | None = None,
         locations = {}
         for side, path in (("source", source_path), ("target", target_path)):
             path = Path(path) if path else model_snapshot(specs[side], metadata_only=False)
-            for name, record in specs[side]["weight_files"].items():
-                verified(path / name, record)
+            verify_model_weights(path, specs[side])
             locations[side] = path
         runtime = ReferenceBackend(locations, specs, device=device, precision=backend)
     models = {}
