@@ -1,12 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.4.2
 
 - Use the same capture/translate/ask workflow and composite conversation API for
   every supported bridge, with checkpoint-specific question boundaries handled
   by the runtime. Add common repository, backend and context flags to the chat example.
 - Organize the README around state operations, with one transfer recipe, one
   compaction recipe and a shared catalog of supported transformations.
+- Preserve prominent creator attribution and align Docker wheel paths with the release version.
 
 ## 0.4.1
 
