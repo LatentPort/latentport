@@ -118,12 +118,13 @@ class GGUFBackend:
             spec = self.manifest["models"][side]
             path = model_snapshot(spec, metadata_only=True)
             tokenizer = AutoTokenizer.from_pretrained(path, local_files_only=True)
-            self._codecs[side] = Codec(tokenizer, self.manifest["runtime"]["template_kwargs"][side])
+            codec = Codec(tokenizer, self.manifest["runtime"]["template_kwargs"][side])
             # The native GGUF tokenizer must produce these exact IDs before
             # bridge alignment can be trusted.
             for sample in ("LatentPort tokenizer probe", "<|im_start|>user\nprobe<|im_end|>"):
-                if tuple(self._native().tokenize(side, sample)) != self._codecs[side].encode(sample):
+                if tuple(self._native().tokenize(side, sample)) != codec.encode(sample):
                     raise CompatibilityError(f"{side} GGUF tokenizer differs from pinned HF tokenizer")
+            self._codecs[side] = codec
         return self._codecs[side]
 
     def capture(self, identity, token_ids):

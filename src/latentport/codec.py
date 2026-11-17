@@ -42,6 +42,10 @@ class Codec:
         self.template_kwargs = dict(template_kwargs or {})
 
     @property
+    def vocabulary_size(self) -> int:
+        return len(self.tokenizer)
+
+    @property
     def chat_eos_id(self) -> int:
         return int(self.tokenizer.convert_tokens_to_ids("<|im_end|>"))
 

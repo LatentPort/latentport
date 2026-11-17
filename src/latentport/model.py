@@ -60,6 +60,7 @@ class Model:
         ids = self.codec.encode(text) if isinstance(text, str) else token_ids(text)
         if not ids:
             raise ValueError("append requires one or more tokens")
+        ids = token_ids(ids, vocabulary_size=getattr(self.codec, "vocabulary_size", None))
         check = getattr(self.backend, "check_capacity", None)
         if check is not None:
             check(state.clock, state.physical_kv_length, len(ids))

@@ -315,7 +315,7 @@ def test_real_compact_operation_accepts_million_clock_without_rebasing(backend,a
     with patch("latentport._reference.native._geometry",return_value=geo), \
          patch("latentport._compact._device",return_value=torch.device("cpu")), \
          patch("latentport._compact.weights.score",return_value=[-1.]*n):
-        child=parent.compact(ratio=8,force=True)
+        child=parent.compact(ratio=8,force=True,allow_unqualified=True)
     assert child.clock==1000000 and child.physical_kv_length==1024
     assert int(child._read_tensors()["P"][-1])==999999
     assert all(torch.equal(values[k],child._read_tensors()[k]) for k in ("H","R.0","C.0"))

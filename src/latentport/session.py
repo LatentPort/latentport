@@ -143,7 +143,7 @@ class Session:
             self._pending_decode = handle
         return child
 
-    def compact(self, *, ratio=8, force=False, reserve_tokens=0):
+    def compact(self, *, ratio=8, force=False, reserve_tokens=0, allow_unqualified=False):
         """Compact with room for an explicit upcoming prompt/decode budget.
 
         Session policy can trigger below 65K when physical capacity requires it.
@@ -152,6 +152,8 @@ class Session:
         from ._compact.policy import budget
         if type(force) is not bool:
             raise TypeError("force must be a bool")
+        if type(allow_unqualified) is not bool:
+            raise TypeError("allow_unqualified must be a bool")
         if type(reserve_tokens) is not int or reserve_tokens < 0:
             raise ValueError("reserve_tokens must be a nonnegative integer")
         options = getattr(self.model.backend, "options", None)
@@ -168,7 +170,8 @@ class Session:
             if reserve_tokens:
                 check(state.clock, target if force or capacity_trigger or physical >= 65536 else physical,
                       reserve_tokens)
-            child = state.compact(ratio=ratio, force=force or capacity_trigger)
+            options = {"allow_unqualified": True} if allow_unqualified else {}
+            child = state.compact(ratio=ratio, force=force or capacity_trigger, **options)
             if reserve_tokens:
                 check(child.clock, child.physical_kv_length, reserve_tokens)
             return child
@@ -393,7 +396,16 @@ class Session:
         self.state = current
         elapsed = perf_counter()
         peak = getattr(model.backend, "peak_vram_bytes", lambda: None)()
-        return Answer(text=model.codec.decode(tokens, special=False), token_ids=tuple(tokens),
+        # Decode across request boundaries: a token can end midway through a
+        # UTF-8 character. Delay trailing replacement characters until more
+        # tokens arrive (or EOS), including across save/load and forks.
+        previous_text = model.codec.decode(initial.generated_token_ids, special=False).rstrip("\ufffd")
+        complete_text = model.codec.decode(current.generated_token_ids, special=False)
+        if not finished:
+            complete_text = complete_text.rstrip("\ufffd")
+        if not complete_text.startswith(previous_text):
+            raise StateError("Tokenizer changed an already emitted answer prefix")
+        return Answer(text=complete_text[len(previous_text):], token_ids=tuple(tokens),
                       state=current, finished=finished,
                       stats=RunStats(device_transfer_s=native_stats.pop("device_transfer_s",transferred-started),
                                      state_install_s=native_stats.pop("state_install_s",installed-transferred),

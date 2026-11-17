@@ -61,7 +61,7 @@ def test_standard_model_registry_and_state_compaction(monkeypatch):
     monkeypatch.setattr(_compact, "model_geometry", lambda repo: geom)
     monkeypatch.setattr(_compact, "_device", lambda data: data["I.0"].device)
     monkeypatch.setattr(weights, "score", lambda data, repo: list(range(n)))
-    ident = ModelIdentity(FLASH_NEXT, MODEL_REVISIONS[FLASH_NEXT], "bf16", "weights", "tok", "template", FLASH_ABI)
+    ident = ModelIdentity(FLASH_NEXT, MODEL_REVISIONS[FLASH_NEXT], "bf16", "bf16:" + MODEL_REVISIONS[FLASH_NEXT], "tok", "template", FLASH_ABI)
     parent = State(ident,n,"context_ready","test",_components=values)
     assert parent.compact() is parent
     child = parent.compact(ratio=4,force=True)
