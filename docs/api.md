@@ -281,10 +281,12 @@ only after successful installation.
 - `method="tokens"` uses the complete right-hand token stream captured by
   `prefill()` or a resident session opened with `retain_replay=True`.
   BF16, NF4 and GGUF run this through their native append paths.
-- `method="cache"` reads a complete right cache using a backend supported by
-  its pinned LPCombine profile. The trained Qwen hybrid readouts require native
-  text positions. Qwen3 and Gemma use their first-layer value projection.
-  A token that fails verification aborts the operation.
+- `method="cache"` uses cached model input embeddings to recover the right
+  tokens on BF16, NF4 and GGUF. LatentPort 0.4.11 adds these activations to
+  new states, including snapshots from `model.live()` with its default settings.
+  Each token must map to a unique embedding row in the active checkpoint.
+  Older states can still use their profile's original cache readout where
+  supported. Recapture older states to get the new activation cache.
 - `method="auto"` selects recorded tokens when available and otherwise uses
   the profile's cache-only method.
 
@@ -293,7 +295,10 @@ replayed token count. It round-trips via `State.save()`. The resulting
 state can be queried, continued or forked. Compaction remains available on
 backends that expose the attention tensors required by LPCompact.
 
-All five new profiles accept `backend="bf16"`, `"nf4"` or `"gguf"`.
+All six profiles accept `backend="bf16"`, `"nf4"` or `"gguf"`.
+Loading an LPCombine alias resolves the profile's Hub `config.json`. The
+runtime checks its base checkpoint pin and can use the packaged profile
+when the Hub is unreachable.
 For Qwen3-14B, Gemma 4 31B and Flash-Next, GGUF snapshots store the complete
 native llama.cpp sequence. Keep split checkpoint files together and provide
 one shard as `model_path`. Use `NativeOptions(gpu_layers=...)` to set the

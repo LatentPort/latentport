@@ -22,10 +22,11 @@
       "cache"
     ],
     "gguf": [
-      "tokens"
+      "tokens",
+      "cache"
     ]
   },
-  "runtime_version": "0.4.9",
+  "runtime_version": "0.4.11",
   "cache_readout": "qwen3.5_attention",
   "qualified_gguf": {
     "repo_id": "lmstudio-community/Qwen3.5-9B-GGUF",

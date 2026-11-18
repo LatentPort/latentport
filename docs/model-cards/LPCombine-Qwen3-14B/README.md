@@ -16,25 +16,32 @@ Created by [Simon P. Villani](https://au.linkedin.com/in/simon-villani).
 ## Overview
 
 LPCombine combines two independently captured contexts into one resumable state.
-It appends the right context to the left cache in that order. The cache-only method matches the first attention layer's values to the pinned model's token projections and verifies the match.
+It appends the right context to the left cache in that order.
+
+With LatentPort 0.4.11, new snapshots store input-embedding activations.
+Cache-only combine matches those activations against the active model's
+embedding table and replays the recovered right-hand context. Capture the
+right state with `model.live()` to omit retained replay tokens.
 
 ## Compatibility
 
-Requires LatentPort 0.4.10 or later and the same model, weights, tokenizer, backend
+Requires LatentPort 0.4.11 or later and the same model, weights, tokenizer, backend
 and position policy for both context-ready input states.
 
 | Backend | Retained tokens | Cache-only |
 | --- | --- | --- |
 | BF16 | Yes | Yes |
-| NF4 | Yes | — |
-| GGUF | Yes | — |
+| NF4 | Yes | Yes |
+| GGUF | Yes | Yes |
 
 GPU validation used the pinned [Q4_K_M checkpoint](https://huggingface.co/Qwen/Qwen3-14B-GGUF/tree/530227a7d994db8eca5ab5ced2fb692b614357fd). For GGUF, set `backend="gguf"` and provide `model_path`. Keep all shards of a split checkpoint together.
 
 ## Usage
 
+Install the extra for your backend (`bf16`, `nf4`, or `gguf`).
+
 ```sh
-pip install "latentport[bf16]>=0.4.10"
+pip install "latentport[bf16]>=0.4.11"
 ```
 
 ```python
@@ -42,18 +49,24 @@ import latentport as lp
 
 with lp.load_model("latentport/LPCombine-Qwen3-14B", backend="bf16") as model:
     left = model.prefill("Nora belongs to team X.\n")
-    right = model.prefill("Team X uses the passcode cedar.\n")
+    with model.live() as cache:
+        cache.append("Team X uses the passcode cedar.\n")
+        right = cache.snapshot()
     merged = left.combine(right, model=model, method="cache")
     with model.session(merged) as session:
         print(session.ask("What is the passcode for Nora's team?").text)
 ```
 
-Use `method="cache"` to request cache-only decoding on a compatible backend.
+Use `method="cache"` to request cache-only decoding on any of the three backends.
 Use `model.live(retain_replay=True)` when recording resident states for
 retained-token replay. `session.combine(right)` installs the result in the
-current session. `latentport combine LEFT RIGHT OUTPUT` accepts saved states.
+current session. `latentport combine LEFT RIGHT OUTPUT --method cache` accepts saved states.
 
 ## Evaluation
+
+The 0.4.11 [cache-only validation](cache-only-validation.json) checks
+exact recovery and native next-token logits after restoring a right snapshot
+with its token and text metadata removed. Earlier profile results follow.
 
 - **BF16** matched the next greedy token from native append in all 3 trials and passed snapshot save/load.
 - **NF4** matched native next-token logits in all 2 trials and after snapshot save/load.
@@ -68,12 +81,13 @@ In cache-only trials, the right token metadata was removed before combining.
 
 ## Limitations
 
-The operation replays the right context. It checks recovered tokens before
-updating a session. Cache-only replay requires the complete first attention layer.
+The operation replays the right context. Every stored activation must map
+to a unique token in the active checkpoint. Recapture older snapshots to
+get the embedding cache. Insert any desired separator before capture.
 
 ## Artifacts and provenance
 
-The cache-only codebook is derived from the pinned base checkpoint at runtime. [Profile and checkpoint pins](lpcombine.json) record the
+The cache-only codebook is derived from the pinned base checkpoint at runtime. [Profile and checkpoint pins](config.json) record the
 [base revision](https://huggingface.co/Qwen/Qwen3-14B/tree/40c069824f4251a91eefaf281ebe4c544efd3e18).
 
 ## License

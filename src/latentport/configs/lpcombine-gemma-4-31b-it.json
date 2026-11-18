@@ -10,13 +10,15 @@
       "cache"
     ],
     "nf4": [
-      "tokens"
+      "tokens",
+      "cache"
     ],
     "gguf": [
-      "tokens"
+      "tokens",
+      "cache"
     ]
   },
-  "runtime_version": "0.4.10",
+  "runtime_version": "0.4.11",
   "cache_readout": "first_layer_values",
   "qualified_runtime": {
     "bf16": 2,

@@ -12,6 +12,7 @@ from latentport.errors import CapabilityError, StateError
 from latentport._compact.policy import budget, choose
 from latentport._positions import continuation_inputs, physical_length, extend_positions
 from latentport._reference.native import validate_components
+from latentport.state import INPUT_EMBEDDINGS
 
 GEO = {"types": ["linear_attention", "full_attention"], "hidden": 8,
        "kv_heads": 2, "head_dim": 4, "conv_channels": 3, "conv_width": 4,
@@ -77,7 +78,10 @@ def test_forced_floor_is_recorded_and_retains_prefix_suffix(geometry):
 
 
 def test_snapshot_roundtrip_and_repeat_compaction_keep_absolute_positions(geometry):
-    child = compact(state())
+    parent = state()
+    embeddings = torch.zeros((parent.clock, 64), dtype=torch.float16)
+    parent = replace(parent, _components={**parent._read_tensors(), INPUT_EMBEDDINGS: embeddings})
+    child = compact(parent)
     with tempfile.TemporaryDirectory() as temp:
         root = child.save(Path(temp) / "snapshot")
         loaded = State.load(root)
@@ -87,6 +91,7 @@ def test_snapshot_roundtrip_and_repeat_compaction_keep_absolute_positions(geomet
         assert second.clock == 65536 and second.compaction.effective_ratio == 64
         assert second._read_tensors()["P"][-1] == 65535
         assert torch.equal(second._read_tensors()["R.0"], child._read_tensors()["R.0"])
+        assert torch.equal(second._input_embeddings(), embeddings)
 
 
 def test_legacy_snapshot_without_optional_receipt_remains_readable(geometry):

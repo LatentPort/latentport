@@ -42,8 +42,9 @@ def load_model(repo: str = MODEL, *, revision: str | None = None, backend: str =
     Set ``max_logical_positions`` to select the logical context length before ingestion.
     ``State.compact`` retains the same position policy throughout a lineage.
     """
-    from ._combine import ALIASES
-    repo = ALIASES.get(repo.casefold(), repo)
+    from ._combine import ALIASES, load_profile
+    alias = ALIASES.get(repo.casefold())
+    repo = alias or repo
     if backend not in ("bf16", "nf4", "gguf"):
         raise ValueError("backend must be 'bf16', 'nf4' or 'gguf'")
     if native_options is not None and backend != "gguf":
@@ -73,6 +74,10 @@ def load_model(repo: str = MODEL, *, revision: str | None = None, backend: str =
     context = context_type(policy, capacity, max_logical_positions, native_limit)
     if repo == QWEN3:
         context = replace(context, physical_limit=min(capacity, native_limit))
+    if alias is not None:
+        repo, profile_revision = load_profile(alias)
+        if revision is None:
+            revision = profile_revision
     if revision is None:
         revision = MODEL_REVISIONS[repo]
     if (repo != MODEL or backend == "nf4" or context.position_policy != "default") and revision != MODEL_REVISIONS[repo]:
@@ -166,4 +171,9 @@ def load_model(repo: str = MODEL, *, revision: str | None = None, backend: str =
         template = {"sha256": hashlib.sha256(text.encode()).hexdigest()}
     identity = ModelIdentity(repo, revision, runtime.name, weights, revision,
                              template["sha256"], runtime.state_abi)
-    return Model(identity, runtime, role="target")
+    model = Model(identity, runtime, role="target")
+    if revision == MODEL_REVISIONS[repo]:
+        from ._combine_activation import for_model
+
+        model._embedding_cache = for_model(runtime, identity, model_path)
+    return model

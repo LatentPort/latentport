@@ -392,6 +392,7 @@ class Session:
             # snapshotting or a streaming callback fails.
             if hasattr(handle, "close"):
                 handle.close()
+        snapshot = model._append_embedding_cache(initial, snapshot, tokens)
         finished = bool(tokens and tokens[-1] in eos)
         full_ids = (initial.rendered_token_ids or ()) + tuple(tokens) if initial.rendered_token_ids is not None else None
         current = State(identity=model.identity, clock=committed_clock,

@@ -17,6 +17,7 @@ from .identity import CombinationInfo, CompactionInfo, ModelIdentity, StateInfo
 
 STATE_FORMAT = "latentport.state.v2"
 PHASES = frozenset({"context_ready", "answer_ready", "in_answer", "turn_ready"})
+INPUT_EMBEDDINGS = "LPCombine.input_embeddings.v1"
 
 
 def _digest(path: Path) -> str:
@@ -145,16 +146,27 @@ class State:
     def require_model(self, identity: ModelIdentity) -> None:
         self.identity.require_same(identity)
 
+    def _input_embeddings(self):
+        if self._components is not None:
+            return self._components.get(INPUT_EMBEDDINGS)
+        if INPUT_EMBEDDINGS in (self._disk_index or {}):
+            from safetensors import safe_open
+
+            with safe_open(self._snapshot / "tensors.safetensors", framework="pt", device="cpu") as handle:
+                return handle.get_tensor(INPUT_EMBEDDINGS)
+        return None
+
     def _tensors(self, *, device: str | None = None) -> dict[str, Any]:
         """Materialize a private working copy before a backend may mutate it."""
         import torch
         if self._components is not None:
             return {name: torch.as_tensor(value).detach().to(device or getattr(value, "device", "cpu"), copy=True)
-                    for name, value in self._components.items()}
-        from safetensors.torch import load_file
+                    for name, value in self._components.items() if name != INPUT_EMBEDDINGS}
+        from safetensors import safe_open
         if self._snapshot is None:
             raise StateError("No snapshot payload")
-        return load_file(str(self._snapshot / "tensors.safetensors"), device=device or "cpu")
+        with safe_open(self._snapshot / "tensors.safetensors", framework="pt", device=device or "cpu") as handle:
+            return {name: handle.get_tensor(name) for name in handle.keys() if name != INPUT_EMBEDDINGS}
 
     def _read_tensors(self, *, device: str | None = None) -> dict[str, Any]:
         """Borrow tensors for internal readers; callers must not mutate them.
@@ -165,10 +177,10 @@ class State:
         if self._components is None:
             return self._tensors(device=device)
         if device is None:
-            return dict(self._components)
+            return {name: value for name, value in self._components.items() if name != INPUT_EMBEDDINGS}
         return {name: value if str(value.device) == device or
                 (device == "cuda" and value.device.type == "cuda") else value.to(device)
-                for name, value in self._components.items()}
+                for name, value in self._components.items() if name != INPUT_EMBEDDINGS}
 
     def save(self, path: str | Path) -> Path:
         """Save a full state without requiring either model to stay loaded."""

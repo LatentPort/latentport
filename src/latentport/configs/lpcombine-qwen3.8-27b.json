@@ -11,14 +11,17 @@
   "nf4_weights": "nf4-sha256:6c5853ccbb662944c4471e73ea010e2daaed28527bcb748fd1a08287fe96d005",
   "methods": {
     "bf16": [
-      "tokens"
+      "tokens",
+      "cache"
     ],
     "nf4": [
       "tokens",
       "cache"
     ],
     "gguf": [
-      "tokens"
+      "tokens",
+      "cache"
     ]
-  }
+  },
+  "runtime_version": "0.4.11"
 }

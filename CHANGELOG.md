@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.11
+
+- Enable cache-only LPCombine for all six profiles on BF16, NF4 and GGUF.
+- Preserve cached input embeddings through resident snapshots, forks, save/load and LPCompact.
+- Load LPCombine profile manifests from Hugging Face, with packaged manifests available offline.
+
 ## 0.4.10
 
 - Add NF4 and native GGUF execution for LPCombine on Qwen3-14B, Gemma-4-31B-it and Qwen3.8-Flash-Next.

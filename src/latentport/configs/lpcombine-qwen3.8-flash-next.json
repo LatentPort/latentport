@@ -17,13 +17,15 @@
       "cache"
     ],
     "nf4": [
-      "tokens"
+      "tokens",
+      "cache"
     ],
     "gguf": [
-      "tokens"
+      "tokens",
+      "cache"
     ]
   },
-  "runtime_version": "0.4.10",
+  "runtime_version": "0.4.11",
   "cache_readout": "flash_next_values_and_index",
   "qualified_runtime": {
     "bf16": 2,

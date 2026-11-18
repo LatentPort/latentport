@@ -7,7 +7,7 @@ from typing import Any, Sequence
 
 from .errors import CompatibilityError, StateError
 from .identity import ModelIdentity
-from .state import State
+from .state import INPUT_EMBEDDINGS, State
 from ._tokens import token_ids
 
 
@@ -32,6 +32,7 @@ class Model:
         self.identity, self.backend, self.role = identity, backend, role
         self.closed = False
         self._owner = None
+        self._embedding_cache = None
 
     def _check_open(self):
         if self.closed or (self._owner is not None and self._owner.closed):
@@ -46,6 +47,8 @@ class Model:
         rows = _messages(context)
         record = self.codec.record(context) if rows is None else self.codec.render(rows, generation_prompt=generation_prompt)
         values = self.backend.capture(self.identity, record.token_ids)
+        if self._embedding_cache is not None:
+            values = {**values, INPUT_EMBEDDINGS: self._embedding_cache.capture(record.token_ids)}
         return State(identity=self.identity, clock=record.sequence_length,
                      phase="answer_ready" if generation_prompt else "context_ready",
                      origin="native_capture", target_prompt_tokens=record.sequence_length if self.role == "target" else 0,
@@ -68,6 +71,7 @@ class Model:
                    else state._tensors(device=getattr(self.backend, "device", None)))
         values = self.backend.advance(self.identity, working,
                                       state.clock, ids)
+        values = self._append_embedding_cache(state, values, ids)
         full_ids = (state.rendered_token_ids or ()) + ids if state.rendered_token_ids is not None else None
         rendered = self.codec.decode(full_ids, special=True) if full_ids is not None else None
         return State(identity=self.identity, clock=state.clock + len(ids), phase=phase or state.phase,
@@ -84,6 +88,18 @@ class Model:
         """Continue left with the ordered history represented by right."""
         from ._combine import combine
         return combine(self, left, right, method=method)
+
+    def _append_embedding_cache(self, state, values, ids):
+        if self._embedding_cache is None:
+            return values
+        prefix = state._input_embeddings()
+        if prefix is None:
+            return values
+        if not ids:
+            return {**values, INPUT_EMBEDDINGS: prefix}
+        import torch
+
+        return {**values, INPUT_EMBEDDINGS: torch.cat((prefix, self._embedding_cache.capture(ids)))}
 
     def session(self, state: State | None = None, *, resident: bool = False,
                 retain_replay: bool = False) -> "Session":
@@ -105,6 +121,7 @@ class Model:
         if self.closed:
             return
         self.closed = True
+        self._embedding_cache = None
         if self._owner is None and hasattr(self.backend, "close"):
             self.backend.close()
 

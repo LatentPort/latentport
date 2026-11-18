@@ -1,0 +1,35 @@
+{
+  "profile": "LPCombine-Qwen3-14B",
+  "runtime_version": "0.4.11",
+  "reference": "Native append of the original right-hand tokens to the same left state",
+  "fixture": "Python function prefix and a separately captured multilingual comment and body",
+  "results": {
+    "bf16": {
+      "weight_fingerprint": "bf16-sha256:1d002102b7f6657816c14c80fef8c174bdd0be43817918a1cc3ce7c9c58a20d0:execution:0397dae438f79f509e7219ec1b1ed7857fe096dee1797656e25cfb14fb2ccf12",
+      "no_right_token_metadata": true,
+      "right_tokens": 17,
+      "exact_tokens": true,
+      "exact_native_logits": true,
+      "exact_resumed_logits": true,
+      "disk_round_trip": true
+    },
+    "nf4": {
+      "weight_fingerprint": "nf4-sha256:1d002102b7f6657816c14c80fef8c174bdd0be43817918a1cc3ce7c9c58a20d0:execution:9a2c4e684ba23e5eb83e7177ca090fef131578a3a34ae3eefecc744816041c98",
+      "no_right_token_metadata": true,
+      "right_tokens": 17,
+      "exact_tokens": true,
+      "exact_native_logits": true,
+      "exact_resumed_logits": true,
+      "disk_round_trip": true
+    },
+    "gguf": {
+      "weight_fingerprint": "gguf-sha256:500a8806e85ee9c83f3ae08420295592451379b4f8cf2d0f41c15dffeb6b81f0:execution:0397dae438f79f509e7219ec1b1ed7857fe096dee1797656e25cfb14fb2ccf12",
+      "no_right_token_metadata": true,
+      "right_tokens": 17,
+      "exact_tokens": true,
+      "exact_native_logits": true,
+      "exact_resumed_logits": true,
+      "disk_round_trip": true
+    }
+  }
+}

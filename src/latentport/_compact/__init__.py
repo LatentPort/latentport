@@ -37,6 +37,7 @@ def compact(state, *, ratio=8, force=False, allow_unqualified=False):
                                         "llama.cpp.b19cbe9.qwen3.5.complete-hybrid.bf16.v2"):
         raise CapabilityError("LPCompact requires a supported complete hybrid-state layout")
     from .._reference.native import validate_components
+    from ..state import INPUT_EMBEDDINGS
     import torch
     values = state._read_tensors()
     geometry = model_geometry(repo)
@@ -78,6 +79,9 @@ def compact(state, *, ratio=8, force=False, allow_unqualified=False):
     protected = 1024 + physical % 4 if is_flash else 1024
     info = CompactionInfo("LPCompact", "0.1", ratio, physical, target, state.clock,
                           kv_before, kv_after, elapsed, max(0, target - protected), target <= protected)
+    embeddings = state._input_embeddings()
+    if embeddings is not None:
+        out[INPUT_EMBEDDINGS] = embeddings
     return replace(state, _components=out, _snapshot=None, _disk_index=None,
                    state_id=uuid4().hex, parent_id=state.state_id, shares_storage=True,
                    origin="compaction", compaction=info)

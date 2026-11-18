@@ -1,13 +1,16 @@
 """LPCombine supports immutable, resident, restored and cache-only inputs."""
 from dataclasses import replace
+import json
 
 import pytest
 import torch
 
 from latentport import CapabilityError, CompatibilityError, Model, ModelIdentity, State, StateError
+from latentport._combine_activation import InputEmbeddingCache
 from latentport._models import DEFAULT_MODEL, PINNED_REVISION
 from latentport._reference.bf16 import BF16Backend
 from latentport._reference.nf4 import NF4Backend
+from latentport.state import INPUT_EMBEDDINGS
 from test_extended_context import tiny_backend
 from test_runtime import FakeBackend, FakeCodec
 
@@ -62,6 +65,67 @@ def test_explicit_cache_path_does_not_read_recorded_tokens(model, monkeypatch):
     child = model.combine(left, right, method="cache")
     assert child.rendered_token_ids[-3:] == (65, 66, 67)
     assert child.combination.method == "cache"
+
+
+def test_activation_cache_round_trip_without_right_metadata(model, tmp_path):
+    import numpy as np
+
+    rows = np.random.default_rng(48).normal(size=(256, 64)).astype(np.float16)
+    model._embedding_cache = InputEmbeddingCache(lambda ids: rows[ids], lambda: len(rows))
+    left = model.prefill("first")
+    right = model.append(model.prefill("second"), (65, 66, 65))
+    native = model.append(left, right.rendered_token_ids)
+    right = replace(right, rendered_token_ids=None, rendered_text=None, stream_tail_ids=(),
+                    generated_token_ids=(), messages=(), messages_complete=False)
+    restored = State.load(right.save(tmp_path / "right"))
+    assert INPUT_EMBEDDINGS not in restored._read_tensors()
+    child = model.combine(left, restored, method="cache")
+    assert child.rendered_token_ids == native.rendered_token_ids
+    assert torch.equal(child._input_embeddings(), native._input_embeddings())
+    assert child.combination.method == "cache"
+    assert model.combine(left, restored).combination.method == "cache"
+
+    rows[0] = rows[65]
+    model._embedding_cache = InputEmbeddingCache(lambda ids: rows[ids], lambda: len(rows))
+    session = model.session(left)
+    with pytest.raises(StateError, match="Could not uniquely identify"):
+        session.combine(restored, method="cache")
+    assert session.state is left
+
+
+def test_hub_profile_manifest_and_offline_pin(tmp_path, monkeypatch):
+    from huggingface_hub.errors import OfflineModeIsEnabled
+    from latentport._combine import PROFILE_REPOS, load_profile
+
+    repo = PROFILE_REPOS[DEFAULT_MODEL]
+    pin = (DEFAULT_MODEL, PINNED_REVISION)
+    path = tmp_path / "config.json"
+    config = {"repo_id": repo, "base_model": pin[0], "base_revision": pin[1]}
+    path.write_text(json.dumps(config))
+    calls = []
+
+    def download(repo_id, filename, **options):
+        calls.append((repo_id, filename))
+        return str(path)
+
+    monkeypatch.setattr("huggingface_hub.hf_hub_download", download)
+    load_profile.cache_clear()
+    try:
+        assert load_profile(DEFAULT_MODEL) == pin
+        assert load_profile(DEFAULT_MODEL) == pin
+        assert calls == [(repo, "config.json")]
+        load_profile.cache_clear()
+        path.write_text(json.dumps({**config, "base_revision": "wrong"}))
+        with pytest.raises(CompatibilityError, match="pinned checkpoint"):
+            load_profile(DEFAULT_MODEL)
+
+        def offline(*args, **kwargs):
+            raise OfflineModeIsEnabled("offline")
+
+        monkeypatch.setattr("huggingface_hub.hf_hub_download", offline)
+        assert load_profile(DEFAULT_MODEL) == pin
+    finally:
+        load_profile.cache_clear()
 
 
 @pytest.mark.parametrize("kind", [BF16Backend, NF4Backend])
