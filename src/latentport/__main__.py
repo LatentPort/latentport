@@ -113,7 +113,7 @@ def main(argv=None):
     fetch.add_argument("--backend", choices=("gguf", "bf16", "nf4"), default="gguf")
     fetch.add_argument("--source-path", type=Path)
     fetch.add_argument("--target-path", type=Path)
-    combine = commands.add_parser("combine", help="Combine two saved Qwen3.8-27B states")
+    combine = commands.add_parser("combine", help="Combine two saved states from a supported model")
     combine.add_argument("left", type=Path)
     combine.add_argument("right", type=Path)
     combine.add_argument("output", type=Path)

@@ -1,0 +1,44 @@
+{
+  "name": "LPCombine-Qwen3.5-4B",
+  "version": "1.0",
+  "repo_id": "latentport/LPCombine-Qwen3.5-4B",
+  "base_model": "Qwen/Qwen3.5-4B",
+  "base_revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+  "revision": "34f66c68221b228a8bb16f07107efe6da6557093",
+  "filename": "model.safetensors",
+  "sha256": "9a398220a3ec340d0429442146fc25baf04547cd9799eeb9c1bd27d13aebdc31",
+  "bytes": 20982040,
+  "training_tokens": 18432,
+  "feature_dimension": 2048,
+  "bf16_weights": "bf16-sha256:7994e2ce610498f348969984fe0fff04cca7c20dd8491d54967036115e9cae28",
+  "nf4_weights": "nf4-sha256:7994e2ce610498f348969984fe0fff04cca7c20dd8491d54967036115e9cae28",
+  "candidate_limit": 8192,
+  "common_token_limit": 8192,
+  "verification_tolerance": 0.004,
+  "methods": {
+    "bf16": [
+      "tokens",
+      "cache"
+    ],
+    "nf4": [
+      "tokens",
+      "cache"
+    ],
+    "gguf": [
+      "tokens"
+    ]
+  },
+  "runtime_version": "0.4.9",
+  "cache_readout": "qwen3.5_attention",
+  "qualified_gguf": {
+    "repo_id": "lmstudio-community/Qwen3.5-4B-GGUF",
+    "revision": "f9f88ac3e234be915e23811a6d28ea287bdb927e",
+    "file": "Qwen3.5-4B-Q4_K_M.gguf",
+    "sha256": "25082a7dd3776cc3c741c6347d3bd04523f05796607b3fbc32fa3a25dfa1418c"
+  },
+  "qualified_runtime": {
+    "bf16": 4,
+    "nf4": 4,
+    "gguf": 4
+  }
+}

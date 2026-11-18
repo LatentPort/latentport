@@ -1,0 +1,18 @@
+{
+  "name": "LPCombine-Qwen3-14B",
+  "version": "1.0",
+  "repo_id": "latentport/LPCombine-Qwen3-14B",
+  "base_model": "Qwen/Qwen3-14B",
+  "base_revision": "40c069824f4251a91eefaf281ebe4c544efd3e18",
+  "methods": {
+    "bf16": [
+      "tokens",
+      "cache"
+    ]
+  },
+  "runtime_version": "0.4.9",
+  "cache_readout": "first_layer_values",
+  "qualified_runtime": {
+    "bf16": 3
+  }
+}

@@ -21,7 +21,9 @@ assert "Qwen/Qwen3-14B" in MODEL_REVISIONS
 assert files("latentport").joinpath("configs/lpcompact-qwen3-14b.json").is_file()
 assert callable(latentport.State.compact)
 assert callable(latentport.State.combine)
-assert files("latentport").joinpath("configs/lpcombine-qwen3.8-27b.json").is_file()
+for profile in ("qwen3.8-27b", "qwen3.5-4b", "qwen3.5-9b", "gemma-4-31b-it",
+                "qwen3-14b", "qwen3.8-flash-next"):
+    assert files("latentport").joinpath(f"configs/lpcombine-{profile}.json").is_file()
 assert files('latentport').joinpath('configs/lpcompact-qwen3.8-flash-next.json').is_file()
 for size in ('4b', '9b'):
     assert files('latentport').joinpath(f'configs/lpcompact-qwen3.5-{size}.json').is_file()

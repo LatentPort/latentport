@@ -1,0 +1,28 @@
+{
+  "runtime_version": "0.4.9",
+  "backends": {
+    "bf16": {
+      "gpu": "NVIDIA L40S",
+      "os": "Linux",
+      "trials": [
+        {
+          "method": "cache",
+          "right_tokens": 9,
+          "continued_tokens": 1,
+          "greedy_equal": true,
+          "next_logits_equal": true
+        },
+        {
+          "method": "cache",
+          "right_tokens": 22,
+          "continued_tokens": 1,
+          "greedy_equal": true,
+          "next_logits_equal": true
+        }
+      ],
+      "cache_errors": [],
+      "save_load": true,
+      "reference": "native exact append"
+    }
+  }
+}

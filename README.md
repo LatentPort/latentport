@@ -45,9 +45,9 @@ model pair or sequence of operations compatible.
 | Fork | `state.fork(2)` | Create independent descendants of a shared immutable snapshot. |
 | Save / load | `state.save(path)` / `lp.State.load(path)` | Persist and restore state without historical prompt prefill. |
 
-The current LPCombine profile supports ordered, same-model combination for Qwen3.8-27B.
+LPCombine profiles support ordered combination of two states from the same model and backend.
 
-## Combine two Qwen3.8-27B states
+## Combine two states
 
 ```python
 import latentport as lp
@@ -61,11 +61,21 @@ with lp.load_model("latentport/LPCombine-Qwen3.8-27b", backend="nf4") as model:
 ```
 
 `combine()` replays the right context after the left cache and returns a new state.
-BF16, NF4 and GGUF use the right state's retained token IDs by default when
-available. NF4 can also reconstruct and verify tokens from a dense right
-cache with `method="cache"`. Use `live(retain_replay=True)` to record tokens
-in resident sessions for BF16 or GGUF. GGUF uses the usual `model_path=`
-argument and native runtime.
+Select a profile and use any of its supported backends. State snapshots made
+with `prefill()`, or with `live(retain_replay=True)`, retain the tokens for replay.
+
+| LPCombine profile | Retained-token replay | Cache-only replay |
+| --- | --- | --- |
+| [Qwen3.8-27b](https://huggingface.co/latentport/LPCombine-Qwen3.8-27b) | BF16, NF4, GGUF | NF4 |
+| [Qwen3.5-4B](https://huggingface.co/latentport/LPCombine-Qwen3.5-4B) | BF16, NF4, GGUF | BF16, NF4 |
+| [Qwen3.5-9B](https://huggingface.co/latentport/LPCombine-Qwen3.5-9B) | BF16, NF4, GGUF | BF16, NF4 |
+| [Gemma-4-31B-it](https://huggingface.co/latentport/LPCombine-Gemma-4-31B-it) | BF16 | BF16 |
+| [Qwen3-14B](https://huggingface.co/latentport/LPCombine-Qwen3-14B) | BF16 | BF16 |
+| [Qwen3.8-Flash-Next](https://huggingface.co/latentport/LPCombine-Qwen3.8-Flash-Next) | BF16 | BF16 |
+
+Use `method="cache"` to read tokens from a compatible right cache. GGUF
+uses the usual `model_path=` argument and native runtime. Each profile's
+card specifies which cache layouts it can read.
 
 To combine saved states, run `latentport combine LEFT RIGHT OUTPUT` with the
 same model, backend and position settings used to capture them. Add

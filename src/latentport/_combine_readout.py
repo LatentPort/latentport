@@ -5,20 +5,21 @@ import json
 import os
 from pathlib import Path
 
-from ._models import PINNED_REVISION
-from .errors import CompatibilityError, StateError, CapabilityError
+from ._models import DEFAULT_MODEL, MODEL_REVISIONS, model_geometry
+from .errors import CompatibilityError, StateError
 from .hub import verified
 
 
-@lru_cache(maxsize=1)
-def profile():
-    return json.loads((Path(__file__).parent / "configs/lpcombine-qwen3.8-27b.json").read_text(encoding="utf-8"))
+@lru_cache(maxsize=8)
+def profile(repo=DEFAULT_MODEL):
+    name = "lpcombine-" + repo.rsplit("/", 1)[1].lower() + ".json"
+    return json.loads((Path(__file__).parent / "configs" / name).read_text(encoding="utf-8"))
 
 
 @lru_cache(maxsize=4)
-def _readout(override):
+def _readout(repo, override):
     from safetensors.torch import load_file
-    spec = profile()
+    spec = profile(repo)
     if override:
         path = Path(override).expanduser()
     else:
@@ -27,12 +28,15 @@ def _readout(override):
         path = hf_hub_download(spec["repo_id"], spec["filename"], revision=spec["revision"],
                                cache_dir=bulk_home() / "huggingface")
     tensors = load_file(str(verified(path, spec)), device="cpu")
-    if set(tensors) != {"weight", "bias"} or tensors["weight"].shape != (2048, 5120) or tensors["bias"].shape != (5120,):
+    geometry = model_geometry(repo)
+    hidden = geometry["hidden"]
+    width = spec.get("feature_dimension", 2 * geometry["kv_heads"] * geometry["head_dim"])
+    if set(tensors) != {"weight", "bias"} or tensors["weight"].shape != (width, hidden) or tensors["bias"].shape != (hidden,):
         raise CompatibilityError("LPCombine readout has unexpected tensor shapes")
     return tensors["weight"], tensors["bias"]
 
 
-def _shortlist(language, keys, values, width):
+def _shortlist(repo, language, keys, values, width):
     import torch
     from torch.nn.functional import normalize
     from transformers.models.qwen3_5.modeling_qwen3_5 import rotate_half
@@ -48,11 +52,16 @@ def _shortlist(language, keys, values, width):
         flat = tensor.transpose(1, 2).flatten(2).float()[0]
         return normalize(flat, dim=-1) * flat.shape[-1] ** 0.5
 
-    weight, bias = _readout(os.environ.get("LATENTPORT_COMBINER"))
+    weight, bias = _readout(repo, os.environ.get("LATENTPORT_COMBINER"))
     features = torch.cat((feature(values), feature(unrotated)), dim=-1)
     projected = normalize(features @ weight.to(device) + bias.to(device), dim=-1).to(torch.bfloat16)
+    return _rank(language.get_input_embeddings().weight, projected, width)
+
+
+def _rank(table, projected, width):
+    import torch
+    from torch.nn.functional import normalize
     # Normalize embeddings in blocks to avoid a vocabulary-sized FP32 temporary.
-    table = language.get_input_embeddings().weight
     unit = torch.cat([normalize(chunk.float(), dim=-1).to(torch.bfloat16) for chunk in table.split(8192)])
     candidates = []
     for chunk in projected.split(64):
@@ -82,7 +91,7 @@ def _cache_rows(cache, rows):
     return next_cache
 
 
-def _verify(language, keys, values, candidates, special):
+def _verify(language, keys, values, candidates, special, *, common_limit=0, tolerance=0.02):
     import torch
     from transformers import DynamicCache
     # Share the immutable modules, with a private layer list for this readout.
@@ -97,10 +106,14 @@ def _verify(language, keys, values, candidates, special):
         next_cache = None
         token = None
         reference = (keys[0, :, position, :].float(), values[0, :, position, :].float())
-        for shortlist in (row[:16], torch.cat((row, special))):
+        rounds = [row[:16], torch.cat((row, special))]
+        if common_limit:
+            rounds.insert(1, row[:1024])
+            rounds.append(torch.arange(common_limit, device=row.device))
+        for shortlist in rounds:
             pool = [i for i in dict.fromkeys(shortlist.tolist()) if i not in selected]
             selected.update(pool)
-            for group in torch.tensor(pool, dtype=torch.long, device=keys.device).split(64):
+            for group in torch.tensor(pool, dtype=torch.long, device=keys.device).split(128 if common_limit else 64):
                 if not len(group):
                     continue
                 trial = (DynamicCache(config=language.config) if prefix is None else
@@ -115,11 +128,11 @@ def _verify(language, keys, values, candidates, special):
                 if float(minimum) < best_error:
                     best_error, token = float(minimum), int(group[index])
                     next_cache = _cache_rows(trial, index.reshape(1))
-                if best_error <= 0.02:
+                if best_error <= tolerance:
                     break
-            if best_error <= 0.02:
+            if best_error <= tolerance:
                 break
-        if next_cache is None or best_error > 0.02:
+        if next_cache is None or best_error > tolerance:
             raise StateError(f"LPCombine could not verify right-state token {position}. Use a retained token history for exact replay.")
         prefix = next_cache
         ids.append(token)
@@ -128,24 +141,28 @@ def _verify(language, keys, values, candidates, special):
 
 def recover_tokens(model, state):
     import torch
-    spec = profile()
     identity = model.identity
+    repo = identity.repo_id
+    spec = profile(repo)
     runtime = model.backend
-    if (identity.revision != PINNED_REVISION or
-            identity.weights.partition(":execution:")[0] != spec["nf4_weights"] or
-            getattr(getattr(runtime, "options", None), "position_policy", None) != "default"):
-        raise CompatibilityError("NF4 cache-only combine requires the pinned model weights and native text positions")
+    if (identity.revision != MODEL_REVISIONS[repo] or
+            identity.weights.partition(":execution:")[0] != spec.get(identity.backend + "_weights") or
+            runtime.options.position_policy != "default"):
+        raise CompatibilityError("Cache-only combine requires the pinned model weights and native text positions")
     if state.physical_kv_length != state.clock:
         raise StateError("Cache-only combine requires a dense right state. Use its retained token history after compaction.")
     values = state._read_tensors(device=runtime.device)
     keys, attention_values = values["K.3"], values["V.3"]
-    if (keys.shape != (1, 4, state.clock, 256) or keys.shape != attention_values.shape or
-            "P" in values):
-        raise StateError("LPCombine requires a dense, zero-start Qwen3.8 text state")
+    geometry = model_geometry(repo)
+    if (keys.shape != (1, geometry["kv_heads"], state.clock, geometry["head_dim"]) or
+            keys.shape != attention_values.shape or "P" in values):
+        raise StateError("LPCombine requires a dense, zero-start text state")
     language = runtime._model(identity).model
     maximum = model.codec.vocabulary_size
     special = torch.arange(248044, min(maximum, language.get_input_embeddings().num_embeddings),
                            device=keys.device)
     with torch.inference_mode(), runtime.kernels():
-        candidates = _shortlist(language, keys, attention_values, 1024)
-        return _verify(language, keys, attention_values, candidates, special)
+        candidates = _shortlist(repo, language, keys, attention_values, spec.get("candidate_limit", 1024))
+        return _verify(language, keys, attention_values, candidates, special,
+                       common_limit=min(maximum, spec.get("common_token_limit", 0)),
+                       tolerance=spec.get("verification_tolerance", 0.02))

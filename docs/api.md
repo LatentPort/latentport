@@ -281,11 +281,12 @@ only after successful installation.
 - `method="tokens"` uses the complete right-hand token stream captured by
   `prefill()` or a resident session opened with `retain_replay=True`.
   BF16, NF4 and GGUF run this through their native append paths.
-- `method="cache"` uses the published NF4 readout on a dense right cache
-  with native text positions and the pinned weights. An unverified
-  token fails the operation.
-- `method="auto"` selects recorded tokens when available. A token-free
-  right snapshot selects cache-only reconstruction on NF4.
+- `method="cache"` reads a complete right cache using a backend supported by
+  its pinned LPCombine profile. The trained Qwen hybrid readouts require native
+  text positions. Qwen3 and Gemma use their first-layer value projection.
+  A token that fails verification aborts the operation.
+- `method="auto"` selects recorded tokens when available and otherwise uses
+  the profile's cache-only method.
 
 `State.combination` identifies the method, both input state IDs and the
 replayed token count. It round-trips via `State.save()`. The resulting

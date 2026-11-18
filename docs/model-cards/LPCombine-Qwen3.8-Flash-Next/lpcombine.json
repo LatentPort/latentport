@@ -1,0 +1,25 @@
+{
+  "name": "LPCombine-Qwen3.8-Flash-Next",
+  "version": "1.0",
+  "repo_id": "latentport/LPCombine-Qwen3.8-Flash-Next",
+  "base_model": "Qwen/Qwen3.8-Flash-Next",
+  "base_revision": "812d96e10a0dd82b69d749e68693698cf6c36daa",
+  "revision": "34222f39ac4dc9060acd9575f8773565c5cbbffb",
+  "filename": "model.safetensors",
+  "sha256": "eb6d97d4c2d14210c9b0c8dc7d79592362e9f0e7d823bf0b7f3104debdc6c23b",
+  "bytes": 6564120,
+  "training_tokens": 24576,
+  "feature_dimension": 640,
+  "bf16_weights": "bf16-sha256:fd54e52085952bb5127cae3549390c0a7c51c844add0dac58b71cd064512410e",
+  "methods": {
+    "bf16": [
+      "tokens",
+      "cache"
+    ]
+  },
+  "runtime_version": "0.4.9",
+  "cache_readout": "flash_next_values_and_index",
+  "qualified_runtime": {
+    "bf16": 2
+  }
+}

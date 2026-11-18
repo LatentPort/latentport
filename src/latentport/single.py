@@ -42,9 +42,8 @@ def load_model(repo: str = MODEL, *, revision: str | None = None, backend: str =
     Set ``max_logical_positions`` to select the logical context length before ingestion.
     ``State.compact`` retains the same position policy throughout a lineage.
     """
-    from ._combine import PROFILE_REPO
-    if repo.casefold() in (PROFILE_REPO.casefold(), PROFILE_REPO.split("/")[-1].casefold()):
-        repo = DEFAULT_MODEL
+    from ._combine import ALIASES
+    repo = ALIASES.get(repo.casefold(), repo)
     if backend not in ("bf16", "nf4", "gguf"):
         raise ValueError("backend must be 'bf16', 'nf4' or 'gguf'")
     if native_options is not None and backend != "gguf":

@@ -54,7 +54,7 @@ def test_explicit_cache_path_does_not_read_recorded_tokens(model, monkeypatch):
     left = model.prefill("one")
     right = model.prefill("two")
     if model.identity.backend != "nf4":
-        with pytest.raises(CapabilityError, match="requires NF4"):
+        with pytest.raises(CapabilityError, match="requires retained token IDs"):
             model.combine(left, right, method="cache")
         return
     monkeypatch.setattr("latentport._combine_readout.recover_tokens",
@@ -96,3 +96,25 @@ def test_cli_combines_saved_states(model, tmp_path, monkeypatch):
     state = State.load(output)
     assert state.rendered_text == "leftright" and state.combination.method == "tokens"
     assert main(["combine", str(left), str(right), str(output)]) == 1
+
+
+@pytest.mark.parametrize("alias", [
+    "LPCombine-Qwen3.5-4B", "LPCombine-Qwen3.5-9B", "LPCombine-Gemma-4-31B-it",
+    "LPCombine-Qwen3-14B", "LPCombine-Qwen3.8-Flash-Next",
+])
+def test_family_profiles_join_ordered_histories(alias):
+    from latentport._combine import ALIASES
+    from latentport._models import MODEL_REVISIONS
+
+    repo = ALIASES[alias.casefold()]
+    backend = FakeBackend()
+    backend.name = "bf16"
+    identity = ModelIdentity(repo, MODEL_REVISIONS[repo], backend.name, "fixture",
+                             "tokenizer", "template", backend.state_abi)
+    with Model(identity, backend, role="target") as model:
+        left, right = model.prefill("first\n"), model.prefill("second")
+        merged = model.combine(left, right)
+        assert merged.rendered_text == "first\nsecond"
+        assert model.combine(right, left).rendered_text == "secondfirst\n"
+        assert merged.identity == left.identity
+        assert merged.combination.method == "tokens"

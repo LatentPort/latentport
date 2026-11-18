@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.9
+
+- Add LPCombine profiles for Qwen3.5-4B, Qwen3.5-9B, Gemma-4-31B-it, Qwen3-14B and Qwen3.8-Flash-Next.
+- Add learned cache readouts for Qwen3.5-4B, Qwen3.5-9B and Flash-Next, plus first-layer projection verification for Gemma and Qwen3.
+- Use the existing `combine()` API and saved-state command with every profile.
+
 ## 0.4.8
 
 - Add LPCombine for Qwen3.8-27B through `Model.combine()`, `State.combine()`, `Session.combine()`, and the `latentport combine` command.
