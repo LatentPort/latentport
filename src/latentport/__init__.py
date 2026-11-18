@@ -1,7 +1,7 @@
 """LatentPort: programmable full-state handoff for a supported hybrid model pair."""
 from .bridge import Bridge
 from .errors import CapabilityError, CompatibilityError, GenerationInterrupted, HandoffError, LatentPortError, ReplayError, StateError
-from .identity import Answer, CompactionInfo, ModelIdentity, RunStats, StateInfo
+from .identity import Answer, CombinationInfo, CompactionInfo, ModelIdentity, RunStats, StateInfo
 from .model import Model
 from .port import Port, load
 from .session import Session
@@ -13,4 +13,4 @@ from ._native import NativeOptions
 
 __all__ = ["Answer", "Bridge", "CapabilityError", "CompatibilityError", "GenerationInterrupted", "HandoffError",
            "LatentPortError", "Model", "ModelIdentity", "Port", "ReplayError", "RunStats",
-           "Session", "State", "StateError", "StateInfo", "NativeOptions", "ContextOptions", "load", "load_model", "CompactionInfo"]
+           "Session", "State", "StateError", "StateInfo", "NativeOptions", "ContextOptions", "load", "load_model", "CombinationInfo", "CompactionInfo"]

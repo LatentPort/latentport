@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.8
+
+- Add LPCombine for Qwen3.8-27B through `Model.combine()`, `State.combine()`, `Session.combine()`, and the `latentport combine` command.
+- BF16, NF4 and GGUF replay a retained right-hand token stream. NF4 also supports verified cache-only reconstruction with the published readout.
+- Resident sessions can opt into recording their token stream with `retain_replay=True`.
+
 ## 0.4.7
 
 - Add Qwen3-14B BF16 LPCompact through the standard model, state and session APIs with native positions and 32K activation.

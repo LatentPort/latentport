@@ -20,12 +20,15 @@ assert "Qwen/Qwen3.8-Flash-Next" in MODEL_REVISIONS
 assert "Qwen/Qwen3-14B" in MODEL_REVISIONS
 assert files("latentport").joinpath("configs/lpcompact-qwen3-14b.json").is_file()
 assert callable(latentport.State.compact)
+assert callable(latentport.State.combine)
+assert files("latentport").joinpath("configs/lpcombine-qwen3.8-27b.json").is_file()
 assert files('latentport').joinpath('configs/lpcompact-qwen3.8-flash-next.json').is_file()
 for size in ('4b', '9b'):
     assert files('latentport').joinpath(f'configs/lpcompact-qwen3.5-{size}.json').is_file()
 '''
     subprocess.run([sys.executable, "-c", code], env=env, cwd=directory, check=True)
     subprocess.run([sys.executable, "-m", "latentport", "demo", "--help"], env=env, cwd=directory, check=True)
+    subprocess.run([sys.executable, "-m", "latentport", "combine", "--help"], env=env, cwd=directory, check=True)
     result = subprocess.run([sys.executable, "-m", "latentport", "doctor"], env=env,
                             cwd=directory, capture_output=True, text=True)
     import json

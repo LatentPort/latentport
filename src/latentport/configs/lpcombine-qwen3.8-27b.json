@@ -1,0 +1,24 @@
+{
+  "name": "LPCombine-Qwen3.8-27b",
+  "version": "1.0",
+  "repo_id": "latentport/LPCombine-Qwen3.8-27b",
+  "revision": "9bbfecce740e3e874bb08760de78823a0759b52f",
+  "filename": "model.safetensors",
+  "sha256": "b4f1ad4e09d804e702f0c41cc50c3c428ab485ca642681730b06970b0b554460",
+  "bytes": 41963832,
+  "base_model": "Qwen/Qwen3.8-27B",
+  "base_revision": "37561816e66b5b9153b1b64c10968c18c1e6f4a0",
+  "nf4_weights": "nf4-sha256:6c5853ccbb662944c4471e73ea010e2daaed28527bcb748fd1a08287fe96d005",
+  "methods": {
+    "bf16": [
+      "tokens"
+    ],
+    "nf4": [
+      "tokens",
+      "cache"
+    ],
+    "gguf": [
+      "tokens"
+    ]
+  }
+}

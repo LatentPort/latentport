@@ -65,6 +65,14 @@ class CompactionInfo:
 
 
 @dataclass(frozen=True, slots=True)
+class CombinationInfo:
+    method: str
+    left_id: str
+    right_id: str
+    replayed_tokens: int
+
+
+@dataclass(frozen=True, slots=True)
 class RunStats:
     queue_s: float = 0.0
     reader_prefill_s: float = 0.0

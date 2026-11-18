@@ -12,7 +12,7 @@ from typing import Any, Mapping
 from uuid import uuid4
 
 from .errors import CompatibilityError, StateError
-from .identity import CompactionInfo, ModelIdentity, StateInfo
+from .identity import CombinationInfo, CompactionInfo, ModelIdentity, StateInfo
 
 
 STATE_FORMAT = "latentport.state.v2"
@@ -60,6 +60,7 @@ class State:
     stream_tail_ids: tuple[int, ...] = ()
     # False means messages cannot be used to reconstruct the committed stream.
     messages_complete: bool = True
+    combination: CombinationInfo | None = None
 
     def __post_init__(self):
         if type(self.messages_complete) is not bool:
@@ -137,6 +138,10 @@ class State:
         from ._compact import compact
         return compact(self, ratio=ratio, force=force, allow_unqualified=allow_unqualified)
 
+    def combine(self, other: "State", *, model: "Model", method: str = "auto") -> "State":
+        """Combine this prefix with another state using an open model."""
+        return model.combine(self, other, method=method)
+
     def require_model(self, identity: ModelIdentity) -> None:
         self.identity.require_same(identity)
 
@@ -199,6 +204,7 @@ class State:
                       "generated_token_ids": self.generated_token_ids, "state_id": self.state_id,
                       "parent_id": self.parent_id, "shares_storage": False, "tensor_index": index,
                       "compaction": asdict(self.compaction) if self.compaction else None,
+                      "combination": asdict(self.combination) if self.combination else None,
                        "stream_tail_ids": self.stream_tail_ids,
                       "tensor_sha256": _digest(staging / "tensors.safetensors"),
                       "tensor_file_bytes": (staging / "tensors.safetensors").stat().st_size}
@@ -251,6 +257,7 @@ class State:
                    state_id=record["state_id"], parent_id=record.get("parent_id"),
                    shares_storage=False,
                    compaction=CompactionInfo(**record["compaction"]) if record.get("compaction") else None,
+                   combination=CombinationInfo(**record["combination"]) if record.get("combination") else None,
                     stream_tail_ids=tuple(record.get("stream_tail_ids", ())),
                    _snapshot=root, _disk_index=record["tensor_index"])
 
@@ -268,3 +275,8 @@ def _dtype_bytes(name):
     if name not in sizes:
         raise StateError("Unsupported snapshot tensor dtype " + name)
     return sizes[name]
+
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .model import Model

@@ -267,3 +267,30 @@ raw Transformers caches must verify provenance themselves; prefer `State.compact
 answer, including after save/load or fork. Incomplete trailing UTF-8 characters
 are withheld until more tokens arrive or EOS is committed. `Answer.token_ids`
 continues to report every committed token in that call.
+
+
+## Combine
+
+`model.combine(left, right, method="auto")` returns a new context-ready
+state from two context-ready states with identical model and execution
+identities. The order is left followed by right. The original states
+can still be used. The equivalent state call is
+`left.combine(right, model=model)`. `session.combine(right)` updates the session
+only after successful installation.
+
+- `method="tokens"` uses the complete right-hand token stream captured by
+  `prefill()` or a resident session opened with `retain_replay=True`.
+  BF16, NF4 and GGUF run this through their native append paths.
+- `method="cache"` uses the published NF4 readout on a dense right cache
+  with native text positions and the pinned weights. An unverified
+  token fails the operation.
+- `method="auto"` selects recorded tokens when available. A token-free
+  right snapshot selects cache-only reconstruction on NF4.
+
+`State.combination` identifies the method, both input state IDs and the
+replayed token count. It round-trips via `State.save()`. The resulting
+state can be queried, continued, forked or compacted.
+
+`latentport combine LEFT RIGHT OUTPUT` reads saved states and writes a
+new snapshot. Use `--model-path` for local weights and match any position
+and capacity flags used to capture the inputs.

@@ -80,16 +80,22 @@ class Model:
                      generated_token_ids=state.generated_token_ids,
                      parent_id=state.state_id, _components=values)
 
-    def session(self, state: State | None = None, *, resident: bool = False) -> "Session":
+    def combine(self, left: State, right: State, *, method: str = "auto") -> State:
+        """Continue left with the ordered history represented by right."""
+        from ._combine import combine
+        return combine(self, left, right, method=method)
+
+    def session(self, state: State | None = None, *, resident: bool = False,
+                retain_replay: bool = False) -> "Session":
         self._check_open()
         if state is not None:
             state.require_model(self.identity)
         from .session import Session
-        return Session(self, state, resident=resident)
+        return Session(self, state, resident=resident, retain_replay=retain_replay)
 
-    def live(self, state: State | None = None):
-        """Keep a resident append cache; freeze immutable States only on request."""
-        return self.session(state, resident=True)
+    def live(self, state: State | None = None, *, retain_replay: bool = False):
+        """Keep a resident cache and optionally retain token IDs for combination."""
+        return self.session(state, resident=True, retain_replay=retain_replay)
 
     def prefill(self, context: str | Sequence[tuple[str, str]]) -> State:
         return self.capture(context, generation_prompt=False)

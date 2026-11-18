@@ -5,9 +5,9 @@
 **Created by [Simon P. Villani](https://au.linkedin.com/in/simon-villani).**
 
 Capture a model's working context, transfer it to another model, compact its
-attention memory, or save and branch it for later use. Learned transformations
-operate on inference state so supported models can continue without replaying
-the historical context.
+attention memory, combine two contexts, or save and branch the state for later
+use. Transfer and compaction operate directly on inference state. LPCombine
+continues one cache by replaying the other context.
 
 The interface follows the operation. Select a supported bridge or model when
 loading; use the same methods to work with its state.
@@ -15,6 +15,7 @@ loading; use the same methods to work with its state.
 ```python
 transferred = port.bridge.translate(state)
 compacted = state.compact()
+combined = state.combine(other, model=model)
 branches = state.fork(2)
 state.save("saved-state")
 ```
@@ -39,12 +40,38 @@ model pair or sequence of operations compatible.
 | Capture | `model.capture(context)` | Read context and retain its complete inference state. |
 | Transfer | `bridge.translate(state)` | Transform a source snapshot into the supported target model's state. |
 | Compact | `state.compact()` | Reduce attention KV while preserving recurrent memory, convolution state and logical positions. |
+| Combine | `model.combine(left, right)` | Continue one cache with the context represented by a second state. |
 | Append | `model.append(state, text)` | Process new input from an existing state. |
 | Fork | `state.fork(2)` | Create independent descendants of a shared immutable snapshot. |
 | Save / load | `state.save(path)` / `lp.State.load(path)` | Persist and restore state without historical prompt prefill. |
 
-Learned optimisation, multi-parent state combination and automatic operation
-selection are on the roadmap. They are not implemented in this release.
+The current LPCombine profile supports ordered, same-model combination for Qwen3.8-27B.
+
+## Combine two Qwen3.8-27B states
+
+```python
+import latentport as lp
+
+with lp.load_model("latentport/LPCombine-Qwen3.8-27b", backend="nf4") as model:
+    left = model.prefill("Nora belongs to team X.\n")
+    right = model.prefill("Team X uses the passcode cedar.\n")
+    merged = model.combine(left, right)
+    with model.session(merged) as session:
+        print(session.ask("What is the passcode for Nora's team?").text)
+```
+
+`combine()` replays the right context after the left cache and returns a new state.
+BF16, NF4 and GGUF use the right state's retained token IDs by default when
+available. NF4 can also reconstruct and verify tokens from a dense right
+cache with `method="cache"`. Use `live(retain_replay=True)` to record tokens
+in resident sessions for BF16 or GGUF. GGUF uses the usual `model_path=`
+argument and native runtime.
+
+To combine saved states, run `latentport combine LEFT RIGHT OUTPUT` with the
+same model, backend and position settings used to capture them. Add
+`--model-path PATH` for local weights or a GGUF file. See
+[LPCombine](https://huggingface.co/latentport/LPCombine-Qwen3.8-27b) for
+compatibility and evaluation.
 
 ## Get started
 

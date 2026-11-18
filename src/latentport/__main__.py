@@ -113,6 +113,15 @@ def main(argv=None):
     fetch.add_argument("--backend", choices=("gguf", "bf16", "nf4"), default="gguf")
     fetch.add_argument("--source-path", type=Path)
     fetch.add_argument("--target-path", type=Path)
+    combine = commands.add_parser("combine", help="Combine two saved Qwen3.8-27B states")
+    combine.add_argument("left", type=Path)
+    combine.add_argument("right", type=Path)
+    combine.add_argument("output", type=Path)
+    combine.add_argument("--method", choices=("auto", "tokens", "cache"), default="auto")
+    combine.add_argument("--model-path", type=Path)
+    combine.add_argument("--position-policy", choices=("default", "yarn4", "yarn"))
+    combine.add_argument("--max-kv-positions", type=int)
+    combine.add_argument("--max-logical-positions", type=int)
     demo = commands.add_parser("demo", help="Launch the packaged browser demo")
     from ._demo.server import add_arguments
     add_arguments(demo)
@@ -143,6 +152,20 @@ def dispatch(args):
                 verify_model_weights(path, spec)
             print(f"{side}: {path}", flush=True)
         print(f"bridge: {root}", flush=True)
+        return 0
+    if args.command == "combine":
+        from . import State, load_model
+        if args.output.exists():
+            raise FileExistsError(args.output)
+        left, right = State.load(args.left), State.load(args.right)
+        right.require_model(left.identity)
+        with load_model(left.identity.repo_id, revision=left.identity.revision,
+                        backend=left.identity.backend, model_path=args.model_path,
+                        position_policy=args.position_policy,
+                        max_kv_positions=args.max_kv_positions,
+                        max_logical_positions=args.max_logical_positions) as model:
+            state = model.combine(left, right, method=args.method)
+            print(state.save(args.output), flush=True)
         return 0
     if args.command == "demo":
         from ._demo.server import run

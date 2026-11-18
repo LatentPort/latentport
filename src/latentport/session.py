@@ -11,9 +11,13 @@ from .state import State
 
 
 class Session:
-    def __init__(self, model: "Model", state: State | None = None, *, resident: bool = False):
+    def __init__(self, model: "Model", state: State | None = None, *, resident: bool = False,
+                 retain_replay: bool = False):
+        if type(retain_replay) is not bool:
+            raise TypeError("retain_replay must be a bool")
         self._resident = None
         self.resident = resident
+        self.retain_replay = retain_replay
         self.closed = False
         if resident and not hasattr(model.backend, "live"):
             raise CapabilityError("This backend does not support resident execution")
@@ -73,7 +77,7 @@ class Session:
             if self._resident is None:
                 self._freeze()
                 from .stream import ResidentCache
-                self._resident = ResidentCache(self.model, self._state)
+                self._resident = ResidentCache(self.model, self._state, retain_replay=self.retain_replay)
                 self._state = None
             try:
                 return self._resident.append(text)
@@ -128,7 +132,7 @@ class Session:
         def install(child):
             if self.resident:
                 from .stream import ResidentCache
-                return ResidentCache(destination, child)
+                return ResidentCache(destination, child, retain_replay=self.retain_replay)
             if decode:
                 values = (child._read_tensors() if getattr(destination.backend, "copy_on_write", False)
                           else child._tensors(device=getattr(destination.backend, "device", None)))
@@ -142,6 +146,10 @@ class Session:
         else:
             self._pending_decode = handle
         return child
+
+    def combine(self, other: State, *, method: str = "auto") -> State:
+        """Replace the current context with its ordered combination with other."""
+        return self._transform(lambda state: self.model.combine(state, other, method=method))
 
     def compact(self, *, ratio=8, force=False, reserve_tokens=0, allow_unqualified=False):
         """Compact with room for an explicit upcoming prompt/decode budget.
@@ -198,8 +206,9 @@ class Session:
         parent = self.snapshot()
         states = parent.fork(count)
         if count == 1:
-            return Session(self.model, states, resident=self.resident)
-        return tuple(Session(self.model, state, resident=self.resident) for state in states)
+            return Session(self.model, states, resident=self.resident, retain_replay=self.retain_replay)
+        return tuple(Session(self.model, state, resident=self.resident, retain_replay=self.retain_replay)
+                     for state in states)
 
     def _turn_suffix(self, record):
         ids = record.token_ids
