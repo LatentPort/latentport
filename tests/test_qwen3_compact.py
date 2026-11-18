@@ -48,6 +48,18 @@ def test_qwen3_chunked_decoder_matches_native_and_sparse_restore():
     restored = backend._cache(decoder, values, 19)
     decoder.step([21], restored, 19)
     assert restored.get_seq_length() == 6
+
+    # Compare chunked and single-token execution where native positions have ended.
+    from latentport.context import ContextOptions
+    decoder.options = ContextOptions("yarn", 8192, 1048576, 40960)
+    from latentport._reference.rotary import configure_global_yarn
+    configure_global_yarn(decoder.text.rotary_emb, decoder.options)
+    batched = DynamicCache(config=cfg)
+    split = DynamicCache(config=cfg)
+    expected = decoder.step([21, 22], batched, 999999)
+    decoder.step([21], split, 999999)
+    actual = decoder.step([22], split, 1000000)
+    torch.testing.assert_close(actual, expected, atol=0.04, rtol=0.04)
     assert Qwen3ContextOptions().logical_limit == 40960
     with pytest.raises(Exception, match="Logical position"):
         Qwen3ContextOptions().check(40960, 1024, 1)

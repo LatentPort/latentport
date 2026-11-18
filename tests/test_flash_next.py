@@ -70,3 +70,19 @@ def test_standard_model_registry_and_state_compaction(monkeypatch):
     assert torch.equal(kept["I.0"], values["I.0"].index_select(1,kept["P"]))
     assert kept["NGRAM"] is values["NGRAM"] and kept["PLE"] is values["PLE"]
     assert (kept["P"][:-3].reshape(-1,4).diff()==1).all()
+
+
+def test_flash_rotary_uses_checkpoint_geometry_for_static_yarn():
+    from transformers import Qwen4ExpTextConfig
+    from transformers.models.qwen4_exp.modeling_qwen4_exp import Qwen4ExpTextRotaryEmbedding
+    from latentport.context import ContextOptions
+    from latentport._reference.rotary import configure_global_yarn
+
+    config = Qwen4ExpTextConfig(num_hidden_layers=48, ple_layer_ids=[2], eos_token_id=248044,
+                                max_position_embeddings=262144)
+    rotary = Qwen4ExpTextRotaryEmbedding(config)
+    native = rotary.inv_freq.clone()
+    configure_global_yarn(rotary, ContextOptions("yarn4"))
+    assert rotary.inv_freq.shape == native.shape
+    assert rotary.inv_freq[0] == native[0] and rotary.inv_freq[-1] < native[-1]
+    assert rotary.attention_scaling > 1

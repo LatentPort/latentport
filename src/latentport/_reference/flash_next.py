@@ -17,6 +17,7 @@ from . import cache_abi
 from .bf16 import BF16Backend
 from .live import LiveCache, LiveDecode
 from .native import KERNEL_LOCK
+from .rotary import configure_global_yarn
 from .flash_weights import StreamExperts, load_weights
 
 
@@ -162,6 +163,7 @@ class FlashNextBackend(BF16Backend):
         with KERNEL_LOCK, torch.cuda.device(self.device):
             if side not in self._models:
                 model = load_weights(self._path(side))
+                configure_global_yarn(model.model.rotary_emb, self.options)
                 configure(model)
                 model.generation_config.eos_token_id = [248044, 248046]
                 self._models[side] = model

@@ -5,9 +5,14 @@ from contextlib import nullcontext
 import torch
 from transformers import Qwen3ForCausalLM
 
+from .rotary import configure_global_yarn
+
 
 class Decoder:
-    def __init__(self, snapshot, device="cuda:0"):
+    options = None
+
+    def __init__(self, snapshot, device="cuda:0", *, options=None):
+        self.options = options
         self.device = torch.device(device)
         self.model = (
             Qwen3ForCausalLM.from_pretrained(
@@ -22,13 +27,14 @@ class Decoder:
         )
         self.text = self.model.model
         self.cfg = self.config = self.model.config
+        configure_global_yarn(self.text.rotary_emb, options)
 
     def layer(self, idx):
         return nullcontext(self.text.layers[idx])
 
     @torch.inference_mode()
     def step(self, ids, cache, clock, *, keep_last=1):
-        if clock + len(ids) > self.cfg.max_position_embeddings:
+        if clock + len(ids) > getattr(self.options, "logical_limit", self.cfg.max_position_embeddings):
             raise ValueError("Native Qwen3 position limit exceeded")
         tokens = torch.as_tensor(ids, device=self.device).reshape(1, -1)
         positions = torch.arange(clock, clock + len(ids), device=self.device)[None]

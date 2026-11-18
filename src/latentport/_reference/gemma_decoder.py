@@ -9,9 +9,14 @@ from safetensors import safe_open
 from transformers import AutoConfig
 from transformers.models.gemma4 import modeling_gemma4 as gemma
 
+from .rotary import configure_global_yarn
+
 
 class Decoder:
-    def __init__(self, snapshot, device="cuda"):
+    options = None
+
+    def __init__(self, snapshot, device="cuda", *, options=None):
+        self.options = options
         self.device = torch.device(device)
         path = Path(snapshot)
         self.cfg = AutoConfig.from_pretrained(path, local_files_only=True).text_config
@@ -45,6 +50,7 @@ class Decoder:
             else:
                 setattr(module, field, value)
         self.text.rotary_emb = gemma.Gemma4TextRotaryEmbedding(self.cfg).to(self.device)
+        configure_global_yarn(self.text.rotary_emb, options, layer_type="full_attention")
         emb = self.text.embed_tokens
         emb.embed_scale = torch.tensor(emb.scalar_embed_scale, device=self.device, dtype=torch.bfloat16)
 

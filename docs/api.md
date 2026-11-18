@@ -126,6 +126,13 @@ committed suffix after restore. See [native-abi.md](native-abi.md).
 
 ## Standalone extended-position execution
 
+`lp.load_model(model_id, backend="bf16", max_logical_positions=n)` selects
+a logical context length of `n` positions on all six pinned
+LPCompact models. Alternatively, `position_policy="yarn4"` selects four times
+the model's native range. Qwen3-14B retains a 40,960-position physical ceiling.
+Set the length before ingesting history. See the [streaming example
+and per-model position rules](compaction.md#continuous-histories-beyond-the-original-window).
+
 `lp.load_model(backend="nf4" | "bf16" | "gguf", position_policy="yarn4")`
 selects static YaRN factor 4 from the first token, with a logical limit of
 1,048,576 positions. The default position policy retains the 262,144 logical

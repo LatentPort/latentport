@@ -115,7 +115,30 @@ original positions, recurrent state, convolution endpoints and continuation cloc
 
 ## Continuous histories beyond the original window
 
-Standalone NF4, BF16 and GGUF support two static position policies:
+`append()` and `compact()` operate on any supported history length. To process
+positions beyond the checkpoint's native range, pass the desired
+`max_logical_positions` when loading the model. Choose a limit that includes
+any later questions and generated tokens. All six pinned models support
+static YaRN from the first token. `position_policy="yarn4"` selects four
+times the checkpoint's native position range. Qwen3-14B has a native range
+of 40,960, so use `max_logical_positions=1048576` for that longer replay.
+Gemma scales its global rotary embeddings and preserves its sliding-window
+rotations and unrotated channels. Flash-Next uses the same rotary embeddings
+for global attention and its block indexer. Compaction keeps integer positions
+and preserves the continuation clock on each model.
+
+For example, run `python examples/replay.py Qwen/Qwen3.8-Flash-Next history.txt`
+from the source checkout. For a longer history, add
+`--max-logical-positions 1048576` or supply the length your workload requires.
+The example appends exact token IDs in bounded
+chunks and compacts before the next chunk exceeds the selected capacity.
+In a full-window Qwen3.5-4B BF16 replay on one L40S, the 1,000,000-token
+input required four 8-to-1 compactions and left 82,496 physical positions.
+The session accepted token 1,000,001 after releasing and restoring its snapshot.
+The input was a repeated tokenized text block. Million-token retrieval accuracy
+has yet to be measured for these extensions.
+
+For Qwen3.8-27B, the standalone NF4, BF16 and GGUF backends expose these position policies:
 
 | `position_policy` | Maximum logical clock | Maximum physical KV positions |
 | --- | ---: | ---: |
@@ -231,4 +254,4 @@ Select `google/gemma-4-31B-it` with `lp.load_model(model_id, backend="bf16")`, t
 
 ## Qwen3-14B
 
-Select `Qwen/Qwen3-14B` with `lp.load_model(model_id, backend="bf16")`. Use the same `model.prefill(history)`, `state.compact()` and `model.session(compacted).ask(question)` calls. The native-position selector starts at 32,768 physical positions and scores layers 3, 15 and 31. It gathers the same retained positions in all forty attention layers, preserving the logical clock and absolute positions. The pinned checkpoint permits a total logical length of 40,960 tokens. Qualification uses 16K and 32K histories with thinking disabled.
+Select `Qwen/Qwen3-14B` with `lp.load_model(model_id, backend="bf16")`. Use the same `model.prefill(history)`, `state.compact()` and `model.session(compacted).ask(question)` calls. The native-position selector starts at 32,768 physical positions and scores layers 3, 15 and 31. It gathers the same retained positions in all forty attention layers, preserving the logical clock and absolute positions. The default position policy permits a total logical length of 40,960 tokens. Qualification uses 16K and 32K histories with thinking disabled.

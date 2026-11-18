@@ -68,6 +68,18 @@ def test_layer_major_matches_transformers_and_restores_sliding_window():
     assert restored.layers[0].keys.shape[2] == 7
     assert restored.layers[1].keys.shape[2] == keep.numel() + 1
 
+    # Compare chunked and single-token execution where native positions have ended.
+    from latentport.context import ContextOptions
+    d.options = ContextOptions("yarn", 8192, 1048576, cfg.max_position_embeddings)
+    from latentport._reference.rotary import configure_global_yarn
+    configure_global_yarn(d.text.rotary_emb, d.options, layer_type="full_attention")
+    batched = DynamicCache(config=cfg)
+    split = DynamicCache(config=cfg)
+    expected = d.step([21, 22], batched, 999999)
+    d.step([21], split, 999999)
+    actual = d.step([22], split, 1000000)
+    torch.testing.assert_close(actual, expected, atol=0.04, rtol=0.04)
+
 
 def test_state_compact_gathers_only_global_positions(monkeypatch):
     from latentport import ModelIdentity, State, _compact

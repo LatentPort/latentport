@@ -15,9 +15,7 @@ from .qwen3_decoder import Decoder
 class Qwen3ContextOptions(ContextOptions):
     physical_limit: int = 40960
 
-    @property
-    def logical_limit(self):
-        return 40960
+    native_positions: int = 40960
 
     @property
     def legacy(self):
@@ -47,7 +45,7 @@ class Qwen3Backend(GemmaBackend):
         side = self._side(identity)
         with KERNEL_LOCK:
             if side not in self._models:
-                self._models[side] = Decoder(self._path(side), self.device)
+                self._models[side] = Decoder(self._path(side), self.device, options=self.options)
         return self._models[side]
 
     def live(self, identity, state=None):

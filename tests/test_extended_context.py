@@ -13,6 +13,7 @@ import torch
 from latentport import ContextOptions, Model, ModelIdentity, NativeOptions, State, load_model
 from latentport.context import YARN4, PINNED_REVISION, configure_text, execution_weights
 from latentport.errors import CapabilityError, CompatibilityError, StateError
+from latentport._models import MODEL_REVISIONS
 from latentport._positions import physical_length, continuation_inputs
 from latentport._reference.bf16 import BF16Backend
 from latentport._reference.nf4 import NF4Backend, NF4_CONFIG
@@ -319,3 +320,49 @@ def test_real_compact_operation_accepts_million_clock_without_rebasing(backend,a
     assert child.clock==1000000 and child.physical_kv_length==1024
     assert int(child._read_tensors()["P"][-1])==999999
     assert all(torch.equal(values[k],child._read_tensors()[k]) for k in ("H","R.0","C.0"))
+
+
+@pytest.mark.parametrize("repo", sorted(MODEL_REVISIONS))
+@pytest.mark.parametrize("limit", [None, 400000, 1048576])
+def test_requested_logical_range_for_every_pinned_model(repo, limit, tmp_path):
+    for filename in ("config.json", "chat_template.jinja", "model.safetensors"):
+        (tmp_path / filename).write_bytes(b"fixture")
+    with patch("latentport._dependencies.require_backend"), patch(
+        "latentport.hub.model_snapshot", return_value=tmp_path
+    ):
+        kwargs = {"position_policy": "yarn4"} if limit is None else {"max_logical_positions": limit}
+        model = load_model(repo, model_path=tmp_path, **kwargs)
+    options = model.backend.options
+    if limit is None:
+        limit = 4 * options.native_positions
+    assert options.logical_limit == limit
+    options.check(limit - 1, 2048, 1)
+    with pytest.raises(StateError, match="Logical"):
+        options.check(limit, 2048, 1)
+    with pytest.raises(StateError, match="Physical"):
+        options.check(limit - 1, options.physical_limit, 1)
+    assert options.yarn_factor == pytest.approx(limit / options.native_positions)
+    assert ":execution:" in model.identity.weights
+
+
+def test_requested_range_configures_static_yarn_and_binds_checkpoint_identity():
+    length = 524288
+    options = ContextOptions("yarn", max_logical_positions=length)
+    config = configure_text(base_config(), options)
+    assert config.max_position_embeddings == length
+    assert config.rope_parameters["factor"] == 2
+    assert config.rope_parameters["original_max_position_embeddings"] == 262144
+    assert config.rope_parameters == options.record()["rope"]
+    assert execution_weights("base", options) != execution_weights("base", ContextOptions("yarn4"))
+    assert execution_weights("base", ContextOptions("yarn4", max_logical_positions=1048576)) == execution_weights("base", ContextOptions("yarn4"))
+
+
+def test_native_range_checks_match_bound_kernel_geometry():
+    opts = NativeOptions(position_policy="yarn4", max_logical_positions=400000)
+    opts.context_options.check(399999, 32, 1)
+    with pytest.raises(StateError, match="Logical"):
+        opts.context_options.check(400000, 32, 1)
+    with pytest.raises(ValueError):
+        NativeOptions(position_policy="linear", max_logical_positions=400000)
+    with pytest.raises(ValueError):
+        NativeOptions(position_policy="yarn4", max_logical_positions=1048577)

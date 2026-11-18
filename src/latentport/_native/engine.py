@@ -29,8 +29,11 @@ class NativeOptions:
     library: str | None = None
     position_policy: str = "default"
     physical_limit: int = 262144
+    max_logical_positions: int | None = None
 
     def __post_init__(self):
+        if self.position_policy not in ("default", "yarn4"):
+            raise ValueError("Native execution supports default and yarn4 position policies")
         context = self.context_options
         if type(self.context_size) is not int or not 32 <= self.context_size <= context.physical_limit:
             raise ValueError("context_size must be 32..physical_limit")
@@ -41,7 +44,7 @@ class NativeOptions:
 
     @property
     def context_options(self):
-        return ContextOptions(self.position_policy, self.physical_limit)
+        return ContextOptions(self.position_policy, self.physical_limit, self.max_logical_positions)
 
     @property
     def logical_limit(self):

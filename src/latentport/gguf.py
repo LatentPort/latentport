@@ -72,7 +72,8 @@ class GGUFBackend:
     def weights(self, side):
         if side not in self._hashes:
             options = ContextOptions(getattr(self.options, "position_policy", "default"),
-                                     getattr(self.options, "physical_limit", 262144))
+                                     getattr(self.options, "physical_limit", 262144),
+                                     getattr(self.options, "max_logical_positions", None))
             self._hashes[side] = execution_weights("gguf-sha256:" + _hash_file(self.paths[side]), options)
         return self._hashes[side]
 
