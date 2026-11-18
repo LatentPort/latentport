@@ -8,11 +8,30 @@
     "bf16": [
       "tokens",
       "cache"
+    ],
+    "nf4": [
+      "tokens"
+    ],
+    "gguf": [
+      "tokens"
     ]
   },
-  "runtime_version": "0.4.9",
+  "runtime_version": "0.4.10",
   "cache_readout": "first_layer_values",
   "qualified_runtime": {
-    "bf16": 3
+    "bf16": 3,
+    "nf4": 2,
+    "gguf": 2
+  },
+  "qualified_gguf": {
+    "repo_id": "Qwen/Qwen3-14B-GGUF",
+    "revision": "530227a7d994db8eca5ab5ced2fb692b614357fd",
+    "files": [
+      {
+        "name": "Qwen3-14B-Q4_K_M.gguf",
+        "bytes": 9001752960,
+        "sha256": "500a8806e85ee9c83f3ae08420295592451379b4f8cf2d0f41c15dffeb6b81f0"
+      }
+    ]
   }
 }

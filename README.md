@@ -69,13 +69,14 @@ with `prefill()`, or with `live(retain_replay=True)`, retain the tokens for repl
 | [Qwen3.8-27b](https://huggingface.co/latentport/LPCombine-Qwen3.8-27b) | BF16, NF4, GGUF | NF4 |
 | [Qwen3.5-4B](https://huggingface.co/latentport/LPCombine-Qwen3.5-4B) | BF16, NF4, GGUF | BF16, NF4 |
 | [Qwen3.5-9B](https://huggingface.co/latentport/LPCombine-Qwen3.5-9B) | BF16, NF4, GGUF | BF16, NF4 |
-| [Gemma-4-31B-it](https://huggingface.co/latentport/LPCombine-Gemma-4-31B-it) | BF16 | BF16 |
-| [Qwen3-14B](https://huggingface.co/latentport/LPCombine-Qwen3-14B) | BF16 | BF16 |
-| [Qwen3.8-Flash-Next](https://huggingface.co/latentport/LPCombine-Qwen3.8-Flash-Next) | BF16 | BF16 |
+| [Gemma-4-31B-it](https://huggingface.co/latentport/LPCombine-Gemma-4-31B-it) | BF16, NF4, GGUF | BF16 |
+| [Qwen3-14B](https://huggingface.co/latentport/LPCombine-Qwen3-14B) | BF16, NF4, GGUF | BF16 |
+| [Qwen3.8-Flash-Next](https://huggingface.co/latentport/LPCombine-Qwen3.8-Flash-Next) | BF16, NF4, GGUF | BF16 |
 
 Use `method="cache"` to read tokens from a compatible right cache. GGUF
-uses the usual `model_path=` argument and native runtime. Each profile's
-card specifies which cache layouts it can read.
+uses the usual `model_path=` argument and native runtime. For a split GGUF
+checkpoint, keep the shards together and pass the path to a shard. Each
+profile card specifies which cache layouts it can read.
 
 To combine saved states, run `latentport combine LEFT RIGHT OUTPUT` with the
 same model, backend and position settings used to capture them. Add

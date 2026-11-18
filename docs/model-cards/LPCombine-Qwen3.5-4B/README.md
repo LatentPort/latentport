@@ -61,6 +61,7 @@ current session. `latentport combine LEFT RIGHT OUTPUT` accepts saved states.
 
 A separate sample split HumanEval and GSM8K prompts across the two states. The control prefills the complete chat template in one pass.
 
+- **NF4** matched 4 of 4 native greedy completions. Task scores were 1/4 for `combine()` and 1/4 for native prefill.
 - **GGUF** matched 4 of 4 native greedy completions. Task scores were 1/4 for `combine()` and 1/4 for native prefill.
 
 In cache-only trials, the right token metadata was removed before combining.

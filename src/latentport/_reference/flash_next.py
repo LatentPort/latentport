@@ -59,7 +59,7 @@ def index_mask(indexer, hidden, position_embeddings, attention_mask, past_key_va
 @contextmanager
 def resident_experts(layer, config):
     original = layer.mlp.experts
-    if not isinstance(original, StreamExperts):
+    if not isinstance(original, StreamExperts) or original.quantization is not None:
         yield
         return
     with torch.device("meta"):
@@ -162,7 +162,7 @@ class FlashNextBackend(BF16Backend):
         side = self._side(identity)
         with KERNEL_LOCK, torch.cuda.device(self.device):
             if side not in self._models:
-                model = load_weights(self._path(side))
+                model = load_weights(self._path(side), nf4=self.name == "nf4")
                 configure_global_yarn(model.model.rotary_emb, self.options)
                 configure(model)
                 model.generation_config.eos_token_id = [248044, 248046]

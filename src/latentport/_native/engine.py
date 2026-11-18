@@ -30,6 +30,7 @@ class NativeOptions:
     position_policy: str = "default"
     physical_limit: int = 262144
     max_logical_positions: int | None = None
+    gpu_layers: int | None = None
 
     def __post_init__(self):
         if self.position_policy not in ("default", "yarn4"):
@@ -39,6 +40,8 @@ class NativeOptions:
             raise ValueError("context_size must be 32..physical_limit")
         if not 16 <= self.batch_size <= 1024 or not 1 <= self.threads <= 128:
             raise ValueError("invalid batch size or thread count")
+        if self.gpu_layers is not None and (type(self.gpu_layers) is not int or self.gpu_layers < -1):
+            raise ValueError("gpu_layers must be -1, a nonnegative integer, or None")
         if not 0 <= self.mtp_drafts <= 8:
             raise ValueError("mtp_drafts must be 0..8; zero disables MTP allocation")
 

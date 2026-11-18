@@ -8,11 +8,30 @@
     "bf16": [
       "tokens",
       "cache"
+    ],
+    "nf4": [
+      "tokens"
+    ],
+    "gguf": [
+      "tokens"
     ]
   },
-  "runtime_version": "0.4.9",
+  "runtime_version": "0.4.10",
   "cache_readout": "first_layer_values",
   "qualified_runtime": {
-    "bf16": 2
+    "bf16": 2,
+    "nf4": 2,
+    "gguf": 2
+  },
+  "qualified_gguf": {
+    "repo_id": "unsloth/gemma-4-31B-it-GGUF",
+    "revision": "c1ac76e99d5513b141e8adde7288b85c3f9c32ec",
+    "files": [
+      {
+        "name": "gemma-4-31B-it-Q4_K_M.gguf",
+        "bytes": 18323733440,
+        "sha256": "38bd64c852c4b460434cc7162fa9bdcf242faf86502581a754cb72956bb17f84"
+      }
+    ]
   }
 }

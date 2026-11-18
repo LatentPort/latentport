@@ -58,8 +58,6 @@ def load_model(repo: str = MODEL, *, revision: str | None = None, backend: str =
     capacity = max_kv_positions if max_kv_positions is not None else getattr(native_options, "physical_limit", 262144)
     native_limit = 40960 if repo == QWEN3 else 262144
     separate_decoder = repo in (QWEN3, GEMMA, FLASH_NEXT)
-    if separate_decoder and backend != "bf16":
-        raise CompatibilityError(f"{repo} requires BF16 execution")
     if max_logical_positions is None:
         max_logical_positions = getattr(native_options, "max_logical_positions", None)
     if max_logical_positions is not None:
@@ -67,6 +65,8 @@ def load_model(repo: str = MODEL, *, revision: str | None = None, backend: str =
             raise ValueError("max_logical_positions must be a positive integer")
         if max_logical_positions > native_limit and position_policy is None and policy == "default":
             policy = "yarn4" if backend == "gguf" or max_logical_positions == 4 * native_limit else "yarn"
+    if separate_decoder and backend == "gguf" and policy != "default":
+        raise CompatibilityError("This GGUF model requires native text positions")
     if backend == "gguf" and policy not in ("default", "yarn4"):
         raise CompatibilityError("The GGUF backend supports native or static YaRN4 positions")
     context_type = CheckpointRotaryContext if separate_decoder and policy != "default" else ContextOptions
@@ -114,10 +114,14 @@ def load_model(repo: str = MODEL, *, revision: str | None = None, backend: str =
         quantization = None
         if backend == "nf4":
             from ._reference.nf4 import NF4Backend, NF4_CONFIG
-            runtime_type, quantization = NF4Backend, NF4_CONFIG
+            quantization = NF4_CONFIG
+            if not separate_decoder:
+                runtime_type = NF4Backend
+            elif repo == FLASH_NEXT:
+                quantization = {**quantization, "expert_quantization": "nf4-on-demand"}
         if model_path is None:
             model_path=model_snapshot(spec,metadata_only=False)
-        runtime = runtime_type({"target": model_path}, {"target": spec}, options=context,
+        runtime = runtime_type({"target": model_path}, {"target": spec}, options=context, precision=backend,
                               resolver=lambda side, metadata_only=False: model_snapshot(spec, metadata_only=metadata_only))
         weights = execution_weights(backend+"-sha256:"+_weight_fingerprint(model_path), context, quantization=quantization)
     elif backend == "gguf":
@@ -125,23 +129,36 @@ def load_model(repo: str = MODEL, *, revision: str | None = None, backend: str =
         from ._native.engine import Engine, NativeOptions, library_path
         if model_path is None:
             raise ValueError("GGUF execution requires model_path")
+        default_size = context.physical_limit
+        if context.position_policy != "yarn4":
+            default_size = min(66560, default_size)
+            if separate_decoder and max_kv_positions is None:
+                default_size = min(8192, default_size)
         options = (replace(native_options, position_policy=context.position_policy, physical_limit=context.physical_limit,
                            max_logical_positions=max_logical_positions)
                    if native_options is not None else NativeOptions(
-                       context_size=context.physical_limit if context.position_policy=="yarn4" else min(66560,context.physical_limit), mtp_drafts=0,
+                       context_size=default_size, mtp_drafts=0,
                        position_policy=context.position_policy, physical_limit=context.physical_limit,
                        max_logical_positions=max_logical_positions))
-        library_path(options.library)
-        class SingleGGUFBackend(GGUFBackend):
-            def _get_native(self):
-                if self._engine is None:
-                    self._engine = Engine(None, self.paths["target"], None, None, self.options)
-                    self._engine.geometry["target"] = geometry
-                return self._engine
-        manifest = {"models": {"target": spec}, "runtime": {"template_kwargs": {"target": spec["template_kwargs"]}}}
-        runtime = SingleGGUFBackend(model_path, model_path, metadata, manifest, options=options)
-        runtime.geometry["target"] = geometry
-        weights = runtime.weights("target")
+        if separate_decoder:
+            if repo == FLASH_NEXT:
+                from ._native.flash_sequence import FlashSequenceBackend as SequenceBackend
+            else:
+                from ._native.sequence import SequenceBackend
+            runtime = SequenceBackend(model_path, metadata, spec, options, context)
+            weights = runtime.weights()
+        else:
+            library_path(options.library)
+            class SingleGGUFBackend(GGUFBackend):
+                def _get_native(self):
+                    if self._engine is None:
+                        self._engine = Engine(None, self.paths["target"], None, None, self.options)
+                        self._engine.geometry["target"] = geometry
+                    return self._engine
+            manifest = {"models": {"target": spec}, "runtime": {"template_kwargs": {"target": spec["template_kwargs"]}}}
+            runtime = SingleGGUFBackend(model_path, model_path, metadata, manifest, options=options)
+            runtime.geometry["target"] = geometry
+            weights = runtime.weights("target")
     template = spec["metadata_files"].get("chat_template.jinja")
     if template is None:
         import json

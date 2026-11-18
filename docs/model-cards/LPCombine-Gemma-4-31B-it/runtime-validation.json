@@ -1,5 +1,5 @@
 {
-  "runtime_version": "0.4.9",
+  "runtime_version": "0.4.10",
   "backends": {
     "bf16": {
       "gpu": "NVIDIA L40S",
@@ -20,7 +20,101 @@
       ],
       "cache_errors": [],
       "save_load": true,
-      "reference": "native exact append"
+      "reference": "native exact append",
+      "runtime_version": "0.4.9"
+    },
+    "nf4": {
+      "gpu": "NVIDIA L40S",
+      "os": "Linux",
+      "save_load": true,
+      "trials": [
+        {
+          "method": "tokens",
+          "right_tokens": 6,
+          "next_logits_equal": true,
+          "greedy_equal": true
+        },
+        {
+          "method": "tokens",
+          "right_tokens": 6,
+          "next_logits_equal": true,
+          "greedy_equal": true
+        }
+      ],
+      "nf4_linears": 410,
+      "nf4_expert_projections": 0,
+      "resumed_logits_equal": true,
+      "reference": "native NF4 exact append"
+    },
+    "gguf": {
+      "gpu": "NVIDIA RTX 5090",
+      "os": "Windows",
+      "trials": [
+        {
+          "method": "tokens",
+          "right_tokens": 6,
+          "next_logits_equal": true,
+          "greedy_equal": true,
+          "resumed_logits_equal": true,
+          "save_load": true
+        },
+        {
+          "method": "tokens",
+          "right_tokens": 6,
+          "next_logits_equal": true,
+          "greedy_equal": true,
+          "resumed_logits_equal": true,
+          "save_load": true
+        }
+      ],
+      "save_load": true,
+      "reference": "native GGUF exact append"
+    }
+  },
+  "task_comparisons": {
+    "control": "native single-pass chat prefill",
+    "decoding": "greedy",
+    "backends": {
+      "bf16": [
+        {
+          "id": "HumanEval/34",
+          "right_tokens": 68,
+          "method": "cache",
+          "recovered_tokens": 68,
+          "combine_seconds": 4.704,
+          "append_cache_equal": true,
+          "same_native_completion": true,
+          "completion_tokens": {
+            "native": 24,
+            "combine": 24
+          },
+          "output_cap": 128,
+          "task": "coding",
+          "passed": {
+            "native": true,
+            "combine": true
+          }
+        },
+        {
+          "id": "GSM8K/test/1015",
+          "right_tokens": 17,
+          "method": "cache",
+          "recovered_tokens": 17,
+          "combine_seconds": 4.473,
+          "append_cache_equal": true,
+          "same_native_completion": true,
+          "completion_tokens": {
+            "native": 3,
+            "combine": 3
+          },
+          "output_cap": 24,
+          "task": "math",
+          "passed": {
+            "native": true,
+            "combine": true
+          }
+        }
+      ]
     }
   }
 }

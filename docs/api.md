@@ -290,7 +290,17 @@ only after successful installation.
 
 `State.combination` identifies the method, both input state IDs and the
 replayed token count. It round-trips via `State.save()`. The resulting
-state can be queried, continued, forked or compacted.
+state can be queried, continued or forked. Compaction remains available on
+backends that expose the attention tensors required by LPCompact.
+
+All five new profiles accept `backend="bf16"`, `"nf4"` or `"gguf"`.
+For Qwen3-14B, Gemma 4 31B and Flash-Next, GGUF snapshots store the complete
+native llama.cpp sequence. Keep split checkpoint files together and provide
+one shard as `model_path`. Use `NativeOptions(gpu_layers=...)` to set the
+number of layers offloaded to the GPU for these three GGUF architectures.
+Flash-Next automatically installs the pinned llama.cpp b12503 CPU runtime.
+For CUDA on Flash-Next, supply the path to the b12503 CUDA library via
+`NativeOptions(library=..., gpu_layers=...)`.
 
 `latentport combine LEFT RIGHT OUTPUT` reads saved states and writes a
 new snapshot. Use `--model-path` for local weights and match any position

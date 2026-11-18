@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.10
+
+- Add NF4 and native GGUF execution for LPCombine on Qwen3-14B, Gemma-4-31B-it and Qwen3.8-Flash-Next.
+- Preserve complete native GGUF sequences across capture, combination, save and reload, including split GGUF checkpoints.
+
 ## 0.4.9
 
 - Add LPCombine profiles for Qwen3.5-4B, Qwen3.5-9B, Gemma-4-31B-it, Qwen3-14B and Qwen3.8-Flash-Next.

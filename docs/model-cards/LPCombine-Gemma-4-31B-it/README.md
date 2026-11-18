@@ -20,17 +20,21 @@ It appends the right context to the left cache in that order. The cache-only met
 
 ## Compatibility
 
-Requires LatentPort 0.4.9 or later and the same model, weights, tokenizer, backend
+Requires LatentPort 0.4.10 or later and the same model, weights, tokenizer, backend
 and position policy for both context-ready input states.
 
 | Backend | Retained tokens | Cache-only |
 | --- | --- | --- |
 | BF16 | Yes | Yes |
+| NF4 | Yes | — |
+| GGUF | Yes | — |
+
+GPU validation used the pinned [Q4_K_M checkpoint](https://huggingface.co/unsloth/gemma-4-31B-it-GGUF/tree/c1ac76e99d5513b141e8adde7288b85c3f9c32ec). For GGUF, set `backend="gguf"` and provide `model_path`. Keep all shards of a split checkpoint together.
 
 ## Usage
 
 ```sh
-pip install "latentport[bf16]>=0.4.9"
+pip install "latentport[bf16]>=0.4.10"
 ```
 
 ```python
@@ -52,6 +56,12 @@ current session. `latentport combine LEFT RIGHT OUTPUT` accepts saved states.
 ## Evaluation
 
 - **BF16** matched the next greedy token from native append in all 2 trials and passed snapshot save/load.
+- **NF4** matched native next-token logits in all 2 trials and after snapshot save/load.
+- **GGUF** matched native next-token logits in all 2 trials and after snapshot save/load.
+
+A separate sample split HumanEval and GSM8K prompts across the two states. The control prefills the complete chat template in one pass.
+
+- **BF16** matched 2 of 2 native greedy completions. Task scores were 2/2 for `combine()` and 2/2 for native prefill.
 
 In cache-only trials, the right token metadata was removed before combining.
 [Runtime validation](runtime-validation.json) records the per-trial token counts.

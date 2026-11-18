@@ -82,7 +82,8 @@ class GemmaBackend(BF16Backend):
         side = self._side(identity)
         with KERNEL_LOCK:
             if side not in self._models:
-                self._models[side] = Decoder(self._path(side), self.device, options=self.options)
+                self._models[side] = Decoder(self._path(side), self.device, options=self.options,
+                                             nf4=self.name == "nf4")
         return self._models[side]
 
     def codec(self, identity):

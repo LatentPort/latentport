@@ -9,6 +9,27 @@ NF4_CONFIG = {"load_in_4bit": True, "bnb_4bit_quant_type": "nf4",
               "bnb_4bit_quant_storage": "uint8", "llm_int8_enable_fp32_cpu_offload": False}
 
 
+def transformers_config():
+    import torch
+    from transformers import BitsAndBytesConfig
+
+    return BitsAndBytesConfig(**{**NF4_CONFIG, "bnb_4bit_compute_dtype": torch.bfloat16,
+                                 "bnb_4bit_quant_storage": torch.uint8})
+
+
+def quantized_linear(module, weight, device):
+    import bitsandbytes as bnb
+    import torch
+
+    with torch.device("meta"):
+        linear = bnb.nn.Linear4bit(module.in_features, module.out_features, bias=module.bias is not None,
+                                  compute_dtype=torch.bfloat16, compress_statistics=True, quant_type="nf4")
+    packed = bnb.nn.Params4bit(weight, requires_grad=False, compress_statistics=True,
+                              quant_type="nf4", module=linear)
+    linear.weight = packed.to(device)
+    return linear.eval()
+
+
 class NF4Backend(BF16Backend):
     name = "nf4"
 
@@ -21,15 +42,13 @@ class NF4Backend(BF16Backend):
             return self._models[side]
         if not torch.cuda.is_available() or torch.cuda.device_count() != 1:
             raise CapabilityError("Standalone NF4 requires exactly one visible CUDA GPU")
-        from transformers import AutoConfig, BitsAndBytesConfig, Qwen3_5ForCausalLM
+        from transformers import AutoConfig, Qwen3_5ForCausalLM
         path = self._path(side)
         config = configure_text(AutoConfig.from_pretrained(path, local_files_only=True).text_config,
                                 self.options, model_geometry(identity.repo_id))
-        quant = BitsAndBytesConfig(**{**NF4_CONFIG, "bnb_4bit_compute_dtype": torch.bfloat16,
-                                      "bnb_4bit_quant_storage": torch.uint8})
         model, info = Qwen3_5ForCausalLM.from_pretrained(
             path, config=config, local_files_only=True, dtype=torch.bfloat16,
-            quantization_config=quant, device_map={"": 0}, attn_implementation="sdpa",
+            quantization_config=transformers_config(), device_map={"": 0}, attn_implementation="sdpa",
             low_cpu_mem_usage=True, key_mapping={r"^model\.language_model\.": "model."},
             output_loading_info=True)
         extra = [k for k in info["unexpected_keys"] if not k.startswith(("model.visual.", "mtp.", "model.mtp."))]

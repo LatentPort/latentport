@@ -1,5 +1,6 @@
 """Load the pinned BF16 text weights with memory-mapped experts and n-gram embeddings."""
 
+from collections import OrderedDict
 import json
 from pathlib import Path
 
@@ -44,14 +45,42 @@ class ShardedEmbedding(nn.Module):
         return output.view(*ids.shape, -1).to(ids.device)
 
 
+class NF4Projections:
+    def __init__(self):
+        import bitsandbytes as bnb
+
+        self.bnb = bnb
+        self.weights = OrderedDict()
+
+    def matmul(self, key, x, weight):
+        if key in self.weights:
+            self.weights.move_to_end(key)
+        else:
+            packed, state = self.bnb.functional.quantize_4bit(
+                weight.to(x.device), quant_type="nf4", compress_statistics=True)
+            self.weights[key] = (packed, state)
+            if len(self.weights) > 1024:
+                self.weights.popitem(last=False)
+        packed, state = self.weights[key]
+        return self.bnb.matmul_4bit(x, packed.t(), quant_state=state)
+
+
 class StreamExperts(nn.Module):
-    def __init__(self, ref, gate, down):
+    def __init__(self, ref, gate, down, *, quantization=None, layer=None):
         super().__init__()
         if gate.shape != ref.gate_up_proj.shape or down.shape != ref.down_proj.shape:
             raise ValueError("Expert shape mismatch")
         self.gate = gate
         self.down = down
         self.act = ref.act_fn
+        self.quantization = quantization
+        self.layer = layer
+
+    def projection(self, x, expert, kind):
+        weight = (self.gate if kind == "gate" else self.down)[expert]
+        if self.quantization is None:
+            return nn.functional.linear(x, weight.to(x.device))
+        return self.quantization.matmul((self.layer, expert, kind), x, weight)
 
     def forward(self, x, indices, weights):
         result = torch.zeros_like(x)
@@ -65,15 +94,20 @@ class StreamExperts(nn.Module):
             flat = order[start : start + count]
             start += count
             tokens = flat // indices.size(1)
-            gates, up = nn.functional.linear(x[tokens], self.gate[expert].to(x.device)).chunk(2, -1)
-            out = nn.functional.linear(self.act(gates) * up, self.down[expert].to(x.device))
+            gates, up = self.projection(x[tokens], expert, "gate").chunk(2, -1)
+            out = self.projection(self.act(gates) * up, expert, "down")
             result.index_add_(0, tokens, (out * weights.flatten()[flat, None]).to(x.dtype))
         return result
 
 
-def load_weights(snapshot):
+def load_weights(snapshot, *, nf4=False):
     free_gib = torch.cuda.mem_get_info()[0] / 2**30
     resident_layers = max(0, min(48, int((free_gib - 40) / 4.7)))
+    quantization = None
+    if nf4:
+        from .nf4 import quantized_linear
+        quantization = NF4Projections()
+        resident_layers = 0
     config = AutoConfig.from_pretrained(snapshot, local_files_only=True).text_config
     config._attn_implementation = "sdpa"
     with torch.device("meta"):
@@ -98,13 +132,17 @@ def load_weights(snapshot):
         elif ".mlp.experts." in path and int(path.split(".")[2]) >= resident_layers:
             if field == "gate_up_proj":
                 model.set_submodule(
-                    parent, StreamExperts(mod, store[key], store[source(parent) + ".down_proj"])
+                    parent, StreamExperts(mod, store[key], store[source(parent) + ".down_proj"],
+                                          quantization=quantization, layer=int(path.split(".")[2]))
                 )
         else:
             data = store[key]
             if data.shape != param.shape:
                 raise ValueError((key, data.shape, param.shape))
-            setattr(mod, field, nn.Parameter(data.cuda(), requires_grad=False))
+            if nf4 and field == "weight" and isinstance(mod, nn.Linear) and parent != "lm_head":
+                model.set_submodule(parent, quantized_linear(mod, data, "cuda:0"))
+            else:
+                setattr(mod, field, nn.Parameter(data.cuda(), requires_grad=False))
     for path, buf in list(model.named_buffers()):
         parent, field = path.rsplit(".", 1)
         key = source(path)

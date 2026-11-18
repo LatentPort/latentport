@@ -15,11 +15,35 @@
     "bf16": [
       "tokens",
       "cache"
+    ],
+    "nf4": [
+      "tokens"
+    ],
+    "gguf": [
+      "tokens"
     ]
   },
-  "runtime_version": "0.4.9",
+  "runtime_version": "0.4.10",
   "cache_readout": "flash_next_values_and_index",
   "qualified_runtime": {
-    "bf16": 2
+    "bf16": 2,
+    "nf4": 1,
+    "gguf": 2
+  },
+  "qualified_gguf": {
+    "repo_id": "ggml-org/Qwen3.8-Flash-Next-GGUF",
+    "revision": "a3e717e66206086bffa2be26abbbf22e84e93f36",
+    "files": [
+      {
+        "name": "Qwen3.8-Flash-Next-Q2_K-00001-of-00002.gguf",
+        "bytes": 10945856,
+        "sha256": "c6889865707a9a7ab1da0d177b7b0751e8c8d1fb1dae1f8a81577b7e2d23d550"
+      },
+      {
+        "name": "Qwen3.8-Flash-Next-Q2_K-00002-of-00002.gguf",
+        "bytes": 83117822784,
+        "sha256": "75d1ead63e5f911b5ea6b5dc35280af8707772cc490991c528c1df5301636420"
+      }
+    ]
   }
 }

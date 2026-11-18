@@ -15,7 +15,7 @@ from .rotary import configure_global_yarn
 class Decoder:
     options = None
 
-    def __init__(self, snapshot, device="cuda", *, options=None):
+    def __init__(self, snapshot, device="cuda", *, options=None, nf4=False):
         self.options = options
         self.device = torch.device(device)
         path = Path(snapshot)
@@ -28,6 +28,9 @@ class Decoder:
         self.host = {}
         # Reserve room for the 128K full cache, branch workspaces, RoPE and activations.
         keep = max(0, int((torch.cuda.mem_get_info(self.device)[0] / 2**30 - 37) / 1.05))
+        if nf4:
+            from .nf4 import quantized_linear
+            keep = len(self.text.layers)
         for name, param in list(self.text.named_parameters()) + list(self.text.named_buffers()):
             key = "model.language_model." + name
             if key not in weight_map:
@@ -39,12 +42,15 @@ class Decoder:
                 value = shard.get_tensor(key)
             if value.shape != param.shape:
                 raise ValueError(name)
+            module = self.text.get_submodule(parent)
+            if nf4 and field == "weight" and isinstance(module, torch.nn.Linear):
+                self.text.set_submodule(parent, quantized_linear(module, value, self.device))
+                continue
             if name.startswith("layers.") and int(name.split(".")[1]) >= keep:
                 idx = int(name.split(".")[1])
                 self.host.setdefault(idx, {})[name.split(".", 2)[2]] = value
             else:
                 value = value.to(self.device)
-            module = self.text.get_submodule(parent)
             if field in module._parameters:
                 setattr(module, field, torch.nn.Parameter(value, requires_grad=False))
             else:

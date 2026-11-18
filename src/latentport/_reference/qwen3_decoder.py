@@ -11,9 +11,13 @@ from .rotary import configure_global_yarn
 class Decoder:
     options = None
 
-    def __init__(self, snapshot, device="cuda:0", *, options=None):
+    def __init__(self, snapshot, device="cuda:0", *, options=None, nf4=False):
         self.options = options
         self.device = torch.device(device)
+        backend = {}
+        if nf4:
+            from .nf4 import transformers_config
+            backend["quantization_config"] = transformers_config()
         self.model = (
             Qwen3ForCausalLM.from_pretrained(
                 snapshot,
@@ -21,6 +25,7 @@ class Decoder:
                 device_map={"": str(self.device)},
                 attn_implementation="sdpa",
                 local_files_only=True,
+                **backend,
             )
             .eval()
             .requires_grad_(False)

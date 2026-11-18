@@ -104,6 +104,84 @@
     "control": "native single-pass chat prefill",
     "decoding": "greedy",
     "backends": {
+      "nf4": [
+        {
+          "id": "HumanEval/34",
+          "right_tokens": 68,
+          "method": "cache",
+          "recovered_tokens": 68,
+          "combine_seconds": 0.753,
+          "append_cache_equal": true,
+          "same_native_completion": true,
+          "completion_tokens": {
+            "native": 15,
+            "combine": 15
+          },
+          "output_cap": 128,
+          "task": "coding",
+          "passed": {
+            "native": true,
+            "combine": true
+          }
+        },
+        {
+          "id": "GSM8K/test/1015",
+          "right_tokens": 17,
+          "method": "cache",
+          "recovered_tokens": 17,
+          "combine_seconds": 0.296,
+          "append_cache_equal": true,
+          "same_native_completion": true,
+          "completion_tokens": {
+            "native": 3,
+            "combine": 3
+          },
+          "output_cap": 24,
+          "task": "math",
+          "passed": {
+            "native": false,
+            "combine": false
+          }
+        },
+        {
+          "id": "HumanEval/163",
+          "right_tokens": 92,
+          "method": "cache",
+          "recovered_tokens": 92,
+          "combine_seconds": 0.948,
+          "append_cache_equal": true,
+          "same_native_completion": true,
+          "completion_tokens": {
+            "native": 52,
+            "combine": 52
+          },
+          "output_cap": 128,
+          "task": "coding",
+          "passed": {
+            "native": false,
+            "combine": false
+          }
+        },
+        {
+          "id": "GSM8K/test/451",
+          "right_tokens": 18,
+          "method": "cache",
+          "recovered_tokens": 18,
+          "combine_seconds": 0.302,
+          "append_cache_equal": true,
+          "same_native_completion": true,
+          "completion_tokens": {
+            "native": 6,
+            "combine": 6
+          },
+          "output_cap": 24,
+          "task": "math",
+          "passed": {
+            "native": false,
+            "combine": false
+          }
+        }
+      ],
       "gguf": [
         {
           "id": "HumanEval/34",

@@ -28,6 +28,19 @@ def gguf_bytes(*, kind=0, offset=0, truncate=0):
 
 
 class NativeTests(unittest.TestCase):
+    def test_native_sequence_finds_every_gguf_shard(self):
+        from latentport._native.sequence import model_files
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            first = root / "model-00001-of-00002.gguf"
+            second = root / "model-00002-of-00002.gguf"
+            second.write_bytes(b"GGUF")
+            with self.assertRaises(FileNotFoundError):
+                model_files(second)
+            first.write_bytes(b"GGUF")
+            self.assertEqual(model_files(second), (first, second))
+
     def test_standalone_residency_only_warms_configured_model(self):
         from types import SimpleNamespace
         from latentport._native.engine import Engine
