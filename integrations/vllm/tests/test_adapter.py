@@ -277,7 +277,8 @@ def test_readonly_ple_shard_preserves_values_and_defers_mixed_files(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "outcome", ["commit", "failed copy", "no pages", "same page count"]
+    "outcome", ["commit", "failed copy", "no pages", "same page count",
+                "stage RPC failure", "commit RPC failure", "rollback RPC failure"]
 )
 def test_transaction_releases_only_unowned_pages(outcome):
     source = [SimpleNamespace(block_id=i) for i in (1, 2, 3, 4)]
@@ -290,7 +291,11 @@ def test_transaction_releases_only_unowned_pages(outcome):
 
     def rpc(method, *, args):
         events.append((method, args))
-        return ["failed" if outcome == "failed copy" else None]
+        if (outcome == "stage RPC failure" and method == "latentport_stage"
+                or outcome in ("commit RPC failure", "rollback RPC failure")
+                and method == "latentport_finish_stage"):
+            raise RuntimeError("one rank stopped acknowledging")
+        return ["failed" if outcome in ("failed copy", "rollback RPC failure") else None, None]
 
     transaction = EngineCompaction.__new__(EngineCompaction)
     transaction.engine = SimpleNamespace(collective_rpc=rpc)
@@ -308,7 +313,15 @@ def test_transaction_releases_only_unowned_pages(outcome):
     transaction.managers = [live]
     transaction.cache = SimpleNamespace(get_block_ids=lambda _: ([1, 2, 3, 4],))
     transaction.groups = (0,)
+    transaction.reduced_reservation = False
     target = 245 if outcome == "same page count" else 64
+    if outcome.endswith("RPC failure"):
+        with pytest.raises(RuntimeError, match="one rank stopped acknowledging"):
+            transaction._compact("r", 256, 256, target)
+        assert live.req_to_blocks["r"] == source
+        assert live.packed_rows_dropped == {}
+        assert frees == []
+        return
     transaction._compact("r", 256, 256, target)
 
     if outcome == "commit":

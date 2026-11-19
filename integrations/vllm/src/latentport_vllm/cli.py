@@ -2,7 +2,9 @@
 
 import argparse
 import json
+import os
 import sys
+from importlib.metadata import entry_points
 
 from latentport._models import FLASH_NEXT, GEMMA, QWEN3, QWEN36
 from latentport.errors import CompatibilityError
@@ -12,6 +14,8 @@ from .settings import (
     FLASH_NEXT_NVFP4,
     PROFILES,
     QUANTIZED_LOADERS,
+    SESSION_PLUGIN,
+    SESSION_TTL_DEFAULT,
     WEIGHT_FORMATS,
     Settings,
 )
@@ -27,6 +31,13 @@ def build_args(argv):
     parser.add_argument("--lpcompact-weights-path", metavar="PATH")
     parser.add_argument("--weight-format", choices=WEIGHT_FORMATS)
     parser.add_argument("--gguf-path", metavar="PATH")
+    parser.add_argument("--lpcompact-max-sessions", type=int, default=0, metavar="COUNT")
+    parser.add_argument(
+        "--lpcompact-session-ttl",
+        type=int,
+        default=SESSION_TTL_DEFAULT,
+        metavar="SECONDS",
+    )
     settings, passthrough = parser.parse_known_args(argv)
     options = {
         "base_model": settings.model,
@@ -37,6 +48,14 @@ def build_args(argv):
         "weight_format": settings.weight_format,
         "gguf_path": settings.gguf_path,
     }
+    if (
+        settings.lpcompact_max_sessions
+        or settings.lpcompact_session_ttl != SESSION_TTL_DEFAULT
+    ):
+        options.update(
+            max_sessions=settings.lpcompact_max_sessions,
+            session_ttl=settings.lpcompact_session_ttl,
+        )
     try:
         resolved = Settings.load(settings.model, options)
     except (CompatibilityError, ValueError) as exc:
@@ -83,6 +102,11 @@ def build_args(argv):
         "--additional-config",
         "--worker-extension-cls",
     }
+    if resolved.max_sessions:
+        fixed.update({"--api-server-count", "--headless", "--grpc", "--rust-frontend"})
+        variant_args += ["--api-server-count", "1"]
+    elif settings.lpcompact_session_ttl != SESSION_TTL_DEFAULT:
+        parser.error("--lpcompact-session-ttl requires --lpcompact-max-sessions")
     if resolved.load_format is not None:
         fixed.update(
             {
@@ -107,7 +131,7 @@ def build_args(argv):
             "--model-loader-extra-config",
             json.dumps({"base_model": settings.model, "gguf_path": settings.gguf_path}),
         ]
-    if any(flag.partition("=")[0] in fixed for flag in passthrough):
+    if any(flag.partition("=")[0].replace("_", "-") in fixed for flag in passthrough):
         parser.error(
             "the launcher sets model pins, additional config, and the worker extension"
         )
@@ -127,7 +151,7 @@ def build_args(argv):
         "--max-model-len",
         max_model_len,
         "--max-num-seqs",
-        "1",
+        str(resolved.max_sessions or 1),
         "--gpu-memory-utilization",
         memory_utilization,
         "--worker-extension-cls",
@@ -141,6 +165,16 @@ def build_args(argv):
 
 def main():
     args = build_args(sys.argv[1:])
+    options = json.loads(args[args.index("--additional-config") + 1])[CONFIG_KEY]
+    if options.get("max_sessions"):
+        enabled = os.environ.get("VLLM_PLUGINS")
+        names = (
+            [item.name for item in entry_points(group="vllm.general_plugins")]
+            if enabled is None
+            else enabled.split(",")
+        )
+        os.environ["VLLM_PLUGINS"] = ",".join(dict.fromkeys([*names, SESSION_PLUGIN]))
+        os.environ["VLLM_USE_RUST_FRONTEND"] = "0"
     try:
         from vllm.entrypoints.cli.main import main as vllm_main
         from vllm.v1.engine.core import EngineCore

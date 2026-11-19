@@ -7,6 +7,8 @@ from latentport._models import FLASH_NEXT, MODEL_REVISIONS
 from latentport.selector import SelectorSpec, get_selector_spec
 
 CONFIG_KEY = "latentport_lpcompact"
+SESSION_PLUGIN = "latentport_sessions"
+SESSION_TTL_DEFAULT = 900
 FLASH_NEXT_NVFP4 = "Inferact/Qwen3.8-Flash-Next-NVFP4"
 WEIGHT_FORMATS = ("bf16", "nf4", "gguf", "nvfp4")
 QUANTIZED_LOADERS = {"nf4": "lpcompact_nf4", "gguf": "lpcompact_gguf"}
@@ -44,6 +46,7 @@ class Settings:
     weights_path: str | None
     weight_format: str
     gguf_path: str | None
+    max_sessions: int = 0
 
     @property
     def quantization(self):
@@ -85,6 +88,12 @@ class Settings:
         selector.target_rows(0, ratio)
         if type(minimum_rows) is not int or minimum_rows < 1056:
             raise ValueError("LPCompact minimum rows must be at least 1056")
+        max_sessions = options.get("max_sessions", 0)
+        if type(max_sessions) is not int or max_sessions < 0:
+            raise ValueError("LPCompact session limit must be a nonnegative integer")
+        ttl = options.get("session_ttl", SESSION_TTL_DEFAULT)
+        if type(ttl) is not int or not 1 <= ttl <= 86400:
+            raise ValueError("LPCompact session TTL must be between 1 and 86400 seconds")
         return cls(
             model,
             profile,
@@ -94,6 +103,7 @@ class Settings:
             options.get("weights_path"),
             weight_format,
             gguf_path,
+            max_sessions,
         )
 
 
