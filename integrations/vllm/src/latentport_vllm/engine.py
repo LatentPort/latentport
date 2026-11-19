@@ -21,13 +21,14 @@ class EngineCompaction:
         if not self.groups or any(groups != self.groups for groups in layouts):
             raise ValueError("LPCompact workers disagree on movable cache groups")
 
-        # The preview reserves for worst-case dense requests and one replacement.
-        # It can therefore preserve live compacted state under cache pressure
-        # without the scheduler having to recompute a lossy continuation.
+        # Reserve uncompacted requests and one replacement. The physical budget
+        # for a sliding-window group covers its live pages and in-flight tokens.
         model_len = config.model_config.max_model_len
         per_request = sum(
-            group.kv_cache_spec.max_num_blocks_per_req(config, model_len)
-            for group in cache.kv_cache_config.kv_cache_groups
+            math.ceil(spec.max_memory_usage_bytes(config) / spec.page_size_bytes)
+            for spec in (
+                group.kv_cache_spec for group in cache.kv_cache_config.kv_cache_groups
+            )
         )
         staged_rows = settings.selector.target_rows(model_len, settings.ratio)
         staging = (

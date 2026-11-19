@@ -3,14 +3,11 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+from latentport._models import FLASH_NEXT, MODEL_REVISIONS
 from latentport.selector import SelectorSpec, get_selector_spec
 
 CONFIG_KEY = "latentport_lpcompact"
-QWEN_27B = "Qwen/Qwen3.8-27B"
-FLASH_NEXT = "Qwen/Qwen3.8-Flash-Next"
 FLASH_NEXT_NVFP4 = "Inferact/Qwen3.8-Flash-Next-NVFP4"
-QWEN_27B_REVISION = "37561816e66b5b9153b1b64c10968c18c1e6f4a0"
-FLASH_NEXT_REVISION = "812d96e10a0dd82b69d749e68693698cf6c36daa"
 
 
 @dataclass(frozen=True)
@@ -18,25 +15,21 @@ class ModelProfile:
     revision: str
     selector_base: str
     selector_base_revision: str
-    attention_layers: int
     indexed: bool = False
     quantization: str | None = None
 
 
 PROFILES = {
-    QWEN_27B: ModelProfile(QWEN_27B_REVISION, QWEN_27B, QWEN_27B_REVISION, 16),
-    FLASH_NEXT: ModelProfile(
-        FLASH_NEXT_REVISION, FLASH_NEXT, FLASH_NEXT_REVISION, 12, True
-    ),
-    FLASH_NEXT_NVFP4: ModelProfile(
-        "103a7608316173ca6edd49929544244de7ffda70",
-        FLASH_NEXT,
-        FLASH_NEXT_REVISION,
-        12,
-        True,
-        "modelopt_fp4",
-    ),
+    model: ModelProfile(revision, model, revision, indexed=model == FLASH_NEXT)
+    for model, revision in MODEL_REVISIONS.items()
 }
+PROFILES[FLASH_NEXT_NVFP4] = ModelProfile(
+    "103a7608316173ca6edd49929544244de7ffda70",
+    FLASH_NEXT,
+    MODEL_REVISIONS[FLASH_NEXT],
+    indexed=True,
+    quantization="modelopt_fp4",
+)
 
 
 @dataclass(frozen=True)

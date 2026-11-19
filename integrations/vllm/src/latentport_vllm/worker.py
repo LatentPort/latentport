@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from itertools import pairwise
 
 import torch
+
 from latentport.selector import load_kv_selector
 
 
@@ -49,15 +50,18 @@ def _cache_layout(runner, settings):
     indexers = []
     raw_groups = set()
     movable_names = set()
-    expected_backend = (
-        "QWEN4_EXP_QSA_TRITON" if settings.profile.indexed else "FLASH_ATTN"
+    expected_layers = set(settings.selector.attention_layers)
+    backends = (
+        {"QWEN4_EXP_QSA_TRITON"}
+        if settings.profile.indexed
+        else {"FLASH_ATTN", "TRITON_ATTN"}
     )
     for group, config in enumerate(runner.kv_cache_config.kv_cache_groups):
         for name in config.layer_names:
             layer = state[name]
             number = _layer_index(name)
             backend = layer.get_attn_backend().get_name()
-            if backend == expected_backend and number is not None:
+            if backend in backends and number in expected_layers:
                 cache = layer.kv_cache.transpose(1, 2)
                 head_size = (
                     layer.head_dim if settings.profile.indexed else layer.head_size
@@ -77,9 +81,9 @@ def _cache_layout(runner, settings):
                 raw_groups.add(group)
 
     numbers = {row.layer for row in layers}
-    if len(layers) != len(numbers) or len(layers) != settings.profile.attention_layers:
+    if len(layers) != len(numbers) or numbers != expected_layers:
         raise ValueError(
-            f"Unexpected {expected_backend} cache layer count: {len(layers)}"
+            f"Unexpected compactable attention layers. Missing: {sorted(expected_layers - numbers)}"
         )
     if settings.profile.indexed and (
         len(indexers) != len(layers)
@@ -143,10 +147,21 @@ class WorkerCompaction:
         self.device = runner.device
         self.settings = settings
         self.tp = get_tp_group()
-        self.kv_heads = runner.model_config.hf_text_config.num_key_value_heads
+        self.kv_heads = settings.selector.attention_kv_heads
         self.rows, self.features, self.movable_groups, self.packed_groups = (
             _cache_layout(runner, settings)
         )
+        if any(
+            heads < self.kv_heads or heads % self.kv_heads
+            for heads in (
+                row.tensor.shape[2] * self.tp.world_size for row in self.features
+            )
+        ) or sum(
+            row.tensor.shape[-1] // 2 * self.kv_heads for row in self.features
+        ) != (settings.selector.feature_width):
+            raise ValueError(
+                "LPCompact cache geometry does not match the selector features"
+            )
         self.selector = load_kv_selector(
             settings.selector.base_model,
             settings.selector.base_revision,

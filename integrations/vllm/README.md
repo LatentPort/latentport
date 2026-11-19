@@ -1,9 +1,8 @@
 # LPCompact for vLLM
 
-This integration serves text on NVIDIA GPUs with the published LPCompact
-selectors for Qwen3.8-27B and Qwen3.8-Flash-Next. It pins the served checkpoint and
-downloads the selector directly from Hugging Face. Both model families use BF16
-compute and KV. For an offline deployment, prewarm the base checkpoint's
+This integration serves the LPCompact text models on NVIDIA GPUs. It pins the
+served checkpoint and downloads the selector directly from Hugging Face.
+Serving uses BF16 compute and KV. For an offline deployment, prewarm the base checkpoint's
 Hugging Face cache and LatentPort's selector cache under
 `LATENTPORT_HOME/huggingface`, or supply `--lpcompact-weights-path` with the pinned
 selector file.
@@ -35,12 +34,30 @@ qualification. See the
 [vLLM hardware recipe](https://recipes.vllm.ai/Qwen/Qwen3.8-Flash-Next) for
 tested base-model hardware combinations.
 
+## Model profiles
+
+Use a base model and its selector from the same row.
+
+| BF16 base checkpoint | Hugging Face selector | Default trigger |
+| --- | --- | ---: |
+| `Qwen/Qwen3.5-4B` | `latentport/LPCompact-Qwen3.5-4B` | 65,536 |
+| `Qwen/Qwen3.5-9B` | `latentport/LPCompact-Qwen3.5-9B` | 65,536 |
+| `Qwen/Qwen3-14B` | `latentport/LPCompact-Qwen3-14B` | 32,768 |
+| `Qwen/Qwen3.6-35B-A3B` | `latentport/LPCompact-Qwen3.6-35B-A3B` | 65,536 |
+| `Qwen/Qwen3.8-27B` | `latentport/LPCompact-Qwen3.8-27B` | 65,536 |
+| `Qwen/Qwen3.8-Flash-Next` | `latentport/LPCompact-Qwen3.8-Flash-Next` | 65,536 |
+| `google/gemma-4-31B-it` | `latentport/LPCompact-Gemma-4-31B-it` | 65,536 |
+
+The launcher limits Qwen3-14B to its native 40,960 positions by default.
+Gemma 4 compacts its global attention layers and keeps its sliding-window
+cache on the logical token timeline.
+
 The launcher selects eager, synchronous, text-only serving with hybrid cache
 management enabled. Startup checks require BF16 cache, no automatic prefix
 caching, and sufficient pages for the configured maximum sequence length,
 concurrency, and one staged compaction. Lower `--max-num-seqs` or
-`--max-model-len` if the configuration exceeds cache capacity. The default
-65,536-row trigger and 4×/8× ratios follow each selector's manifest.
+`--max-model-len` if the configuration exceeds cache capacity. The trigger
+and supported 4×/8× ratios follow each selector's manifest.
 
 Each committed event logs the artifact and its revision, the logical token
 count, attention rows before and after, elapsed time, and net pages returned
@@ -55,12 +72,18 @@ together while leaving the raw-key ring and recurrent state in place.
 
 Use `tests/gpu_smoke.py` against a local test server to check generated tokens,
 prompt accounting, and allocator page reclamation. On a single RTX PRO 6000
-Blackwell Server Edition, the real-weight 8× smoke runs observed:
+Blackwell Server Edition with `--max-num-batched-tokens 2048`, the real-weight
+8× smoke runs observed:
 
 | Checkpoint | Attention rows | Allocator pages reclaimed | Generated after compaction |
 | --- | ---: | ---: | ---: |
+| Qwen3.5-4B BF16 | 65,536 → 8,192 | 99 | 16 tokens |
+| Qwen3.5-9B BF16 | 65,536 → 8,192 | 99 | 16 tokens |
+| Qwen3-14B BF16 | 32,768 → 4,096 | 448 | 16 tokens |
+| Qwen3.6-35B-A3B BF16 | 65,536 → 8,192 | 53 | 16 tokens |
 | Qwen3.8-27B BF16 | 131,072 → 16,384 | 138 | 16 tokens |
 | Flash-Next NVFP4 | 65,536 → 8,192 | 35 | 16 tokens |
+| Gemma 4 31B IT BF16 | 65,536 → 8,192 | 448 | 16 tokens |
 
 The Flash-Next fixture also exercised repeated compaction and an incomplete
 four-token QSA group with the real GPU cache kernels and dummy weights.
@@ -77,6 +100,6 @@ appeared near the beginning or the middle of the archive.
 These two-prompt runs check continuation and report the observed latency for
 that workload.
 
-For a new model with the same cache layout, add its checkpoint and selector
-identity to the profile table and qualify that pair. New cache layouts also
-need a worker binding for their feature, attention, and auxiliary cache views.
+Profiles use the core model and selector catalog for checkpoint identity,
+feature layers, KV head count, and positions. A new cache layout needs a worker
+binding for its attention and auxiliary cache views.

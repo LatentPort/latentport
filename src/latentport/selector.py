@@ -5,7 +5,13 @@ from typing import TYPE_CHECKING
 
 from ._compact.policy import MIN_CONTEXT, budget, choose
 from ._compact.weights import _model, score_features, selector_config
-from ._models import FLASH_NEXT, MODEL_REVISIONS, feature_layers
+from ._models import (
+    FLASH_NEXT,
+    MODEL_REVISIONS,
+    feature_layers,
+    model_geometry,
+    native_positions,
+)
 from .errors import CompatibilityError
 
 if TYPE_CHECKING:
@@ -24,6 +30,9 @@ class SelectorSpec:
     minimum_rows: int
     granularity: int
     feature_width: int
+    attention_layers: tuple[int, ...]
+    attention_kv_heads: int
+    native_positions: int
 
     def target_rows(self, rows: int, ratio: int) -> int:
         target = budget(rows, ratio)
@@ -45,6 +54,7 @@ def get_selector_spec(
         raise CompatibilityError(
             f"Expected selector {config['repo_id']} for {base_model}"
         )
+    geometry = model_geometry(base_model)
     return SelectorSpec(
         base_model=base_model,
         base_revision=base_revision,
@@ -54,6 +64,13 @@ def get_selector_spec(
         minimum_rows=config.get("minimum_physical_positions", MIN_CONTEXT),
         granularity=config.get("block_size", 4 if base_model == FLASH_NEXT else 1),
         feature_width=config["feature_dimension"],
+        attention_layers=tuple(
+            index
+            for index, kind in enumerate(geometry["types"])
+            if kind == "full_attention"
+        ),
+        attention_kv_heads=geometry["kv_heads"],
+        native_positions=native_positions(base_model),
     )
 
 

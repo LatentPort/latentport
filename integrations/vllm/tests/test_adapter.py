@@ -2,6 +2,8 @@ from types import SimpleNamespace
 
 import pytest
 import torch
+from safetensors.torch import save_file
+
 from latentport._compact import policy, weights
 from latentport.flash_next import _blocks
 from latentport.selector import KVSelector
@@ -13,9 +15,9 @@ from latentport_vllm.worker import (
     CompactedRequest,
     PageRows,
     WorkerCompaction,
+    _cache_layout,
     _validate_keep,
 )
-from safetensors.torch import save_file
 
 
 @pytest.mark.parametrize("name", ["27B", "Flash-Next"])
@@ -161,6 +163,103 @@ def test_nvfp4_launch_keeps_the_flash_next_selector_and_pins_the_served_weights(
         argv[argv.index("--revision") + 1] == "103a7608316173ca6edd49929544244de7ffda70"
     )
     assert argv[argv.index("--engram-config") + 1] == '{"disk_offload":true}'
+
+
+@pytest.mark.parametrize(
+    ("model", "artifact", "minimum", "native_positions", "layers", "heads"),
+    [
+        ("Qwen/Qwen3.5-4B", "Qwen3.5-4B", 65536, 262144, 8, 4),
+        ("Qwen/Qwen3.5-9B", "Qwen3.5-9B", 65536, 262144, 8, 4),
+        ("Qwen/Qwen3-14B", "Qwen3-14B", 32768, 40960, 40, 8),
+        ("Qwen/Qwen3.6-35B-A3B", "Qwen3.6-35B-A3B", 65536, 262144, 10, 2),
+        ("google/gemma-4-31B-it", "Gemma-4-31B-it", 65536, 262144, 10, 4),
+    ],
+)
+def test_catalog_profiles_use_their_native_geometry(
+    model,
+    artifact,
+    minimum,
+    native_positions,
+    layers,
+    heads,
+):
+    artifact = f"latentport/LPCompact-{artifact}"
+    settings = Settings.load(model, {"artifact": artifact})
+    assert settings.minimum_rows == minimum
+    assert settings.selector.native_positions == native_positions
+    assert len(settings.selector.attention_layers) == layers
+    assert settings.selector.attention_kv_heads == heads
+    args = build_args(["serve", model, "--lpcompact", artifact])
+    assert args[args.index("--max-model-len") + 1] == str(min(native_positions, 139264))
+    assert args[args.index("--revision") + 1] == settings.selector.base_revision
+
+
+def test_gemma_compaction_selects_only_global_attention_groups():
+    settings = Settings.load(
+        "google/gemma-4-31B-it",
+        {"artifact": "latentport/LPCompact-Gemma-4-31B-it"},
+    )
+    full = set(settings.selector.attention_layers)
+    grouped_names = [[], []]
+    layers = {}
+    for index in range(60):
+        name = f"model.layers.{index}.self_attn.attn"
+        group = 0 if index in full else 1
+        grouped_names[group].append(name)
+        head_size, heads = (512, 4) if group == 0 else (256, 16)
+        layers[name] = SimpleNamespace(
+            get_attn_backend=lambda: SimpleNamespace(get_name=lambda: "TRITON_ATTN"),
+            head_size=head_size,
+            kv_cache=torch.empty((1, heads, 4, 2 * head_size), dtype=torch.bfloat16),
+        )
+    runner = SimpleNamespace(
+        vllm_config=SimpleNamespace(
+            compilation_config=SimpleNamespace(static_forward_context=layers),
+        ),
+        kv_cache_config=SimpleNamespace(
+            kv_cache_groups=[
+                SimpleNamespace(layer_names=names) for names in grouped_names
+            ],
+        ),
+        block_tables=SimpleNamespace(block_sizes=[4, 4]),
+    )
+    views, features, moved, packed = _cache_layout(runner, settings)
+    assert {view.layer for view in views} == full
+    assert tuple(view.layer for view in features) == (5, 29, 59)
+    assert moved == packed == (0,)
+
+
+def test_admission_reserves_physical_sliding_window_capacity():
+    settings = Settings.load(
+        "google/gemma-4-31B-it",
+        {"artifact": "latentport/LPCompact-Gemma-4-31B-it"},
+    )
+    model_len = 65536
+    groups = [
+        SimpleNamespace(
+            kv_cache_spec=SimpleNamespace(
+                max_memory_usage_bytes=lambda _, count=pages: count * 16,
+                page_size_bytes=16,
+            ),
+        )
+        for pages in (8, 2)
+    ]
+    cache = SimpleNamespace(
+        block_pool=SimpleNamespace(get_num_free_blocks=lambda: 11),
+        coordinator=SimpleNamespace(
+            single_type_managers=[SimpleNamespace(block_size=8192)]
+        ),
+        kv_cache_config=SimpleNamespace(kv_cache_groups=groups),
+    )
+    engine = SimpleNamespace(
+        scheduler=SimpleNamespace(kv_cache_manager=cache),
+        collective_rpc=lambda *args, **kwargs: [(0,)],
+    )
+    config = SimpleNamespace(
+        model_config=SimpleNamespace(max_model_len=model_len),
+        scheduler_config=SimpleNamespace(max_num_seqs=1),
+    )
+    assert EngineCompaction(engine, config, settings).groups == (0,)
 
 
 def test_readonly_ple_shard_preserves_values_and_defers_mixed_files(tmp_path):

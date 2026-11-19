@@ -7,7 +7,16 @@ from .errors import CompatibilityError
 from .identity import ModelIdentity
 from .model import Model
 from .context import ContextOptions, CheckpointRotaryContext, PINNED_REVISION, execution_weights
-from ._models import DEFAULT_MODEL, QWEN36, QWEN3, GEMMA, FLASH_NEXT, MODEL_REVISIONS, model_geometry
+from ._models import (
+    DEFAULT_MODEL,
+    FLASH_NEXT,
+    GEMMA,
+    MODEL_REVISIONS,
+    QWEN3,
+    QWEN36,
+    model_geometry,
+    native_positions,
+)
 
 MODEL = DEFAULT_MODEL
 REVISION = PINNED_REVISION
@@ -57,7 +66,7 @@ def load_model(repo: str = MODEL, *, revision: str | None = None, backend: str =
         raise CompatibilityError(f"Unsupported standalone model: {repo}")
     policy = position_policy if position_policy is not None else getattr(native_options, "position_policy", "default")
     capacity = max_kv_positions if max_kv_positions is not None else getattr(native_options, "physical_limit", 262144)
-    native_limit = 40960 if repo == QWEN3 else 262144
+    native_limit = native_positions(repo)
     separate_decoder = repo in (QWEN3, GEMMA, FLASH_NEXT)
     if max_logical_positions is None:
         max_logical_positions = getattr(native_options, "max_logical_positions", None)

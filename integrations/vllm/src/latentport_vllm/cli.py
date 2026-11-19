@@ -4,6 +4,7 @@ import argparse
 import json
 import sys
 
+from latentport._models import GEMMA, QWEN3, QWEN36
 from latentport.errors import CompatibilityError
 
 from .settings import CONFIG_KEY, FLASH_NEXT_NVFP4, PROFILES, Settings
@@ -30,8 +31,9 @@ def build_args(argv):
     except (CompatibilityError, ValueError) as exc:
         parser.error(str(exc))
     revision = resolved.profile.revision
-    max_model_len = "139264"
+    max_model_len = str(min(139264, resolved.selector.native_positions))
     memory_utilization = "0.91"
+    text_only_args = [] if settings.model == QWEN3 else ["--language-model-only"]
     variant_args = []
     if settings.model == FLASH_NEXT_NVFP4:
         max_model_len = "69632"
@@ -43,6 +45,15 @@ def build_args(argv):
             "2048",
             "--moe-backend",
             "marlin",
+            "--gdn-prefill-backend",
+            "triton",
+        ]
+    elif settings.model == GEMMA:
+        variant_args = ["--attention-backend", "TRITON_ATTN"]
+    elif settings.model == QWEN36:
+        variant_args = [
+            "--moe-backend",
+            "triton",
             "--gdn-prefill-backend",
             "triton",
         ]
@@ -65,7 +76,7 @@ def build_args(argv):
         revision,
         "--dtype",
         "bfloat16",
-        "--language-model-only",
+        *text_only_args,
         "--enforce-eager",
         "--no-async-scheduling",
         "--no-enable-prefix-caching",

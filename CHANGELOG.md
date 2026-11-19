@@ -3,7 +3,7 @@
 ## 0.4.13
 
 - Expose a tensor-only LPCompact selector API for external runtimes.
-- Add the separately packaged `latentport-vllm` integration for Qwen3.8-27B and Qwen3.8-Flash-Next.
+- Add the separately packaged `latentport-vllm` integration for the LPCompact model catalog.
 
 ## 0.4.12
 
