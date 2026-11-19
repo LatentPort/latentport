@@ -37,29 +37,60 @@ tested base-model hardware combinations.
 ### Install in an existing vLLM environment
 
 In a dedicated Linux environment with vLLM 0.34.0 and its CUDA dependencies
-installed, install the adapter and apply its bundled patch once.
+installed, install the adapter from this checkout and apply its bundled patch once.
 
 ```sh
-python -m pip install latentport-vllm==0.1.0
+python -m pip install ./integrations/vllm
 vllm_site="$(python -c 'import importlib.util; from pathlib import Path; print(Path(importlib.util.find_spec("vllm").origin).parent.parent)')"
 patch="$(python -c 'from importlib.resources import files; print(files("latentport_vllm") / "patches" / "vllm-0.34.0.patch")')"
 (cd "$vllm_site" && git apply --check "$patch" && git apply "$patch")
 latentport-vllm serve Qwen/Qwen3.8-27B --lpcompact latentport/LPCompact-Qwen3.8-27B
 ```
 
+### NF4 and GGUF weights
+
+Use `--weight-format bf16` for the default Hugging Face weights. Install the
+NF4 extra in the same environment to quantize those pinned weights on load.
+NF4 uses one GPU rank per model replica.
+
+```sh
+python -m pip install './integrations/vllm[nf4]'
+latentport-vllm serve Qwen/Qwen3.8-27B --weight-format nf4 \
+  --lpcompact latentport/LPCompact-Qwen3.8-27B
+```
+
+For GGUF, install the pinned vLLM GGUF plugin with a CUDA toolkit that matches
+the vLLM environment. The launcher selects the pinned GGUF file for the base
+model and uses the base model's pinned config and tokenizer. For a local copy,
+pass `--gguf-path` with the original filename of the first part. Keep all parts
+in the same directory.
+
+```sh
+python -m pip install './integrations/vllm[gguf]' 'setuptools>=77,<81' wheel ninja
+python -m pip install --no-build-isolation --no-deps \
+  'vllm-gguf-plugin @ git+https://github.com/vllm-project/vllm-gguf-plugin.git@497542d12327a67f806345438238ea702cadd824'
+latentport-vllm serve Qwen/Qwen3.8-27B --weight-format gguf \
+  --lpcompact latentport/LPCompact-Qwen3.8-27B
+```
+
+All formats use the same BF16 KV cache and published selector. Flash-Next
+stages n-gram rows from disk in NF4 and GGUF mode. Quantized profiles are
+experimental and have not been qualified on GPU for this update.
+
 ## Model profiles
 
-Use a base model and its selector from the same row.
+Use a base model and its selector from the same row. Every row accepts
+`bf16`, `nf4`, and `gguf`.
 
-| BF16 base checkpoint | Hugging Face selector | Default trigger |
-| --- | --- | ---: |
-| `Qwen/Qwen3.5-4B` | `latentport/LPCompact-Qwen3.5-4B` | 65,536 |
-| `Qwen/Qwen3.5-9B` | `latentport/LPCompact-Qwen3.5-9B` | 65,536 |
-| `Qwen/Qwen3-14B` | `latentport/LPCompact-Qwen3-14B` | 32,768 |
-| `Qwen/Qwen3.6-35B-A3B` | `latentport/LPCompact-Qwen3.6-35B-A3B` | 65,536 |
-| `Qwen/Qwen3.8-27B` | `latentport/LPCompact-Qwen3.8-27B` | 65,536 |
-| `Qwen/Qwen3.8-Flash-Next` | `latentport/LPCompact-Qwen3.8-Flash-Next` | 65,536 |
-| `google/gemma-4-31B-it` | `latentport/LPCompact-Gemma-4-31B-it` | 65,536 |
+| Base checkpoint | Hugging Face selector | Pinned GGUF format | Default trigger |
+| --- | --- | --- | ---: |
+| `Qwen/Qwen3.5-4B` | `latentport/LPCompact-Qwen3.5-4B` | Q4_K_M | 65,536 |
+| `Qwen/Qwen3.5-9B` | `latentport/LPCompact-Qwen3.5-9B` | Q4_K_M | 65,536 |
+| `Qwen/Qwen3-14B` | `latentport/LPCompact-Qwen3-14B` | Q4_K_M | 32,768 |
+| `Qwen/Qwen3.6-35B-A3B` | `latentport/LPCompact-Qwen3.6-35B-A3B` | UD-Q4_K_M | 65,536 |
+| `Qwen/Qwen3.8-27B` | `latentport/LPCompact-Qwen3.8-27B` | Q4_K_M | 65,536 |
+| `Qwen/Qwen3.8-Flash-Next` | `latentport/LPCompact-Qwen3.8-Flash-Next` | Q2_K | 65,536 |
+| `google/gemma-4-31B-it` | `latentport/LPCompact-Gemma-4-31B-it` | Q4_K_M | 65,536 |
 
 The launcher limits Qwen3-14B to its native 40,960 positions by default.
 Gemma 4 compacts its global attention layers and keeps its sliding-window

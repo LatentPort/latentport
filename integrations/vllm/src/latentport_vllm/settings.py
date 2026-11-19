@@ -8,6 +8,8 @@ from latentport.selector import SelectorSpec, get_selector_spec
 
 CONFIG_KEY = "latentport_lpcompact"
 FLASH_NEXT_NVFP4 = "Inferact/Qwen3.8-Flash-Next-NVFP4"
+WEIGHT_FORMATS = ("bf16", "nf4", "gguf", "nvfp4")
+QUANTIZED_LOADERS = {"nf4": "lpcompact_nf4", "gguf": "lpcompact_gguf"}
 
 
 @dataclass(frozen=True)
@@ -40,12 +42,37 @@ class Settings:
     ratio: int
     minimum_rows: int
     weights_path: str | None
+    weight_format: str
+    gguf_path: str | None
+
+    @property
+    def quantization(self):
+        if self.weight_format == "nf4":
+            return QUANTIZED_LOADERS["nf4"]
+        if self.weight_format == "gguf":
+            return "gguf"
+        return self.profile.quantization
+
+    @property
+    def load_format(self):
+        return QUANTIZED_LOADERS.get(self.weight_format)
 
     @classmethod
     def load(cls, model, options):
         if model not in PROFILES:
             raise ValueError(f"Unsupported LPCompact vLLM model: {model}")
         profile = PROFILES[model]
+        default_format = "nvfp4" if model == FLASH_NEXT_NVFP4 else "bf16"
+        weight_format = options.get("weight_format") or default_format
+        if weight_format not in WEIGHT_FORMATS or (
+            (weight_format == "nvfp4") != (model == FLASH_NEXT_NVFP4)
+        ):
+            raise ValueError(
+                f"Weight format {weight_format!r} is unavailable for {model}"
+            )
+        gguf_path = options.get("gguf_path")
+        if gguf_path is not None and weight_format != "gguf":
+            raise ValueError("--gguf-path requires --weight-format gguf")
         selector = get_selector_spec(
             profile.selector_base,
             profile.selector_base_revision,
@@ -65,6 +92,8 @@ class Settings:
             ratio,
             minimum_rows,
             options.get("weights_path"),
+            weight_format,
+            gguf_path,
         )
 
 
@@ -91,10 +120,18 @@ def get_settings(config):
                 "LPCompact requires the pinned Hugging Face base checkpoint"
             )
     if (
-        model.quantization != settings.profile.quantization
+        model.quantization != settings.quantization
         or str(model.dtype) != "torch.bfloat16"
     ):
         raise ValueError("LPCompact requires the pinned weight format and BF16 compute")
+    if settings.load_format is not None and (
+        config.load_config.load_format != settings.load_format
+        or config.load_config.model_loader_extra_config
+        != {"base_model": settings.model, "gguf_path": settings.gguf_path}
+    ):
+        raise ValueError("Use the LPCompact launcher to configure the pinned weights")
+    if settings.weight_format == "nf4" and parallel.tensor_parallel_size != 1:
+        raise ValueError("LPCompact NF4 requires tensor parallel size 1")
     if model.hf_overrides and config.load_config.load_format != "dummy":
         raise ValueError("LPCompact requires the base checkpoint's model configuration")
     if (

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "latentport-vllm"
-version = "0.1.0"
+version = "0.1.1"
 description = "LatentPort attention KV compaction for vLLM"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -12,8 +12,15 @@ license = "Apache-2.0"
 license-files = ["LICENSE"]
 dependencies = ["latentport==0.4.13", "huggingface-hub>=2", "safetensors>=0.8,<1"]
 
+[project.optional-dependencies]
+nf4 = ["vllm==0.34.0", "vllm-bnb-plugin==0.0.3", "bitsandbytes>=0.50.2,<0.51"]
+gguf = ["vllm==0.34.0", "gguf>=0.19,<1"]
+
 [project.scripts]
 latentport-vllm = "latentport_vllm.cli:main"
+
+[project.entry-points."vllm.general_plugins"]
+latentport_weight_formats = "latentport_vllm.weight_plugins:register_loaders"
 
 [project.urls]
 Repository = "https://github.com/LatentPort/latentport"
