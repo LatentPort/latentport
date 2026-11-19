@@ -1,0 +1,44 @@
+{
+  "selector_sha256": "be082411a6601b91b84b401c2716266a9091b837dbbcaf79e781d346287a34e5",
+  "ratio": 8,
+  "by_task": {
+    "changing_decisions": {
+      "total": 32,
+      "full": 32,
+      "compact": 32,
+      "retained": 32
+    },
+    "distributed_documents": {
+      "total": 32,
+      "full": 11,
+      "compact": 21,
+      "retained": 11
+    },
+    "repository_tools": {
+      "total": 32,
+      "full": 32,
+      "compact": 32,
+      "retained": 32
+    },
+    "structured_records": {
+      "total": 32,
+      "full": 32,
+      "compact": 32,
+      "retained": 32
+    }
+  },
+  "by_length": {
+    "65536": {
+      "total": 64,
+      "full": 54,
+      "compact": 56,
+      "retained": 54
+    },
+    "131072": {
+      "total": 64,
+      "full": 53,
+      "compact": 61,
+      "retained": 53
+    }
+  }
+}

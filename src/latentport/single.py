@@ -7,7 +7,7 @@ from .errors import CompatibilityError
 from .identity import ModelIdentity
 from .model import Model
 from .context import ContextOptions, CheckpointRotaryContext, PINNED_REVISION, execution_weights
-from ._models import DEFAULT_MODEL, QWEN3, GEMMA, FLASH_NEXT, MODEL_REVISIONS, model_geometry
+from ._models import DEFAULT_MODEL, QWEN36, QWEN3, GEMMA, FLASH_NEXT, MODEL_REVISIONS, model_geometry
 
 MODEL = DEFAULT_MODEL
 REVISION = PINNED_REVISION
@@ -124,6 +124,9 @@ def load_model(repo: str = MODEL, *, revision: str | None = None, backend: str =
                 runtime_type = NF4Backend
             elif repo == FLASH_NEXT:
                 quantization = {**quantization, "expert_quantization": "nf4-on-demand"}
+        if repo == QWEN36:
+            from ._reference.qwen36 import Qwen36Backend
+            runtime_type = Qwen36Backend
         if model_path is None:
             model_path=model_snapshot(spec,metadata_only=False)
         runtime = runtime_type({"target": model_path}, {"target": spec}, options=context, precision=backend,

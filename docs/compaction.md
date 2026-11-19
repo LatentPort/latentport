@@ -255,3 +255,7 @@ Select `google/gemma-4-31B-it` with `lp.load_model(model_id, backend="bf16")`, t
 ## Qwen3-14B
 
 Select `Qwen/Qwen3-14B` with `lp.load_model(model_id, backend="bf16")`. Use the same `model.prefill(history)`, `state.compact()` and `model.session(compacted).ask(question)` calls. The native-position selector starts at 32,768 physical positions and scores layers 3, 15 and 31. It gathers the same retained positions in all forty attention layers, preserving the logical clock and absolute positions. The default position policy permits a total logical length of 40,960 tokens. Qualification uses 16K and 32K histories with thinking disabled.
+
+## Qwen3.6-35B-A3B
+
+Load `Qwen/Qwen3.6-35B-A3B` with the BF16, NF4, or GGUF backend and call `state.compact()`. For GGUF, run `python -m latentport install-native` after upgrading, and supply a pinned UD-Q4_K_M or Q8_0 file as `model_path`. The [model card](https://huggingface.co/latentport/LPCompact-Qwen3.6-35B-A3B) links the GGUF revision and reports the four-task BF16 evaluation at 64K and 128K.

@@ -1,0 +1,26 @@
+{
+  "name": "LPCompact-Qwen3.6-35B-A3B",
+  "version": "0.1",
+  "repo_id": "latentport/LPCompact-Qwen3.6-35B-A3B",
+  "revision": "fbcd59080695f134bfab8629e9e1b93379da4b33",
+  "filename": "model.safetensors",
+  "sha256": "be082411a6601b91b84b401c2716266a9091b837dbbcaf79e781d346287a34e5",
+  "feature_layers": [
+    3,
+    15,
+    31
+  ],
+  "feature_dimension": 1536,
+  "hidden_dimension": 128,
+  "activation": "gelu",
+  "minimum_physical_positions": 65536,
+  "protected_prefix": 512,
+  "protected_suffix": 512,
+  "kv_budget_floor": 1024,
+  "ratios": [
+    4,
+    8
+  ],
+  "base_model": "Qwen/Qwen3.6-35B-A3B",
+  "base_revision": "345d467b117d1fd5eda9b879a5988de9ae5f47a7"
+}
