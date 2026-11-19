@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.12
+
+- Add Qwen3.6-35B-A3B LPCompact for BF16, NF4, and pinned Q4 and Q8 GGUF weights through the standard model and state APIs.
+
 ## 0.4.11
 
 - Enable cache-only LPCombine for all six profiles on BF16, NF4 and GGUF.

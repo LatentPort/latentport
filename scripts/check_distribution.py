@@ -18,6 +18,8 @@ assert files('latentport').joinpath('configs/native-release.json').is_file()
 from latentport._models import MODEL_REVISIONS
 assert "Qwen/Qwen3.8-Flash-Next" in MODEL_REVISIONS
 assert "Qwen/Qwen3-14B" in MODEL_REVISIONS
+assert "Qwen/Qwen3.6-35B-A3B" in MODEL_REVISIONS
+assert files("latentport").joinpath("configs/lpcompact-qwen3.6-35b-a3b.json").is_file()
 assert files("latentport").joinpath("configs/lpcompact-qwen3-14b.json").is_file()
 assert callable(latentport.State.compact)
 assert callable(latentport.State.combine)

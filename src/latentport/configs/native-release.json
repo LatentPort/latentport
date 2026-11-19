@@ -6,9 +6,9 @@
   "state_compact": true,
   "llama_cpp_revision": "b19cbe925be361d229f0fe03435affe4a2717f37",
   "filename": "latentport-native-win-amd64-cu130-sm120.zip",
-  "sha256": "635a98684ca9bf0b507b6650a4b1af915cc9937d530962a78d1fd03eabc3942f",
-  "bytes": 40497061,
-  "url": "https://huggingface.co/latentport/native-runtime/resolve/6c38959353dac20f0b5356a5ff7ba2ae26dace26/latentport-native-win-amd64-cu130-sm120.zip",
+  "sha256": "cc0b00f0da085e57da19fa4069ace7392988f08474ba32093dfe093eab15e4f3",
+  "bytes": 40499386,
+  "url": "https://huggingface.co/latentport/native-runtime/resolve/c6f23fd24566019d21dcfdc74e05351bbcbff96a/latentport-native-win-amd64-cu130-sm120.zip",
   "linux": {
     "platform": "Linux x64",
     "cuda": "12.8",
@@ -17,8 +17,8 @@
     "state_compact": true,
     "llama_cpp_revision": "b19cbe925be361d229f0fe03435affe4a2717f37",
     "filename": "latentport-native-linux-x86_64-cu128-sm120.zip",
-    "sha256": "a750120c8b488463b15927f22bb33714c928ea8d7ae607dc1fa13ce44b228836",
-    "bytes": 129568908,
-    "url": "https://huggingface.co/latentport/native-runtime/resolve/6c38959353dac20f0b5356a5ff7ba2ae26dace26/latentport-native-linux-x86_64-cu128-sm120.zip"
+    "sha256": "9bee7fb10aa16b8891bee9c84a6c42b049a627a57d1b3c8c0c7afc38c2f636cc",
+    "bytes": 128303130,
+    "url": "https://huggingface.co/latentport/native-runtime/resolve/c6f23fd24566019d21dcfdc74e05351bbcbff96a/latentport-native-linux-x86_64-cu128-sm120.zip"
   }
 }

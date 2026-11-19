@@ -8,9 +8,10 @@ from .._models import model_geometry
 
 
 @contextmanager
-def fast_kernels():
+def fast_kernels(qwen=None):
     import inspect
-    from transformers.models.qwen3_5 import modeling_qwen3_5 as qwen
+    if qwen is None:
+        from transformers.models.qwen3_5 import modeling_qwen3_5 as qwen
     from fla.ops.gated_delta_rule import chunk_gated_delta_rule, fused_recurrent_gated_delta_rule
     from causal_conv1d import causal_conv1d_fn, causal_conv1d_update
     from .native import KERNEL_LOCK

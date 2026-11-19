@@ -264,7 +264,7 @@ void * lp_open_extended(const char * path,int side,int context,int batch,int thr
         for(const auto & entry:p->model->tensors_by_name)
             require(entry.second->buffer&&!ggml_backend_buffer_is_host(entry.second->buffer),"GGUF weight is not GPU resident");
         const auto & h=p->model->hparams;
-        require(p->model->arch==LLM_ARCH_QWEN35,"GGUF is not the supported dense Qwen hybrid architecture");
+        require((p->model->arch==LLM_ARCH_QWEN35 || p->model->arch==LLM_ARCH_QWEN35MOE),"GGUF requires a supported Qwen hybrid architecture");
         require(h.n_layer() > 0 && h.n_embd > 0 && h.ssm_d_conv == 4 && h.ssm_d_state == 128,
                 "Unsupported hybrid state dimensions");
         require(h.n_head_kv() > 0 && h.n_embd_head_k() == h.n_embd_head_v() &&

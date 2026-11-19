@@ -21,11 +21,12 @@ def edit(name, old, new):
 # Internal typed access is isolated to this pinned native build.
 edit("src/llama-kv-cache.h", "class llama_kv_cache : public llama_memory_i {",
      "class llama_kv_cache : public llama_memory_i {\n    friend struct latentport_access;")
-edit("src/models/qwen35.cpp", '#include "models.h"', '#include "models.h"\n#include "latentport.h"')
-edit("src/models/qwen35.cpp", '    cb(qkv_mixed, "linear_attn_qkv_mixed", il);',
-     '    cb(qkv_mixed, "linear_attn_qkv_mixed", il);\n    lp_graph_tap(cparams.cb_eval_user_data, ctx0, gf, qkv_mixed, 3, il);')
-edit("src/models/qwen35.cpp", '        cb(cur, "l_out", il);',
-     '        cb(cur, "l_out", il);\n        if (il == n_layer - 1) lp_graph_tap(cparams.cb_eval_user_data, ctx0, gf, cur, 0, il);')
+for model_file in ("src/models/qwen35.cpp", "src/models/qwen35moe.cpp"):
+    edit(model_file, '#include "models.h"', '#include "models.h"\n#include "latentport.h"')
+    edit(model_file, '    cb(qkv_mixed, "linear_attn_qkv_mixed", il);',
+         '    cb(qkv_mixed, "linear_attn_qkv_mixed", il);\n    lp_graph_tap(cparams.cb_eval_user_data, ctx0, gf, qkv_mixed, 3, il);')
+    edit(model_file, '        cb(cur, "l_out", il);',
+         '        cb(cur, "l_out", il);\n        if (il == n_layer - 1) lp_graph_tap(cparams.cb_eval_user_data, ctx0, gf, cur, 0, il);')
 edit("src/models/qwen35.cpp", '    GGML_ASSERT(hparams.n_layer_nextn == 1 && "QWEN35 MTP currently only supports a single MTP block");',
      '    GGML_ASSERT(cparams.nextn_layer_offset >= 0 && cparams.nextn_layer_offset < (int) hparams.n_layer_nextn);')
 edit("src/models/qwen35.cpp", '    const int il = hparams.n_layer();',
