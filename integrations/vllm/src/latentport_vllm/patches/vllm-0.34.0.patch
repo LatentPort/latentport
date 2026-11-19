@@ -72,10 +72,20 @@ index 2c7cebb..fd880b0 100644
              cache_config=cache_config,
              compress_ratio=self.compress_ratio,
 diff --git a/vllm/v1/core/sched/scheduler.py b/vllm/v1/core/sched/scheduler.py
-index 3dd7aa3..b0c5eba 100644
+index 3dd7aa3..509da80 100644
 --- a/vllm/v1/core/sched/scheduler.py
 +++ b/vllm/v1/core/sched/scheduler.py
-@@ -1866,6 +1866,11 @@ class Scheduler(SchedulerInterface):
+@@ -127,6 +127,9 @@ class Scheduler(SchedulerInterface):
+
+         # Scheduling constraints.
+         self.max_num_running_reqs = self.scheduler_config.max_num_seqs
++        self.latentport_resident_sessions = vllm_config.additional_config.get(
++            "latentport_lpcompact", {}
++        ).get("max_sessions", 0)
+         # Admission into RUNNING. Separate from max_num_running_reqs, which
+         # is the model-runner slot count.
+         self.max_num_active_reqs = (
+@@ -1866,6 +1869,11 @@ class Scheduler(SchedulerInterface):
          assert request.status == RequestStatus.RUNNING, (
              "Only running requests can be preempted"
          )
@@ -87,6 +97,21 @@ index 3dd7aa3..b0c5eba 100644
          if self.aux_output_connector is not None:
              self.aux_output_connector.request_finished(request)
          self._free_request_blocks(request)
+@@ -1962,6 +1970,14 @@ class Scheduler(SchedulerInterface):
+
+         session._all_token_ids.extend(update.prompt_token_ids or ())
+         session.prompt_token_ids.extend(update.prompt_token_ids or ())
++        if self.latentport_resident_sessions:
++            logger.info(
++                "LPCompact session resume retained_logical_rows=%d "
++                "historical_rows_to_compute=%d appended_rows=%d",
++                session.num_computed_tokens,
++                keep_end - session.num_computed_tokens,
++                session.num_tokens - keep_end,
++            )
+         # Update block hashes for the new tokens.
+         session.update_block_hashes()
+         session.num_prompt_tokens = len(session.prompt_token_ids)
 diff --git a/vllm/v1/core/single_type_kv_cache_manager.py b/vllm/v1/core/single_type_kv_cache_manager.py
 index de7736a..654797a 100644
 --- a/vllm/v1/core/single_type_kv_cache_manager.py

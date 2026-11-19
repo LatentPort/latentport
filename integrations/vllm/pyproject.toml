@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "latentport-vllm"
-version = "0.1.1"
+version = "0.2.0"
 description = "LatentPort attention KV compaction for vLLM"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -21,6 +21,9 @@ latentport-vllm = "latentport_vllm.cli:main"
 
 [project.entry-points."vllm.general_plugins"]
 latentport_weight_formats = "latentport_vllm.weight_plugins:register_loaders"
+
+[project.entry-points."vllm.endpoint_plugins"]
+latentport_sessions = "latentport_vllm.sessions:SessionEndpoints"
 
 [project.urls]
 Repository = "https://github.com/LatentPort/latentport"

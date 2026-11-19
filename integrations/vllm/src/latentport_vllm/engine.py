@@ -21,16 +21,45 @@ class EngineCompaction:
         if not self.groups or any(groups != self.groups for groups in layouts):
             raise ValueError("LPCompact workers disagree on movable cache groups")
 
-        # Reserve uncompacted requests and one replacement. The physical budget
-        # for a sliding-window group covers its live pages and in-flight tokens.
         model_len = config.model_config.max_model_len
-        per_request = sum(
-            math.ceil(spec.max_memory_usage_bytes(config) / spec.page_size_bytes)
-            for spec in (
-                group.kv_cache_spec for group in cache.kv_cache_config.kv_cache_groups
+        scheduler_config = config.scheduler_config
+        slots = scheduler_config.max_num_seqs
+        sequence_rows = model_len
+        if settings.max_sessions:
+            slots = scheduler_config.max_num_active_seqs or slots
+            if settings.max_sessions > slots:
+                raise ValueError(
+                    "LPCompact session limit exceeds vLLM's active sequence limit"
+                )
+            # One completed synchronous scheduler step separates checks. Give
+            # low thresholds another block so the replacement can reclaim a page.
+            block_size = max(self.managers[group].block_size for group in self.groups)
+            trigger = max(
+                settings.minimum_rows,
+                1024 + settings.selector.granularity + block_size,
+                2 * block_size,
             )
+            sequence_rows = min(
+                model_len, trigger + scheduler_config.max_num_batched_tokens - 1
+            )
+        self.reduced_reservation = sequence_rows < model_len
+        self.sequence_rows = sequence_rows
+
+        # Keep the native bounds for recurrent and sliding-window cache groups.
+        per_request = sum(
+            math.ceil(sequence_rows / self.managers[index].block_size)
+            if self.reduced_reservation and index in self.groups
+            else math.ceil(
+                group.kv_cache_spec.max_memory_usage_bytes(config)
+                / group.kv_cache_spec.page_size_bytes
+            )
+            for index, group in enumerate(cache.kv_cache_config.kv_cache_groups)
         )
-        staged_rows = settings.selector.target_rows(model_len, settings.ratio)
+        staged_rows = (
+            max(1024 + settings.selector.granularity - 1, sequence_rows // settings.ratio)
+            if self.reduced_reservation
+            else settings.selector.target_rows(model_len, settings.ratio)
+        )
         staging = (
             sum(
                 math.ceil(staged_rows / self.managers[group].block_size)
@@ -39,7 +68,8 @@ class EngineCompaction:
             if model_len >= settings.minimum_rows
             else 0
         )
-        needed = per_request * config.scheduler_config.max_num_seqs + staging
+        watermark = cache.watermark_blocks if settings.max_sessions else 0
+        needed = per_request * slots + staging + watermark
         available = self.pool.get_num_free_blocks()
         if needed > available:
             raise ValueError(
@@ -47,6 +77,17 @@ class EngineCompaction:
                 f"sequence limit and staging reserve, but vLLM has {available}. "
                 "Reduce --max-num-seqs or --max-model-len."
             )
+        if settings.max_sessions:
+            logger.info(
+                "LPCompact residency slots=%d rows_per_slot=%d pages_per_slot=%d "
+                "staging_pages=%d watermark_pages=%d available_pages=%d",
+                slots, sequence_rows, per_request, staging, watermark, available,
+            )
+        if self.reduced_reservation:
+            # The pool already reserves each slot's full physical envelope.
+            # A check against the uncompressed logical prompt would reject
+            # valid admissions even when chunked prefill has room to progress.
+            self.scheduler.scheduler_reserve_full_isl = False
 
     def after_step(self, request_ids):
         for request_id in request_ids:
@@ -75,6 +116,8 @@ class EngineCompaction:
             required >= sum(len(source[group]) for group in self.groups)
             or self.pool.get_num_free_blocks() < required
         ):
+            if self.reduced_reservation and physical >= self.sequence_rows:
+                raise RuntimeError("LPCompact exhausted its replacement page reserve")
             return
         start = perf_counter()
         staged = {
@@ -84,21 +127,22 @@ class EngineCompaction:
             [block.block_id for block in staged[group]] if group in staged else ids
             for group, ids in enumerate(source)
         )
-        try:
-            errors = self.engine.collective_rpc(
-                "latentport_stage",
-                args=(request_id, logical, physical, target, source, destination),
-            )
-        except Exception:
-            for blocks in staged.values():
-                self.pool.free_blocks(blocks)
-            raise
+        # An RPC exception is ambiguous: another worker may still be writing.
+        # Let the engine fail with both page sets still reserved.
+        errors = self.engine.collective_rpc(
+            "latentport_stage",
+            args=(request_id, logical, physical, target, source, destination),
+        )
         if any(error is not None for error in errors):
             self.engine.collective_rpc(
                 "latentport_finish_stage", args=(request_id, None)
             )
             for blocks in staged.values():
                 self.pool.free_blocks(blocks)
+            if self.reduced_reservation:
+                raise RuntimeError(
+                    f"LPCompact could not stage resident attention pages: {errors}"
+                )
             logger.warning("LPCompact could not stage attention pages: %s", errors)
             return
 

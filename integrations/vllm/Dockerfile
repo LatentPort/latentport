@@ -1,5 +1,11 @@
 ARG VLLM_IMAGE=vllm/vllm-openai:v0.34.0@sha256:20fdb089454afbb324efa4110a2c025ff7b27cc1a086e07aa580b18df8ad1ce1
 FROM ${VLLM_IMAGE}
+LABEL org.opencontainers.image.source="https://github.com/LatentPort/latentport" \
+      org.opencontainers.image.licenses="Apache-2.0"
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/latentport
 COPY . .

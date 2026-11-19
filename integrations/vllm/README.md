@@ -7,14 +7,18 @@ Hugging Face cache and LatentPort's selector cache under
 `LATENTPORT_HOME/huggingface`, or supply `--lpcompact-weights-path` with the pinned
 selector file.
 
-Build from the repository root with vLLM 0.34.0's upstream image.
+The NVIDIA image includes the pinned vLLM 0.34.0 installation and the LPCompact
+patch. Run it with the NVIDIA Container Toolkit.
 
 ```sh
-docker build -f integrations/vllm/Dockerfile -t latentport-vllm:dev .
-docker run --gpus all --ipc=host -p 8000:8000 latentport-vllm:dev \
+docker pull ghcr.io/latentport/latentport-vllm:0.2.0
+docker run --gpus all --ipc=host -p 8000:8000 ghcr.io/latentport/latentport-vllm:0.2.0 \
   serve Qwen/Qwen3.8-27B \
   --lpcompact latentport/LPCompact-Qwen3.8-27B --lpcompact-ratio 8
 ```
+
+To build from the repository root, run
+`docker build -f integrations/vllm/Dockerfile -t latentport-vllm:dev .`.
 
 For Flash-Next on a single RTX PRO 6000, the launcher can use the pinned Inferact
 NVFP4 checkpoint with disk-backed embedding lookups. Put the Hugging Face cache
@@ -108,6 +112,41 @@ count, attention rows before and after, elapsed time, and net pages returned
 to the vLLM pool. The attention-row ratio describes the request's attention
 cache. GPU allocation also includes weights, recurrent state, and the
 remaining cache pool.
+
+## Resident sessions
+
+Set `VLLM_API_KEY` or pass vLLM's `--api-key`, then add
+`--lpcompact-max-sessions COUNT` to the launcher. Sessions use one Python API
+server. Each idle session retains its attention pages and any recurrent
+state on the GPU until deletion or idle expiry. The default TTL is 900
+seconds and can be set with `--lpcompact-session-ttl`. A server restart clears
+all sessions.
+
+Use the same bearer key for each request in the session.
+
+| Method and path | Purpose |
+| --- | --- |
+| `POST /v1/latentport/sessions` | Create a session and get its `id` and `next_turn`. |
+| `POST /v1/latentport/sessions/{id}/turns` | Send `turn`, `token_ids` and optional `max_tokens`. Returns generated `text`, `token_ids`, `finish_reason` and the updated `logical_tokens`. |
+| `GET /v1/latentport/sessions/{id}` | Read the next turn number, token count, busy status and most recent completed turn. |
+| `DELETE /v1/latentport/sessions/{id}` | End the session and release its pages. |
+
+Send the tokenized prompt on turn 1 and only the new suffix on later turns.
+Use the pinned model's tokenizer and chat delimiters. The server includes
+the prior reply's final sampled token in the next prefill. Retrieving the
+latest turn with `GET` is safe after a client timeout. An old turn number or
+an overlapping writer returns HTTP 409, and a full session quota returns 429.
+Ordinary generation shares the same sequence slots, including the slots
+occupied by idle sessions.
+
+For sessions, startup reserves each slot's upper bound on physical attention
+pages, plus the full budgets for recurrent and sliding-window state and one
+staged copy. `--max-num-batched-tokens` controls how far occupancy can grow
+between compaction checks. The configured logical context limit still applies
+to the sum of all turns in a session.
+
+See the [L40S benchmark](benchmarks/l40s/README.md) for paired answer scores,
+timings and resident-session capacity.
 
 The shared scheduler transaction handles capacity and page ownership.
 The worker selects the model-specific cache views from the pinned profile.
