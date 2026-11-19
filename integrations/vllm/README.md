@@ -85,6 +85,10 @@ Blackwell Server Edition with `--max-num-batched-tokens 2048`, the real-weight
 | Flash-Next NVFP4 | 65,536 → 8,192 | 35 | 16 tokens |
 | Gemma 4 31B IT BF16 | 65,536 → 8,192 | 448 | 16 tokens |
 
+With the default prefill batch size on that GPU, Qwen3.6-35B-A3B also passed
+at 8×. Gemma 4 served a 114,707-token prompt, compacted twice at 4×, returned
+384 pages to the allocator each time, and generated 16 tokens.
+
 The Flash-Next fixture also exercised repeated compaction and an incomplete
 four-token QSA group with the real GPU cache kernels and dummy weights.
 
