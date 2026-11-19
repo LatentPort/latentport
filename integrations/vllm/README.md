@@ -65,7 +65,18 @@ Blackwell Server Edition, the real-weight 8× smoke runs observed:
 The Flash-Next fixture also exercised repeated compaction and an incomplete
 four-token QSA group with the real GPU cache kernels and dummy weights.
 
-For a new model with the
-same cache layout, add its checkpoint and selector identity to the profile
-table and qualify that pair. New cache layouts also need a worker binding for
-their feature, attention, and auxiliary cache views.
+Two synthetic archive lookups per checkpoint used identical 65,552-token
+prompts and greedy decoding in dense and compacted serving. The record
+appeared near the beginning or the middle of the archive.
+
+| Checkpoint | Exact answers dense / 8× | Median first-token latency dense / 8× |
+| --- | ---: | ---: |
+| Qwen3.8-27B BF16 | 2/2 / 2/2 | 12.24 s / 12.31 s |
+| Flash-Next NVFP4 | 2/2 / 2/2 | 5.65 s / 5.49 s |
+
+These two-prompt runs check continuation and report the observed latency for
+that workload.
+
+For a new model with the same cache layout, add its checkpoint and selector
+identity to the profile table and qualify that pair. New cache layouts also
+need a worker binding for their feature, attention, and auxiliary cache views.
