@@ -38,6 +38,7 @@ def test_session_reuses_last_edge_and_cancels_resident_request():
             with pytest.raises(HTTPException) as stale:
                 await session.append(TurnInput(turn=1, token_ids=[4], max_tokens=2))
             assert stale.value.status_code == 409
+            assert stale.value.detail == "Expected turn 2"
             result = await session.append(TurnInput(turn=2, token_ids=[4], max_tokens=2))
             assert result["logical_tokens"] == 7
             assert submitted == [[2, 3], [51, 4]]

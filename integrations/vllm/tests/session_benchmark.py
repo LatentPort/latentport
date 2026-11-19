@@ -32,8 +32,9 @@ def call(url, path, key, body=None, *, method=None, expect=200):
             return None if expect == 204 else json.load(response)
     except HTTPError as error:
         if error.code != expect:
-            raise RuntimeError(f"{error.code} {request.method or request.get_method()} "
-                               f"{error.read().decode()}") from error
+            raise RuntimeError(
+                f"{error.code} {request.get_method()} {error.read().decode()}"
+            ) from error
         return json.load(error)
 
 

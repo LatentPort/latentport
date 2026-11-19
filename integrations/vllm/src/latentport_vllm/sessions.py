@@ -117,7 +117,7 @@ class Session:
         if self.pending is not None:
             raise HTTPException(409, "Another turn is in progress")
         if turn.turn != self.next_turn:
-            raise HTTPException(409, {"next_turn": self.next_turn})
+            raise HTTPException(409, f"Expected turn {self.next_turn}")
         if self.logical_tokens + len(turn.token_ids) + turn.max_tokens > self.store.max_len:
             raise HTTPException(422, "Turn exceeds the model context limit")
         if any(token < 0 or token >= self.store.vocab_size for token in turn.token_ids):
