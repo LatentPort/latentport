@@ -1,0 +1,287 @@
+diff --git a/vllm/model_executor/model_loader/default_loader.py b/vllm/model_executor/model_loader/default_loader.py
+index 4c6cb59..bf9bdae 100644
+--- a/vllm/model_executor/model_loader/default_loader.py
++++ b/vllm/model_executor/model_loader/default_loader.py
+@@ -340,6 +340,14 @@ class DefaultModelLoader(BaseModelLoader):
+                         ),
+                     )
+                 else:
++                    vllm_config = get_current_vllm_config_or_none()
++                    readonly_ple = bool(
++                        vllm_config
++                        and isinstance(vllm_config.additional_config, dict)
++                        and "latentport_lpcompact" in vllm_config.additional_config
++                        and vllm_config.engram_config
++                        and vllm_config.engram_config.disk_offload
++                    )
+                     weights_iterator = safetensors_weights_iterator(
+                         hf_weights_files,
+                         self.load_config.use_tqdm_on_load,
+@@ -354,6 +362,7 @@ class DefaultModelLoader(BaseModelLoader):
+                         shuffle_safetensors_files=(
+                             self.load_config.shuffle_safetensors_files
+                         ),
++                        readonly_ple=readonly_ple,
+                     )
+         else:
+             if extra_config.get("enable_multithread_load"):
+diff --git a/vllm/model_executor/model_loader/weight_utils.py b/vllm/model_executor/model_loader/weight_utils.py
+index c868de5..e2c6c27 100644
+--- a/vllm/model_executor/model_loader/weight_utils.py
++++ b/vllm/model_executor/model_loader/weight_utils.py
+@@ -1130,6 +1130,7 @@ def safetensors_weights_iterator(
+     safetensors_prefetch_num_threads: int = DEFAULT_SAFETENSORS_PREFETCH_NUM_THREADS,
+     safetensors_prefetch_block_size: int = DEFAULT_SAFETENSORS_PREFETCH_BLOCK_SIZE,
+     shuffle_safetensors_files: bool = False,
++    readonly_ple: bool = False,
+ ) -> Generator[tuple[str, torch.Tensor], None, None]:
+     """Iterate over the weights in the model safetensor files.
+
+@@ -1217,6 +1218,13 @@ def safetensors_weights_iterator(
+         disable=not enable_tqdm(use_tqdm_on_load),
+         bar_format=_BAR_FORMAT,
+     ):
++        if readonly_ple:
++            from latentport_vllm.ple import readonly_ple_shard
++
++            ple_weights = readonly_ple_shard(st_file)
++            if ple_weights is not None:
++                yield from ple_weights
++                continue
+         if safetensors_load_strategy == "eager":
+             with open(st_file, "rb") as f:
+                 state_dict = load(f.read())
+diff --git a/vllm/models/qwen4_exp/nvidia/qsa_indexer.py b/vllm/models/qwen4_exp/nvidia/qsa_indexer.py
+index 2c7cebb..fd880b0 100644
+--- a/vllm/models/qwen4_exp/nvidia/qsa_indexer.py
++++ b/vllm/models/qwen4_exp/nvidia/qsa_indexer.py
+@@ -162,10 +162,14 @@ class QSAIndexer(nn.Module):
+                 "by the Qwen4Exp QSA indexer (only 'bf16' or 'fp8')."
+             )
+         self.indexer_dtype = indexer_dtype
++        extra_config = vllm_config.additional_config
++        use_lpcompact = isinstance(extra_config, dict) and bool(
++            extra_config.get("latentport_lpcompact")
++        )
+         self.raw_key_cache = QSARawKeyCache(
+             head_size=self.index_head_dim,
+             dtype=torch.bfloat16,
+-            cache_rope_positions=vllm_config.model_config.uses_mrope,
++            cache_rope_positions=vllm_config.model_config.uses_mrope or use_lpcompact,
+             prefix=f"{cache_prefix}raw_key_cache",
+             cache_config=cache_config,
+             compress_ratio=self.compress_ratio,
+diff --git a/vllm/v1/core/sched/scheduler.py b/vllm/v1/core/sched/scheduler.py
+index 3dd7aa3..b0c5eba 100644
+--- a/vllm/v1/core/sched/scheduler.py
++++ b/vllm/v1/core/sched/scheduler.py
+@@ -1866,6 +1866,11 @@ class Scheduler(SchedulerInterface):
+         assert request.status == RequestStatus.RUNNING, (
+             "Only running requests can be preempted"
+         )
++        if any(
++            request.request_id in manager.packed_rows_dropped
++            for manager in self.kv_cache_manager.coordinator.single_type_managers
++        ):
++            raise RuntimeError("LPCompact exhausted its reserved cache capacity")
+         if self.aux_output_connector is not None:
+             self.aux_output_connector.request_finished(request)
+         self._free_request_blocks(request)
+diff --git a/vllm/v1/core/single_type_kv_cache_manager.py b/vllm/v1/core/single_type_kv_cache_manager.py
+index de7736a..654797a 100644
+--- a/vllm/v1/core/single_type_kv_cache_manager.py
++++ b/vllm/v1/core/single_type_kv_cache_manager.py
+@@ -135,6 +135,7 @@ class SingleTypeKVCacheManager(ABC):
+         # This is only used to track the RUNNING requests, we do not track the
+         # data for preempted ones.
+         self.num_cached_block: dict[str, int] = {}
++        self.packed_rows_dropped: dict[str, int] = {}
+
+         self.kv_cache_group_id = kv_cache_group_id
+         self._null_block = block_pool.null_block
+@@ -216,7 +217,8 @@ class SingleTypeKVCacheManager(ABC):
+             The number of blocks to allocate.
+
+         """
+-        num_required_blocks = cdiv(num_tokens, self.block_size)
++        packed_tokens = num_tokens - self.packed_rows_dropped.get(request_id, 0)
++        num_required_blocks = cdiv(packed_tokens, self.block_size)
+         if apply_admission_cap and self.max_admission_blocks_per_request is not None:
+             # Recycling-aware specs (SWA, chunked-local) cap the per-request
+             # reservation here so admission matches the startup pool sizer
+@@ -403,7 +405,8 @@ class SingleTypeKVCacheManager(ABC):
+             cow_blocks.append(cow_block)
+
+         req_blocks = self.req_to_blocks[request_id]
+-        num_required_blocks = cdiv(num_tokens, self.block_size)
++        packed_tokens = num_tokens - self.packed_rows_dropped.get(request_id, 0)
++        num_required_blocks = cdiv(packed_tokens, self.block_size)
+         num_new_blocks = num_required_blocks - len(req_blocks)
+         if num_new_blocks <= 0:
+             return cow_blocks
+@@ -590,6 +593,7 @@ class SingleTypeKVCacheManager(ABC):
+         # Default to [] in case a request is freed (aborted) before alloc.
+         req_blocks = self.req_to_blocks.pop(request_id, [])
+         self.num_cached_block.pop(request_id, None)
++        self.packed_rows_dropped.pop(request_id, None)
+         self._partial_hit_reqs.pop(request_id, None)
+         return trim_null_head(req_blocks)
+
+diff --git a/vllm/v1/engine/core.py b/vllm/v1/engine/core.py
+index 0d68457..0f95a55 100644
+--- a/vllm/v1/engine/core.py
++++ b/vllm/v1/engine/core.py
+@@ -129,6 +129,7 @@ _R = TypeVar("_R")  # Return type for collective_rpc
+ class EngineCore:
+     """Inner loop of vLLM's Engine."""
+
++    latentport_compaction_api = 1
+     # Class-level defaults so tests can build an EngineCore with
+     # object.__new__.
+     _checkpoint_state = CheckpointState.RUNNING
+@@ -149,6 +150,14 @@ class EngineCore:
+         load_general_plugins()
+
+         self.vllm_config = vllm_config
++        lp_settings = None
++        if (
++            isinstance(vllm_config.additional_config, dict)
++            and "latentport_lpcompact" in vllm_config.additional_config
++        ):
++            from latentport_vllm.settings import get_settings
++
++            lp_settings = get_settings(vllm_config)
+         if not vllm_config.parallel_config.data_parallel_rank_local:
+             logger.info(
+                 "Initializing a V1 LLM engine (v%s) with config: %s",
+@@ -200,6 +209,11 @@ class EngineCore:
+             block_size=scheduler_block_size,
+             hash_block_size=hash_block_size,
+         )
++        self.latentport_compactor = None
++        if lp_settings is not None:
++            from latentport_vllm.engine import EngineCompaction
++
++            self.latentport_compactor = EngineCompaction(self, vllm_config, lp_settings)
+         self._initialize_effective_attention_block_size()
+         self.use_spec_decode = vllm_config.speculative_config is not None
+         self.check_for_draft_tokens = (
+@@ -737,6 +751,8 @@ class EngineCore:
+         engine_core_outputs = self.scheduler.update_from_output(
+             scheduler_output, model_output
+         )
++        if self.latentport_compactor is not None:
++            self.latentport_compactor.after_step(scheduler_output.num_scheduled_tokens)
+         self._attach_iteration_details(engine_core_outputs, iteration_details)
+         self._attach_weight_version(engine_core_outputs)
+
+diff --git a/vllm/v1/worker/gpu/attn_utils.py b/vllm/v1/worker/gpu/attn_utils.py
+index 94e8268..5f3b7a7 100644
+--- a/vllm/v1/worker/gpu/attn_utils.py
++++ b/vllm/v1/worker/gpu/attn_utils.py
+@@ -494,6 +494,9 @@ def build_attn_metadata(
+     ubatch_idx: int = 0,
+     fast_prefill: FastPrefillBatchMetadata | None = None,
+     req_idx: np.ndarray | None = None,
++    packed_attention_lengths: dict[
++        int, tuple[torch.Tensor, torch.Tensor, int]
++    ] | None = None,
+ ) -> dict[str, Any]:
+     seq_lens = seq_lens[:num_reqs]
+     if rswa_prefix_lens is not None and rswa_prefix_lens.shape[0] < num_reqs:
+@@ -523,6 +526,9 @@ def build_attn_metadata(
+             continue
+         block_table = block_tables[i]
+         slot_mapping = slot_mappings[i]
++        lengths = (seq_lens, seq_lens_cpu_upper_bound, max_seq_len)
++        if packed_attention_lengths is not None and i in packed_attention_lengths:
++            lengths = packed_attention_lengths[i]
+         # Per-group causal for hybrid drafters (mixed SWA/full attention).
+         group_causal = (
+             causal if isinstance(causal, (bool, torch.Tensor)) else causal.get(i, True)
+@@ -547,9 +553,9 @@ def build_attn_metadata(
+         common_attn_metadata = CommonAttentionMetadata(
+             query_start_loc=query_start_loc_gpu,
+             query_start_loc_cpu=query_start_loc_cpu,
+-            seq_lens=seq_lens,
+-            seq_lens_cpu_upper_bound=seq_lens_cpu_upper_bound,
+-            max_seq_len=max_seq_len,
++            seq_lens=lengths[0],
++            seq_lens_cpu_upper_bound=lengths[1],
++            max_seq_len=lengths[2],
+             num_reqs=num_reqs,
+             num_actual_tokens=num_tokens,
+             max_query_len=max_query_len,
+diff --git a/vllm/v1/worker/gpu/input_batch.py b/vllm/v1/worker/gpu/input_batch.py
+index b204089..a0c6aee 100644
+--- a/vllm/v1/worker/gpu/input_batch.py
++++ b/vllm/v1/worker/gpu/input_batch.py
+@@ -115,6 +115,12 @@ class InputBatch:
+     # stays valid for every replay the graph serves.
+     max_query_len: int | None = None
+
++    # Optional packed attention lengths by KV cache group. The regular
++    # sequence lengths continue to describe the model's logical token clock.
++    packed_attention_lengths: dict[
++        int, tuple[torch.Tensor, torch.Tensor, int]
++    ] | None = None
++
+     # Arms the KV-sharing fast prefill path for this step. Absent for dummy
+     # (cudagraph capture) batches, which run the KV-sharing layers in full.
+     fast_prefill: "FastPrefillBatchMetadata | None" = None
+diff --git a/vllm/v1/worker/gpu/model_runner.py b/vllm/v1/worker/gpu/model_runner.py
+index d885b6a..9294f50 100644
+--- a/vllm/v1/worker/gpu/model_runner.py
++++ b/vllm/v1/worker/gpu/model_runner.py
+@@ -208,6 +208,7 @@ class GPUModelRunner(LoRAModelRunnerMixin):
+         self.vllm_config = vllm_config
+         self.model_config = vllm_config.model_config
+         self.cache_config = vllm_config.cache_config
++        self.latentport_compactor = None
+         self.compilation_config = vllm_config.compilation_config
+         self.lora_config = vllm_config.lora_config
+         self.load_config = vllm_config.load_config
+@@ -1262,6 +1263,8 @@ class GPUModelRunner(LoRAModelRunnerMixin):
+         preempted_req_ids = scheduler_output.preempted_req_ids
+         if preempted_req_ids:
+             finished_req_ids = finished_req_ids.union(preempted_req_ids)
++        if self.latentport_compactor is not None:
++            self.latentport_compactor.forget(finished_req_ids)
+         # Sorted so every TP rank frees request slots in the same order.
+         # Features like batch-sharded sampling derive rank request ownership
+         # from the slot index.
+@@ -1682,6 +1685,10 @@ class GPUModelRunner(LoRAModelRunnerMixin):
+             input_batch.positions,
+             num_tokens_padded=input_batch.num_tokens_after_padding,
+         )
++        if self.latentport_compactor is not None:
++            self.latentport_compactor.prepare_attention(
++                input_batch, block_tables, slot_mappings
++            )
+         return block_tables, slot_mappings
+
+     def prepare_dummy_attn(
+diff --git a/vllm/v1/worker/gpu/model_states/default.py b/vllm/v1/worker/gpu/model_states/default.py
+index a17bc77..0f1d17b 100644
+--- a/vllm/v1/worker/gpu/model_states/default.py
++++ b/vllm/v1/worker/gpu/model_states/default.py
+@@ -231,6 +231,7 @@ class DefaultModelState(ModelState):
+             slot_mappings=slot_mappings,
+             kv_cache_config=kv_cache_config,
+             seq_lens_cpu_upper_bound=seq_lens_cpu_upper_bound,
++            packed_attention_lengths=input_batch.packed_attention_lengths,
+             dcp_local_seq_lens=input_batch.dcp_local_seq_lens,
+             dcp_local_seq_lens_cpu_upper_bound=dcp_local_seq_lens_cpu_upper_bound,
+             positions=input_batch.positions,
+diff --git a/vllm/v1/worker/gpu/model_states/mamba_hybrid.py b/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
+index c0205c7..0b0ab7a 100644
+--- a/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
++++ b/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
+@@ -354,6 +354,7 @@ class MambaHybridModelState(DefaultModelState):
+             slot_mappings=slot_mappings,
+             kv_cache_config=kv_cache_config,
+             seq_lens_cpu_upper_bound=seq_lens_cpu_upper_bound,
++            packed_attention_lengths=input_batch.packed_attention_lengths,
+             dcp_local_seq_lens=input_batch.dcp_local_seq_lens,
+             positions=input_batch.positions,
+             model_specific_attn_metadata=mamba_attn_metadata,

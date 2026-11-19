@@ -1,0 +1,13 @@
+**
+!src/
+!src/**
+!integrations/
+!integrations/vllm/
+!integrations/vllm/**
+!pyproject.toml
+!README.md
+!LICENSE
+!MANIFEST.in
+**/__pycache__
+**/*.egg-info
+**/.pytest_cache

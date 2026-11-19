@@ -1,5 +1,5 @@
 """Frozen standalone base revisions and their complete-state geometries."""
-from .context import PINNED_REVISION
+from .context import NATIVE_POSITIONS, PINNED_REVISION
 
 DEFAULT_MODEL = "Qwen/Qwen3.8-27B"
 FLASH_NEXT = "Qwen/Qwen3.8-Flash-Next"
@@ -24,6 +24,10 @@ MODEL_REVISIONS = {
     "Qwen/Qwen3.5-4B": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
     "Qwen/Qwen3.5-9B": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
 }
+
+
+def native_positions(repo):
+    return 40960 if repo == QWEN3 else NATIVE_POSITIONS
 
 
 def model_geometry(repo):

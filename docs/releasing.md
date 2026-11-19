@@ -17,9 +17,10 @@ archives, and rejected by CI if tracked.
 
 1. Verify the `latentport` project name in the maintainer PyPI account. A 404 or
    pending Trusted Publisher does not reserve a name.
-2. Configure GitHub Trusted Publishers on PyPI and TestPyPI for
-   `LatentPort/latentport`, workflow `release.yml`, and the matching `pypi` or
-   `testpypi` environment. Protect these environments with maintainer reviewers.
+2. Configure GitHub Trusted Publishers for `latentport` and `latentport-vllm`
+   on PyPI and TestPyPI. Use `LatentPort/latentport`, workflow `release.yml`,
+   and the matching `pypi` or `testpypi` environment. Protect these environments
+   with maintainer reviewers.
 3. Protect the `gpu-release` environment. Image publication requires recorded
    real-GPU validation; a successful CPU image build is insufficient.
 4. Give the workflow package write access and make the GHCR package public.
@@ -40,6 +41,9 @@ archives, and rejected by CI if tracked.
 - Dispatch from the same reviewed commit with `destination=pypi`. The build job
   checks and uploads artifacts; the publishing job downloads those artifacts
   without rebuilding. Enable `publish_images` only after GPU qualification.
+- Publish a new `latentport` dependency version before dispatching the workflow
+  with `distribution=latentport-vllm`. Verify that installing the adapter from
+  the normal PyPI index resolves the pinned LatentPort version.
 - Confirm `pip install latentport` from the normal PyPI index, anonymous image
   pull, and the exact README command. Remove the pending-release note only then.
 - Record the reviewed source commit and validation reports. Never replace

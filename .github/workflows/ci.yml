@@ -36,7 +36,17 @@ jobs:
           python-version: '3.11'
       - run: pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cpu
       - run: pip install -e '.[gguf,dev]'
-      - run: pytest -q
+      - run: pytest -q tests
+  vllm-adapter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install -e '.[dev]' ./integrations/vllm 'numpy>=2.3,<3'
+      - run: pytest -q integrations/vllm/tests
   docker:
     runs-on: ubuntu-latest
     steps:

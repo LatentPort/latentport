@@ -8,14 +8,18 @@ from pathlib import Path
 from ..errors import CompatibilityError
 from .._models import DEFAULT_MODEL, MODEL_REVISIONS, feature_layers
 
+
+def selector_config(repo):
+    if repo not in MODEL_REVISIONS:
+        raise CompatibilityError(f"Unsupported LPCompact base: {repo}")
+    name = "lpcompact" if repo == DEFAULT_MODEL else "lpcompact-" + repo.split("/")[-1].lower()
+    return json.loads((Path(__file__).parent.parent / "configs" / (name + ".json")).read_text())
+
 @lru_cache(maxsize=8)
 def _model(device, repo, override):
     import torch
     from safetensors.torch import load_file
-    if repo not in MODEL_REVISIONS:
-        raise CompatibilityError(f"Unsupported LPCompact base: {repo}")
-    name = "lpcompact" if repo == DEFAULT_MODEL else "lpcompact-" + repo.split("/")[-1].lower()
-    spec = json.loads((Path(__file__).parent.parent / "configs" / (name + ".json")).read_text())
+    spec = selector_config(repo)
     if override:
         path = Path(override).expanduser()
     else:
@@ -33,6 +37,14 @@ def _model(device, repo, override):
     return model.eval().requires_grad_(False).to(device=device, dtype=torch.float32)
 
 
+def score_features(model, features):
+    import torch
+
+    x = torch.cat([feature.flatten(1) for feature in features], dim=-1).float()
+    x = x / (x.square().mean(-1, keepdim=True) + 1e-6).sqrt()
+    return model(x).squeeze(-1)
+
+
 def score(values, repo=DEFAULT_MODEL):
     import torch
     layers = feature_layers(repo)
@@ -42,8 +54,7 @@ def score(values, repo=DEFAULT_MODEL):
     chunks = []
     # Bounded scratch space at 128K and beyond; math matches the frozen selector.
     for start in range(0, reference.shape[2], 8192):
-        x = torch.cat([values[f"V.{i}"][0, :, start:start + 8192].transpose(0, 1).flatten(1).to(device)
-                       for i in layers], dim=-1).float()
-        x = x / (x.square().mean(-1, keepdim=True) + 1e-6).sqrt()
-        chunks.append(model(x).squeeze(-1))
+        features = [values[f"V.{i}"][0, :, start:start + 8192].transpose(0, 1).to(device)
+                    for i in layers]
+        chunks.append(score_features(model, features))
     return torch.cat(chunks).cpu().tolist()

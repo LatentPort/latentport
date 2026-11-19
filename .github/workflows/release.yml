@@ -2,6 +2,10 @@ name: Publish release
 on:
   workflow_dispatch:
     inputs:
+      distribution:
+        type: choice
+        options: [latentport, latentport-vllm]
+        default: latentport
       destination:
         type: choice
         options: [testpypi, pypi]
@@ -21,9 +25,23 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install build twine
-      - run: python -m build && twine check dist/*
-      - run: pip install --no-deps --no-index --find-links dist latentport
-      - run: python scripts/check_distribution.py
+      - name: Build and check LatentPort
+        if: inputs.distribution == 'latentport'
+        run: |
+          python -m build
+          twine check --strict dist/*
+          pip install --no-deps --no-index --find-links dist latentport
+          python scripts/check_distribution.py
+      - name: Build and check the vLLM adapter
+        if: inputs.distribution == 'latentport-vllm'
+        run: |
+          python -m build --wheel --outdir core-dist
+          python -m build --outdir dist integrations/vllm
+          twine check --strict dist/*
+          pip install core-dist/*.whl dist/*.whl
+          pip check
+          latentport-vllm --help
+          python -c 'from importlib.resources import files; assert (files("latentport_vllm") / "patches" / "vllm-0.34.0.patch").is_file()'
       - uses: actions/upload-artifact@v4
         with:
           name: distributions
@@ -43,7 +61,7 @@ jobs:
         with:
           repository-url: ${{ inputs.destination == 'testpypi' && 'https://test.pypi.org/legacy/' || 'https://upload.pypi.org/legacy/' }}
   images:
-    if: inputs.publish_images && inputs.destination == 'pypi'
+    if: inputs.publish_images && inputs.destination == 'pypi' && inputs.distribution == 'latentport'
     needs: publish
     runs-on: ubuntu-latest
     environment: gpu-release
@@ -69,6 +87,6 @@ jobs:
           file: docker/Dockerfile
           target: ${{ matrix.backend }}
           push: true
-          tags: ghcr.io/latentport/latentport:0.4.12-${{ matrix.backend }}-cu128-sm120
+          tags: ghcr.io/latentport/latentport:0.4.13-${{ matrix.backend }}-cu128-sm120
           provenance: true
           sbom: true

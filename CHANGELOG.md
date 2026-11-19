@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.13
+
+- Expose a tensor-only LPCompact selector API for external runtimes.
+- Add the separately packaged `latentport-vllm` integration for the LPCompact model catalog.
+
 ## 0.4.12
 
 - Add Qwen3.6-35B-A3B LPCompact for BF16, NF4, and pinned Q4 and Q8 GGUF weights through the standard model and state APIs.
