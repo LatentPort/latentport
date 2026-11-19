@@ -6,7 +6,8 @@ COPY . .
 RUN uv pip install --system . ./integrations/vllm \
     && lib="$(python3 -c 'import importlib.util; from pathlib import Path; print(Path(importlib.util.find_spec("vllm").origin).parent.parent)')" \
     && cd "$lib" \
-    && git apply --check /opt/latentport/integrations/vllm/patches/vllm-0.34.0.patch \
-    && git apply /opt/latentport/integrations/vllm/patches/vllm-0.34.0.patch
+    && patch="$(python3 -c 'from importlib.resources import files; print(files("latentport_vllm") / "patches" / "vllm-0.34.0.patch")')" \
+    && git apply --check "$patch" \
+    && git apply "$patch"
 
 ENTRYPOINT ["latentport-vllm"]

@@ -15,5 +15,12 @@ dependencies = ["latentport==0.4.13", "huggingface-hub>=2", "safetensors>=0.8,<1
 [project.scripts]
 latentport-vllm = "latentport_vllm.cli:main"
 
+[project.urls]
+Repository = "https://github.com/LatentPort/latentport"
+Documentation = "https://github.com/LatentPort/latentport/tree/main/integrations/vllm"
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+latentport_vllm = ["patches/*.patch"]

@@ -34,6 +34,19 @@ qualification. See the
 [vLLM hardware recipe](https://recipes.vllm.ai/Qwen/Qwen3.8-Flash-Next) for
 tested base-model hardware combinations.
 
+### Install in an existing vLLM environment
+
+In a dedicated Linux environment with vLLM 0.34.0 and its CUDA dependencies
+installed, install the adapter and apply its bundled patch once.
+
+```sh
+python -m pip install latentport-vllm==0.1.0
+vllm_site="$(python -c 'import importlib.util; from pathlib import Path; print(Path(importlib.util.find_spec("vllm").origin).parent.parent)')"
+patch="$(python -c 'from importlib.resources import files; print(files("latentport_vllm") / "patches" / "vllm-0.34.0.patch")')"
+(cd "$vllm_site" && git apply --check "$patch" && git apply "$patch")
+latentport-vllm serve Qwen/Qwen3.8-27B --lpcompact latentport/LPCompact-Qwen3.8-27B
+```
+
 ## Model profiles
 
 Use a base model and its selector from the same row.
