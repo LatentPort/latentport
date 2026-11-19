@@ -139,6 +139,8 @@ Published measurements describe specific checkpoints, hardware and workloads.
 
 ## Demos and documentation
 
+- Serve Qwen3.8 text models with [LPCompact for vLLM](integrations/vllm/README.md).
+
 - Chat through a supported bridge with the [chat example](examples/chat.py).
 - Query two saved snapshots with the [combination example](examples/combine.py).
 - Set up the native or Docker browser demo with the [installation guide](docs/installation.md).
