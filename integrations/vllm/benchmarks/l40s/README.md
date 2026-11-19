@@ -48,6 +48,31 @@ reproduce the lengths, seed and number of cases.
 
 ## Resident-session capacity and throughput
 
+| Mode | Concurrent sessions | Warm KV pool occupancy | Turns/s | Generated tokens/s | p95 turn latency |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Dense | 2 | 81.5% | 1.47 | 46.9 | 1.37 s |
+| LPCompact 8× | 2 | 11.3% | 2.01 | 64.4 | 1.00 s |
+| LPCompact 8× | 4 | 22.6% | 3.74 | 119.6 | 1.08 s |
+
+The dense startup rejected a third slot because it required 714 pages
+and the pool had 567. The compact server admitted four slots with 121
+pages reserved per slot plus 15 staging pages. Peak total GPU allocation
+was 28,205 MiB for dense and 28,307 MiB for compact with the same
+preallocated pool.
+
+The six dense follow-ups and 18 compact follow-ups retrieved their
+session's code. Scheduler records showed zero historical rows to recompute
+and the expected suffix plus edge token for all 24 follow-ups. Both arms
+recorded zero preemptions, rejected an extra session at capacity, and
+returned the pool to zero occupancy after deleting their sessions.
+
+See the [dense](sessions-dense.jsonl) and [8×](sessions-compact.jsonl)
+records, [scheduler evidence](scheduler-evidence.txt), and
+[machine-readable summary](results.json).
+
+Image digest for this run
+`sha256:f9a71e213529eb9dc78e0df409bd096cf25eb3c815dbb971d194c4409f3ccd10`.
+
 Both arms used the same 10 GiB preallocated KV pool
 (`--kv-cache-memory-bytes 10737418240`). The dense arm used the out-of-range
 trigger and the compact arm used 8× at 65,536 rows. Each session was primed

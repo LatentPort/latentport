@@ -1,0 +1,33 @@
+[dense]
+(EngineCore pid=79) INFO 11-19 21:31:13 [engine.py:81] LPCompact residency slots=2 rows_per_slot=135168 pages_per_slot=238 staging_pages=0 watermark_pages=0 available_pages=567
+(EngineCore pid=79) INFO 11-19 21:31:52 [scheduler.py:1974] LPCompact session resume retained_logical_rows=131099 historical_rows_to_compute=0 appended_rows=35
+(EngineCore pid=79) INFO 11-19 21:31:52 [scheduler.py:1974] LPCompact session resume retained_logical_rows=131099 historical_rows_to_compute=0 appended_rows=35
+(EngineCore pid=79) INFO 11-19 21:31:53 [scheduler.py:1974] LPCompact session resume retained_logical_rows=131165 historical_rows_to_compute=0 appended_rows=36
+(EngineCore pid=79) INFO 11-19 21:31:53 [scheduler.py:1974] LPCompact session resume retained_logical_rows=131165 historical_rows_to_compute=0 appended_rows=36
+(EngineCore pid=79) INFO 11-19 21:31:54 [scheduler.py:1974] LPCompact session resume retained_logical_rows=131232 historical_rows_to_compute=0 appended_rows=36
+(EngineCore pid=79) INFO 11-19 21:31:54 [scheduler.py:1974] LPCompact session resume retained_logical_rows=131232 historical_rows_to_compute=0 appended_rows=36
+
+[compact]
+(EngineCore pid=79) INFO 11-19 21:32:30 [engine.py:81] LPCompact residency slots=4 rows_per_slot=67583 pages_per_slot=121 staging_pages=15 watermark_pages=0 available_pages=567
+(EngineCore pid=79) INFO 11-19 21:33:03 [scheduler.py:1974] LPCompact session resume retained_logical_rows=131099 historical_rows_to_compute=0 appended_rows=35
+(EngineCore pid=79) INFO 11-19 21:33:03 [scheduler.py:1974] LPCompact session resume retained_logical_rows=131099 historical_rows_to_compute=0 appended_rows=35
+(EngineCore pid=79) INFO 11-19 21:33:04 [scheduler.py:1974] LPCompact session resume retained_logical_rows=131165 historical_rows_to_compute=0 appended_rows=36
+(EngineCore pid=79) INFO 11-19 21:33:04 [scheduler.py:1974] LPCompact session resume retained_logical_rows=131165 historical_rows_to_compute=0 appended_rows=36
+(EngineCore pid=79) INFO 11-19 21:33:05 [scheduler.py:1974] LPCompact session resume retained_logical_rows=131232 historical_rows_to_compute=0 appended_rows=36
+(EngineCore pid=79) INFO 11-19 21:33:05 [scheduler.py:1974] LPCompact session resume retained_logical_rows=131232 historical_rows_to_compute=0 appended_rows=36
+(EngineCore pid=79) INFO 11-19 21:33:34 [scheduler.py:1974] LPCompact session resume retained_logical_rows=131099 historical_rows_to_compute=0 appended_rows=35
+(EngineCore pid=79) INFO 11-19 21:33:34 [scheduler.py:1974] LPCompact session resume retained_logical_rows=131099 historical_rows_to_compute=0 appended_rows=35
+(EngineCore pid=79) INFO 11-19 21:33:34 [scheduler.py:1974] LPCompact session resume retained_logical_rows=131299 historical_rows_to_compute=0 appended_rows=36
+(EngineCore pid=79) INFO 11-19 21:33:34 [scheduler.py:1974] LPCompact session resume retained_logical_rows=131299 historical_rows_to_compute=0 appended_rows=36
+(EngineCore pid=79) INFO 11-19 21:33:36 [scheduler.py:1974] LPCompact session resume retained_logical_rows=131366 historical_rows_to_compute=0 appended_rows=36
+(EngineCore pid=79) INFO 11-19 21:33:36 [scheduler.py:1974] LPCompact session resume retained_logical_rows=131165 historical_rows_to_compute=0 appended_rows=36
+(EngineCore pid=79) INFO 11-19 21:33:36 [scheduler.py:1974] LPCompact session resume retained_logical_rows=131165 historical_rows_to_compute=0 appended_rows=36
+(EngineCore pid=79) INFO 11-19 21:33:36 [scheduler.py:1974] LPCompact session resume retained_logical_rows=131366 historical_rows_to_compute=0 appended_rows=36
+(EngineCore pid=79) INFO 11-19 21:33:37 [scheduler.py:1974] LPCompact session resume retained_logical_rows=131232 historical_rows_to_compute=0 appended_rows=36
+(EngineCore pid=79) INFO 11-19 21:33:37 [scheduler.py:1974] LPCompact session resume retained_logical_rows=131433 historical_rows_to_compute=0 appended_rows=36
+(EngineCore pid=79) INFO 11-19 21:33:37 [scheduler.py:1974] LPCompact session resume retained_logical_rows=131433 historical_rows_to_compute=0 appended_rows=36
+(EngineCore pid=79) INFO 11-19 21:33:37 [scheduler.py:1974] LPCompact session resume retained_logical_rows=131232 historical_rows_to_compute=0 appended_rows=36
+
+[dense-limit]
+(EngineCore pid=79) ERROR 11-19 21:34:12 [core.py:1773] ValueError: LPCompact needs 714 available cache pages for the configured sequence limit and staging reserve, but vLLM has 567. Reduce --max-num-seqs or --max-model-len.
+ValueError: LPCompact needs 714 available cache pages for the configured sequence limit and staging reserve, but vLLM has 567. Reduce --max-num-seqs or --max-model-len.

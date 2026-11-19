@@ -1,0 +1,226 @@
+{
+  "paired": {
+    "dense": {
+      "lengths": {
+        "65555": {
+          "total": 16,
+          "exact": 16,
+          "lost": 0,
+          "gained": 0,
+          "median_first_token_s": 6.601775219998672,
+          "median_elapsed_s": 6.807338103506481
+        },
+        "131091": {
+          "total": 16,
+          "exact": 16,
+          "lost": 0,
+          "gained": 0,
+          "median_first_token_s": 17.00814163198811,
+          "median_elapsed_s": 17.224952710486832
+        }
+      },
+      "committed_compactions_including_smoke": 0,
+      "pages_reclaimed_across_all_events": 0,
+      "distinct_compactions": []
+    },
+    "4x": {
+      "lengths": {
+        "65555": {
+          "total": 16,
+          "exact": 16,
+          "lost": 0,
+          "gained": 0,
+          "median_first_token_s": 6.770833227506955,
+          "median_elapsed_s": 6.961567749996902
+        },
+        "131091": {
+          "total": 16,
+          "exact": 16,
+          "lost": 0,
+          "gained": 0,
+          "median_first_token_s": 13.801758784000413,
+          "median_elapsed_s": 13.98407711899199
+        }
+      },
+      "committed_compactions_including_smoke": 48,
+      "pages_reclaimed_across_all_events": 4080,
+      "distinct_compactions": [
+        [
+          65536,
+          65536,
+          16384,
+          85
+        ],
+        [
+          114688,
+          65536,
+          16384,
+          85
+        ]
+      ]
+    },
+    "8x": {
+      "lengths": {
+        "65555": {
+          "total": 16,
+          "exact": 16,
+          "lost": 0,
+          "gained": 0,
+          "median_first_token_s": 6.796906459494494,
+          "median_elapsed_s": 7.001650970996707
+        },
+        "131091": {
+          "total": 16,
+          "exact": 16,
+          "lost": 0,
+          "gained": 0,
+          "median_first_token_s": 13.46775316199637,
+          "median_elapsed_s": 13.665425024490105
+        }
+      },
+      "committed_compactions_including_smoke": 49,
+      "pages_reclaimed_across_all_events": 4851,
+      "distinct_compactions": [
+        [
+          65536,
+          65536,
+          8192,
+          99
+        ],
+        [
+          122880,
+          65536,
+          8192,
+          99
+        ]
+      ]
+    }
+  },
+  "resident": {
+    "dense": {
+      "reservation": {
+        "slots": 2,
+        "rows_per_slot": 135168,
+        "pages_per_slot": 238,
+        "staging_pages": 0,
+        "watermark_pages": 0,
+        "available_pages": 567
+      },
+      "gpu_memory_peak_mib": 28205,
+      "warm_exact": 2,
+      "warm_total": 2,
+      "occupancy": [
+        {
+          "kind": "initial",
+          "kv_cache_fraction": 0.0,
+          "preemptions": 0
+        },
+        {
+          "kind": "occupancy",
+          "phase": "matched",
+          "sessions": 2,
+          "kv_cache_fraction": 0.8148148148148149,
+          "preemptions": 0
+        },
+        {
+          "kind": "capacity_limit",
+          "sessions": 2,
+          "kv_cache_fraction": 0.8148148148148149,
+          "preemptions": 0
+        },
+        {
+          "kind": "released",
+          "kv_cache_fraction": 0.0,
+          "preemptions": 0
+        }
+      ],
+      "historical_rows_recomputed": 0,
+      "resumed_turns": 6,
+      "phases": {
+        "matched": {
+          "rounds": 3,
+          "concurrency": 2,
+          "turns_per_s": 1.4656538830360242,
+          "output_tokens_per_s": 46.900924257152774,
+          "p95_latency_s": 1.3650053059973288,
+          "correct_code": 6,
+          "total_turns": 6,
+          "expected_appended_rows": 214
+        }
+      }
+    },
+    "compact": {
+      "reservation": {
+        "slots": 4,
+        "rows_per_slot": 67583,
+        "pages_per_slot": 121,
+        "staging_pages": 15,
+        "watermark_pages": 0,
+        "available_pages": 567
+      },
+      "gpu_memory_peak_mib": 28307,
+      "warm_exact": 4,
+      "warm_total": 4,
+      "occupancy": [
+        {
+          "kind": "initial",
+          "kv_cache_fraction": 0.0,
+          "preemptions": 0
+        },
+        {
+          "kind": "occupancy",
+          "phase": "matched",
+          "sessions": 2,
+          "kv_cache_fraction": 0.1128747795414462,
+          "preemptions": 0
+        },
+        {
+          "kind": "occupancy",
+          "phase": "capacity",
+          "sessions": 4,
+          "kv_cache_fraction": 0.2257495590828924,
+          "preemptions": 0
+        },
+        {
+          "kind": "capacity_limit",
+          "sessions": 4,
+          "kv_cache_fraction": 0.2292768959435626,
+          "preemptions": 0
+        },
+        {
+          "kind": "released",
+          "kv_cache_fraction": 0.0,
+          "preemptions": 0
+        }
+      ],
+      "historical_rows_recomputed": 0,
+      "resumed_turns": 18,
+      "phases": {
+        "matched": {
+          "rounds": 3,
+          "concurrency": 2,
+          "turns_per_s": 2.0121920797409047,
+          "output_tokens_per_s": 64.39014655170895,
+          "p95_latency_s": 0.996252793003805,
+          "correct_code": 6,
+          "total_turns": 6,
+          "expected_appended_rows": 214
+        },
+        "capacity": {
+          "rounds": 3,
+          "concurrency": 4,
+          "turns_per_s": 3.736385557967449,
+          "output_tokens_per_s": 119.56433785495837,
+          "p95_latency_s": 1.07687316800002,
+          "correct_code": 12,
+          "total_turns": 12,
+          "expected_appended_rows": 430
+        }
+      }
+    },
+    "dense_third_slot_rejection": {
+      "required_pages": 714,
+      "available_pages": 567
+    }
+  }
+}
