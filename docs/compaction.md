@@ -59,12 +59,20 @@ token replay is needed for the operation.
 
 ## One selector for NF4, BF16 and GGUF
 
-The [LPCompact-Qwen3.8-27B model](https://huggingface.co/latentport/LPCompact-Qwen3.8-27B) contains one
-selector checkpoint. The same weights serve Qwen3.8-27B NF4, BF16 and GGUF weight
-quantizations. Weight precision is independent of the selector: each adapter
-exposes the same complete hybrid-state layout with BF16 attention keys and values.
+Each LPCompact selector is shared across the NF4, BF16 and GGUF backends for
+its base model. For example, the [LPCompact-Qwen3.8-27B selector](https://huggingface.co/latentport/LPCompact-Qwen3.8-27B)
+serves all three weight formats. The backends expose a compatible state layout
+with BF16 attention keys and values.
 Model identities still bind snapshots to the exact base weights and runtime that
 created them.
+
+### Supported weights
+
+All seven standalone LPCompact base profiles accept
+`backend="bf16"`, `"nf4"`, or `"gguf"` in `lp.load_model()`.
+Compaction checks the exact checkpoint identity. Use a qualified checkpoint
+or pass `allow_unqualified=True` for experimental compaction with a compatible
+file outside the catalog. [Model matrix](../README.md#supported-transformations) · [Exact-weight checks](api.md#exact-weights-for-compaction)
 
 Each trained state operation has its own Hugging Face repository, named for its
 operation and compatible model. The shared Python runtime remains in the
