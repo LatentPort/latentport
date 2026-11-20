@@ -12,7 +12,7 @@ combine contexts, or branch and save state for later use.
   <img src="https://raw.githubusercontent.com/LatentPort/latentport/main/docs/assets/latentport-ascii.gif" alt="LatentPort: programmable model state" width="640">
 </p>
 
-[Website](https://latentport.com) | [Get started](#get-started) | [State operations](#state-operations) | [Supported transformations](#supported-transformations) | [Cookbook](docs/cookbook.md) | [API](docs/api.md)
+[Website](https://latentport.com) | [Get started](#get-started) | [State operations](#state-operations) | [Supported transformations](#supported-transformations) | [vLLM](integrations/vllm/README.md) | [Cookbook](docs/cookbook.md) | [API](docs/api.md)
 
 ![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)
 [![PyPI](https://img.shields.io/pypi/v/latentport)](https://pypi.org/project/latentport/)
@@ -98,6 +98,15 @@ with model.session(compacted) as session:
 By default, compaction retains one eighth of attention KV once the snapshot has
 at least 65,536 retained positions. [Compaction guide](docs/compaction.md)
 
+### Serve LPCompact with vLLM
+
+All seven supported LPCompact base model profiles accept **BF16, NF4, and GGUF
+weights** in vLLM. BF16 is the default in the stock NVIDIA image. NF4 and GGUF
+require additional plugins and are experimental, with GPU qualification
+pending. All three formats use BF16 compute and a BF16 KV cache. The L40S
+benchmarks used BF16 weights.
+[vLLM setup and model profiles](integrations/vllm/README.md)
+
 ## Supported transformations
 
 Each bridge is directional and requires dense source state with complete alignment
@@ -142,8 +151,6 @@ Published measurements describe specific checkpoints, hardware and workloads.
   [Compaction results](docs/lpcompact-qwen35-validation.json) · [Backend validation](docs/compaction-validation.json)
 
 ## Demos and documentation
-
-- Serve supported LPCompact text models with the [vLLM integration](integrations/vllm/README.md).
 
 - Chat through a supported bridge with the [chat example](examples/chat.py).
 - Query two saved snapshots with the [combination example](examples/combine.py).
