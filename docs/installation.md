@@ -97,6 +97,15 @@ bound to exact model weights and cannot silently switch to another quantization.
 Existing local files can also be supplied as `source_path`, `target_path` and
 `bridge_gguf_path` in `lp.load()`. These must satisfy the normal compatibility checks.
 
+## Serve LPCompact with vLLM
+
+Use the pinned vLLM 0.34.0 image or install the adapter and apply its bundled
+patch in an existing vLLM environment. All seven LPCompact base model profiles
+can load BF16, NF4, or GGUF weights. The stock image defaults to BF16. For NF4,
+install the NF4 extra, which includes the bitsandbytes plugin. For GGUF, install
+the GGUF extra and the pinned vLLM GGUF plugin. Set `--weight-format` to choose
+the loader. [vLLM installation and model matrix](../integrations/vllm/README.md#installation)
+
 ## Build from this checkout
 
 ```shell

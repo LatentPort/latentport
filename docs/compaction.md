@@ -2,6 +2,11 @@
 
 [LPCompact quickstart](https://latentport.com/lpcompact) · [LPCompact for vLLM](https://latentport.com/integrations/vllm)
 
+For vLLM serving, set `--weight-format` to `bf16`, `nf4`, or `gguf` with any
+of the seven supported base model profiles. The integration uses the same
+selector per model and keeps compute and the KV cache in BF16. NF4 and GGUF
+require additional plugins and are experimental. [vLLM weight formats and setup](../integrations/vllm/README.md#weight-formats)
+
 LPCompact adds `state.compact()` to LatentPort's library of LLM state operations.
 It uses a small learned selector to retain useful attention memory while
 preserving the complete recurrent state, convolution state and continuation clock.

@@ -25,8 +25,12 @@
 The composite release and published composite results do not qualify live escalation as
 product functionality. The primitive remains available for runtime experimentation.
 Additional model pairs need separately trained and qualified bridges. There is no
-reverse bridge, arbitrary state merge, automatic eviction, vLLM integration or distributed
-execution in this version.
+reverse bridge, arbitrary state merge, automatic eviction or distributed execution
+in this version of the Python API.
+
+LPCompact serving and resident HTTP sessions are available through the
+[vLLM integration](../integrations/vllm/README.md), with BF16, NF4, and GGUF
+weight-loading options.
 
 The qualified runtime accepts text and uses greedy decoding. Multimodal input, configurable
 sampling, and automatic tool-call execution are outside this preview. Applications can

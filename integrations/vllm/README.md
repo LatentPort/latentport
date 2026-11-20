@@ -9,6 +9,26 @@ Hugging Face cache and LatentPort's selector cache under
 `LATENTPORT_HOME/huggingface`, or supply `--lpcompact-weights-path` with the pinned
 selector file.
 
+## Weight formats
+
+All seven [base model profiles](#model-profiles) support BF16, NF4, and GGUF
+model weights. Each base model uses the same LPCompact selector across these
+formats. Compute and the KV cache stay in BF16.
+
+| Weight format | Launcher option | Setup |
+| --- | --- | --- |
+| BF16 | `--weight-format bf16` (default) | The stock image loads the pinned Hugging Face checkpoint. |
+| NF4 | `--weight-format nf4` | Install the NF4 extra. The loader quantizes the pinned checkpoint on load with one GPU rank per replica. |
+| GGUF | `--weight-format gguf` | Install the GGUF extra and pinned vLLM GGUF plugin. The loader uses the GGUF file specified for the base model in the profile table. |
+
+NF4 and GGUF are experimental weight-loading modes with GPU qualification
+pending. The [L40S quality and resident-session benchmarks](benchmarks/l40s/README.md)
+used Qwen3.5-9B BF16 weights.
+
+## Installation
+
+### Docker quickstart
+
 The NVIDIA image includes the pinned vLLM 0.34.0 installation and the LPCompact
 patch. Run it with the NVIDIA Container Toolkit.
 
@@ -21,6 +41,11 @@ docker run --gpus all --ipc=host -p 8000:8000 ghcr.io/latentport/latentport-vllm
 
 To build from the repository root, run
 `docker build -f integrations/vllm/Dockerfile -t latentport-vllm:dev .`.
+
+For NF4 or GGUF in Docker, extend the stock image and install the corresponding
+dependencies from the [quantized weight setup](#nf4-and-gguf-weights) into the
+same Python environment as vLLM. The stock image already includes the
+LPCompact patch.
 
 For Flash-Next on a single RTX PRO 6000, the launcher can use the pinned Inferact
 NVFP4 checkpoint with disk-backed embedding lookups. Put the Hugging Face cache
@@ -79,14 +104,11 @@ latentport-vllm serve Qwen/Qwen3.8-27B --weight-format gguf \
   --lpcompact latentport/LPCompact-Qwen3.8-27B
 ```
 
-All formats use the same BF16 KV cache and published selector. Flash-Next
-stages n-gram rows from disk in NF4 and GGUF mode. Quantized profiles are
-experimental and have not been qualified on GPU for this update.
+Flash-Next stages n-gram rows from disk in NF4 and GGUF mode.
 
 ## Model profiles
 
-Use a base model and its selector from the same row. Every row accepts
-`bf16`, `nf4`, and `gguf`.
+Use a base model and its selector from the same row.
 
 | Base checkpoint | Hugging Face selector | Pinned GGUF format | Default trigger |
 | --- | --- | --- | ---: |
