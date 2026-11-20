@@ -1,5 +1,7 @@
 # Benchmarks
 
+[LatentPort benchmark summaries](https://latentport.com/benchmarks).
+
 ## Composite results
 
 The frozen LatentPort-4+27B bridge was evaluated against both native models in the published composite evaluation.

@@ -65,6 +65,8 @@ conversation. [State ownership and persistence](docs/api.md#memory-and-ownership
 
 ## Transfer working memory
 
+[LPBridge quickstart and supported model pairs](https://latentport.com/lpbridge).
+
 A bridge lets the target model continue from the source model's working memory.
 Pass the bridge repository to `lp.load()` to select the model pair.
 [Supported bridges](#supported-transformations)
@@ -80,6 +82,8 @@ with lp.load("latentport/LPBridge-Qwen3.5-4b-Qwen3.5-9b", backend="bf16") as por
 ```
 
 ## Compact working memory
+
+[LPCompact quickstart and benchmarks](https://latentport.com/lpcompact).
 
 LPCompact uses a learned selector to reduce attention KV storage while preserving
 original token positions, recurrent state and convolution state. After capturing

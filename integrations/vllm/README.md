@@ -1,5 +1,7 @@
 # LPCompact for vLLM
 
+[LPCompact for vLLM quickstart and GPU validation](https://latentport.com/integrations/vllm).
+
 This integration serves the LPCompact text models on NVIDIA GPUs. It pins the
 served checkpoint and downloads the selector directly from Hugging Face.
 Serving uses BF16 compute and KV. For an offline deployment, prewarm the base checkpoint's

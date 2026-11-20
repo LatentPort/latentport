@@ -1,5 +1,7 @@
 # State compaction with LPCompact
 
+[LPCompact quickstart](https://latentport.com/lpcompact) · [LPCompact for vLLM](https://latentport.com/integrations/vllm)
+
 LPCompact adds `state.compact()` to LatentPort's library of LLM state operations.
 It uses a small learned selector to retain useful attention memory while
 preserving the complete recurrent state, convolution state and continuation clock.

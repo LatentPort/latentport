@@ -11,6 +11,8 @@ tags:
 
 # LPBridge-Qwen3.5-4b-Qwen3.8-27b
 
+[LPBridge overview](https://latentport.com/lpbridge)
+
 **Created by [Simon P. Villani](https://au.linkedin.com/in/simon-villani).**
 
 [GitHub](https://github.com/LatentPort/latentport) | [PyPI](https://pypi.org/project/latentport/) | [Installation](https://github.com/LatentPort/latentport/blob/main/docs/installation.md) | [API](https://github.com/LatentPort/latentport/blob/main/docs/api.md)

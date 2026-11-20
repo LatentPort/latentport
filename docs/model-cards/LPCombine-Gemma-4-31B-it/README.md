@@ -11,7 +11,7 @@ tags:
 
 Created by [Simon P. Villani](https://au.linkedin.com/in/simon-villani).
 
-[LatentPort](https://latentport.com) · [Source](https://github.com/LatentPort/latentport) · [PyPI](https://pypi.org/project/latentport/)
+[LPCombine overview](https://latentport.com/#combine) · [Source](https://github.com/LatentPort/latentport) · [PyPI](https://pypi.org/project/latentport/)
 
 ## Overview
 

@@ -271,6 +271,8 @@ continues to report every committed token in that call.
 
 ## Combine
 
+[LPCombine overview](https://latentport.com/#combine).
+
 `model.combine(left, right, method="auto")` returns a new context-ready
 state from two context-ready states with identical model and execution
 identities. The order is left followed by right. The original states

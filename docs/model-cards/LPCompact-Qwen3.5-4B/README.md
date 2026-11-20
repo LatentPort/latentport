@@ -10,6 +10,8 @@ tags:
 
 # LPCompact-Qwen3.5-4B
 
+[LPCompact overview](https://latentport.com/lpcompact)
+
 **Created by [Simon P. Villani](https://au.linkedin.com/in/simon-villani).**
 
 [GitHub](https://github.com/LatentPort/latentport) | [PyPI](https://pypi.org/project/latentport/) | [Installation](https://github.com/LatentPort/latentport/blob/main/docs/installation.md) | [API](https://github.com/LatentPort/latentport/blob/main/docs/api.md)
