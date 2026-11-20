@@ -291,8 +291,9 @@ only after successful installation.
   tokens on BF16, NF4 and GGUF. LatentPort 0.4.11 adds these activations to
   new states, including snapshots from `model.live()` with its default settings.
   Each token must map to a unique embedding row in the active checkpoint.
-  Older states can still use their profile's original cache readout where
-  supported. Recapture older states to get the new activation cache.
+  For older snapshots without cached input embeddings, use the legacy
+  cache-only backends in the [profile table](../README.md#supported-transformations)
+  or recapture the right state to add the input-embedding cache.
 - `method="auto"` selects recorded tokens when available and otherwise uses
   the profile's cache-only method.
 

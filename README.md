@@ -120,23 +120,27 @@ boundaries.
 
 For compaction, pass the base model ID to `lp.load_model()`. The runtime matches
 the selector to the snapshot. For combination, pass an LPCombine profile ID to
-`lp.load_model()` and use two snapshots from the same model and runtime. All six
-profiles support retained-token replay with BF16, NF4 and GGUF. Cache-only replay
-(`method="cache"`) depends on the profile and backend.
+`lp.load_model()` and use two snapshots from the same model and runtime.
 
-| Base model ID | LPCompact selector | LPCombine profile ID | LPCombine cache-only backends |
-| --- | --- | --- | --- |
-| `Qwen/Qwen3.5-4B` | [LPCompact-Qwen3.5-4B](https://huggingface.co/latentport/LPCompact-Qwen3.5-4B) | [`latentport/LPCombine-Qwen3.5-4B`](https://huggingface.co/latentport/LPCombine-Qwen3.5-4B) | BF16, NF4 |
-| `Qwen/Qwen3.5-9B` | [LPCompact-Qwen3.5-9B](https://huggingface.co/latentport/LPCompact-Qwen3.5-9B) | [`latentport/LPCombine-Qwen3.5-9B`](https://huggingface.co/latentport/LPCombine-Qwen3.5-9B) | BF16, NF4 |
-| `Qwen/Qwen3.8-27B` | [LPCompact-Qwen3.8-27B](https://huggingface.co/latentport/LPCompact-Qwen3.8-27B) | [`latentport/LPCombine-Qwen3.8-27b`](https://huggingface.co/latentport/LPCombine-Qwen3.8-27b) | NF4 |
-| `Qwen/Qwen3.8-Flash-Next` | [LPCompact-Qwen3.8-Flash-Next](https://huggingface.co/latentport/LPCompact-Qwen3.8-Flash-Next) | [`latentport/LPCombine-Qwen3.8-Flash-Next`](https://huggingface.co/latentport/LPCombine-Qwen3.8-Flash-Next) | BF16 |
-| `google/gemma-4-31B-it` | [LPCompact-Gemma-4-31B-it](https://huggingface.co/latentport/LPCompact-Gemma-4-31B-it) | [`latentport/LPCombine-Gemma-4-31B-it`](https://huggingface.co/latentport/LPCombine-Gemma-4-31B-it) | BF16 |
-| `Qwen/Qwen3-14B` | [LPCompact-Qwen3-14B](https://huggingface.co/latentport/LPCompact-Qwen3-14B) | [`latentport/LPCombine-Qwen3-14B`](https://huggingface.co/latentport/LPCombine-Qwen3-14B) | BF16 |
-| `Qwen/Qwen3.6-35B-A3B` | [LPCompact-Qwen3.6-35B-A3B](https://huggingface.co/latentport/LPCompact-Qwen3.6-35B-A3B) (BF16, NF4, GGUF) | — | — |
+| Base model ID | LPCompact selector | LPCompact backends | LPCombine profile ID | LPCombine backends | LPCombine legacy cache-only backends |
+| --- | --- | --- | --- | --- | --- |
+| `Qwen/Qwen3.5-4B` | [LPCompact-Qwen3.5-4B](https://huggingface.co/latentport/LPCompact-Qwen3.5-4B) | BF16, NF4, GGUF | [`latentport/LPCombine-Qwen3.5-4B`](https://huggingface.co/latentport/LPCombine-Qwen3.5-4B) | BF16, NF4, GGUF | BF16, NF4 |
+| `Qwen/Qwen3.5-9B` | [LPCompact-Qwen3.5-9B](https://huggingface.co/latentport/LPCompact-Qwen3.5-9B) | BF16, NF4, GGUF | [`latentport/LPCombine-Qwen3.5-9B`](https://huggingface.co/latentport/LPCombine-Qwen3.5-9B) | BF16, NF4, GGUF | BF16, NF4 |
+| `Qwen/Qwen3.8-27B` | [LPCompact-Qwen3.8-27B](https://huggingface.co/latentport/LPCompact-Qwen3.8-27B) | BF16, NF4, GGUF | [`latentport/LPCombine-Qwen3.8-27b`](https://huggingface.co/latentport/LPCombine-Qwen3.8-27b) | BF16, NF4, GGUF | NF4 |
+| `Qwen/Qwen3.8-Flash-Next` | [LPCompact-Qwen3.8-Flash-Next](https://huggingface.co/latentport/LPCompact-Qwen3.8-Flash-Next) | BF16, NF4, GGUF | [`latentport/LPCombine-Qwen3.8-Flash-Next`](https://huggingface.co/latentport/LPCombine-Qwen3.8-Flash-Next) | BF16, NF4, GGUF | BF16 |
+| `google/gemma-4-31B-it` | [LPCompact-Gemma-4-31B-it](https://huggingface.co/latentport/LPCompact-Gemma-4-31B-it) | BF16, NF4, GGUF | [`latentport/LPCombine-Gemma-4-31B-it`](https://huggingface.co/latentport/LPCombine-Gemma-4-31B-it) | BF16, NF4, GGUF | BF16 |
+| `Qwen/Qwen3-14B` | [LPCompact-Qwen3-14B](https://huggingface.co/latentport/LPCompact-Qwen3-14B) | BF16, NF4, GGUF | [`latentport/LPCombine-Qwen3-14B`](https://huggingface.co/latentport/LPCombine-Qwen3-14B) | BF16, NF4, GGUF | BF16 |
+| `Qwen/Qwen3.6-35B-A3B` | [LPCompact-Qwen3.6-35B-A3B](https://huggingface.co/latentport/LPCompact-Qwen3.6-35B-A3B) | BF16, NF4, GGUF | — | — | — |
+
+All LPCombine backends support replay from retained token IDs or from input
+embeddings captured in newer snapshots. The legacy cache-only column applies to
+older snapshots that lack the input-embedding cache.
 
 For a standalone GGUF model, pass the file as `model_path`. For split
 checkpoints, keep the shards together and pass the first file. Runtime
-requirements depend on the model and operation.
+requirements depend on the model and operation. LPCompact checks exact weight
+identity and requires `allow_unqualified=True` for compatible files outside its
+qualification catalog.
 [Compaction compatibility](docs/compaction.md#supported-weights) · [Combination API](docs/api.md#combine)
 
 ## Validation and performance
